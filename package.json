@@ -1,0 +1,19 @@
+{
+  "name": "space-dodger",
+  "version": "1.1.0",
+  "private": true,
+  "scripts": {
+    "prepare:web": "node scripts/copy-p5.js",
+    "android:add": "npm run prepare:web && npx cap add android",
+    "android:sync": "npm run prepare:web && npx cap sync android",
+    "android:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "p5": "2.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}
