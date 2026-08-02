@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm install
         
+      - name: Copy p5 library
+        run: node copy-p5.js
+        
       - name: Prepare web assets
         run: |
           mkdir -p www
