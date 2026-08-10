@@ -1,28 +1,28 @@
 // ================================================================
 // SPACE DODGER — GALACTIC CAMPAIGN
-// COMPLETE MOBILE-FIRST REBUILD
-// p5.js single-file sketch.js
+// POLISHED MOBILE EDITION
+// Complete single-file p5.js sketch.js
 // ================================================================
+
 
 // ================================================================
 // GAME STATE
 // ================================================================
 
 let sdState = "HOME";
-// HOME, LEVELS, ARCHIVE, ABOUT, SETTINGS,
-// PLAYING, PAUSED, GAMEOVER, LEVELUP, RATING
+// HOME, LEVELS, ARCHIVE, ABOUT, SETTINGS, RATING,
+// PLAYING, PAUSED, GAMEOVER, LEVELUP
 
 let sdShip = null;
 
 let sdBullets = [];
 let sdAliens = [];
-let sdParticles = [];
-let sdPowerUps = [];
 let sdEnemyShots = [];
+let sdPowerUps = [];
+let sdParticles = [];
 let sdStars = [];
 
 let sdBoss = null;
-let sdPortal = null;
 
 let sdCurrentLevel = 1;
 let sdUnlockedLevel = 1;
@@ -42,9 +42,6 @@ let sdLastShot = 0;
 
 let sdLevelUpStart = 0;
 
-let sdGalaxy = 0;
-let sdGalaxyEnd = 0;
-
 let sdBossActive = false;
 let sdBossDefeated = false;
 
@@ -52,8 +49,6 @@ let sdSound = true;
 let sdControlsSwapped = false;
 
 let sdAudio = null;
-let sdBossMusicTimer = null;
-let sdBossMusicOn = false;
 
 let sdShake = 0;
 
@@ -64,16 +59,25 @@ let sdArchiveTarget = 0;
 let sdArchiveDragging = false;
 let sdArchiveLastY = 0;
 
-let sdTouchStartY = 0;
 let sdTouchStartX = 0;
+let sdTouchStartY = 0;
 
 let sdPauseStarted = 0;
 
 let sdSafeBottom = 110;
 
+let sdPowerReadyAt = 0;
+
+let sdMenuPressed = -1;
+let sdMenuPressTime = 0;
+
+
+// ================================================================
+// CONTROLS
+// ================================================================
+
 let sdJoystick = {
   active: false,
-  id: null,
   baseX: 90,
   baseY: 0,
   knobX: 90,
@@ -95,17 +99,15 @@ let sdPowerButton = {
 
 let sdPauseButton = {
   x: 38,
-  y: 60,
+  y: 52,
   radius: 23
 };
 
 let sdHomeButton = {
   x: 0,
-  y: 60,
+  y: 52,
   radius: 23
 };
-
-let sdPowerReadyAt = 0;
 
 
 // ================================================================
@@ -153,6 +155,15 @@ function sdDifficulty(level) {
   return 1 + (level - 1) * 0.055;
 }
 
+function sdIsBossLevel(level) {
+  return (
+    level === 5 ||
+    level === 10 ||
+    level === 15 ||
+    level === 20
+  );
+}
+
 
 // ================================================================
 // SHIP ARCHIVE
@@ -163,9 +174,9 @@ const SD_SHIPS = [
   {
     name: "NOVA SCOUT",
     unlock: 1,
-    body: "#10204a",
-    edge: "#00eaff",
-    core: "#ffffff",
+    body: "#10284b",
+    edge: "#00d9ff",
+    core: "#eaffff",
     power: "BALANCED",
     desc: "Balanced weapons and movement."
   },
@@ -173,88 +184,88 @@ const SD_SHIPS = [
   {
     name: "SOLAR FANG",
     unlock: 3,
-    body: "#5b2410",
+    body: "#54210e",
     edge: "#ff8a00",
-    core: "#ffe066",
+    core: "#ffe28a",
     power: "BURN SHOT",
-    desc: "Shots ignite aliens for extra damage."
+    desc: "Shots deal increased damage."
   },
 
   {
     name: "NEBULA WING",
     unlock: 5,
-    body: "#32105b",
-    edge: "#c66cff",
-    core: "#ffffff",
+    body: "#35114f",
+    edge: "#c46cff",
+    core: "#f5eaff",
     power: "GRAVITY PULSE",
-    desc: "Nearby aliens are slowed."
+    desc: "Slows nearby enemies."
   },
 
   {
     name: "CRYO HAWK",
     unlock: 7,
-    body: "#103c60",
-    edge: "#7ee8ff",
-    core: "#dfffff",
+    body: "#103c5b",
+    edge: "#7ee9ff",
+    core: "#efffff",
     power: "TIME FREEZE",
-    desc: "Enemies move much slower."
+    desc: "Greatly slows enemy movement."
   },
 
   {
     name: "VOID SPEAR",
     unlock: 9,
-    body: "#251033",
-    edge: "#ff4ddd",
+    body: "#28102f",
+    edge: "#ff55d5",
     core: "#ffffff",
     power: "PHASE DODGE",
-    desc: "Chance to phase through attacks."
+    desc: "Temporary damage immunity."
   },
 
   {
     name: "DRAGON BANE",
     unlock: 10,
-    body: "#5c0715",
-    edge: "#ff1744",
-    core: "#ffe600",
+    body: "#550915",
+    edge: "#ff3455",
+    core: "#ffe26a",
     power: "DRAGON RAGE",
-    desc: "Extra damage against the boss."
+    desc: "Massive boss damage bonus."
   },
 
   {
     name: "QUANTUM EDGE",
     unlock: 12,
-    body: "#063f45",
-    edge: "#00ffd5",
-    core: "#ffffff",
+    body: "#073d43",
+    edge: "#00e0c0",
+    core: "#efffff",
     power: "QUANTUM DASH",
-    desc: "Faster movement and rapid fire."
+    desc: "Fast movement and rapid fire."
   },
 
   {
     name: "STAR PALADIN",
     unlock: 15,
-    body: "#55490a",
-    edge: "#fff176",
+    body: "#50450a",
+    edge: "#ffe45c",
     core: "#ffffff",
     power: "HOLY SHIELD",
-    desc: "Automatic protective shield."
+    desc: "Temporary protective shield."
   },
 
   {
     name: "GALACTIC TITAN",
     unlock: 18,
-    body: "#431c58",
-    edge: "#ff78ff",
-    core: "#ffffaa",
+    body: "#421b56",
+    edge: "#ed72ff",
+    core: "#ffffbb",
     power: "TITAN CORE",
-    desc: "Huge shots and increased damage."
+    desc: "Huge shots and high damage."
   },
 
   {
     name: "MULTIVERSE KING",
     unlock: 20,
-    body: "#5a3f00",
-    edge: "#ffd700",
+    body: "#523b00",
+    edge: "#ffd43b",
     core: "#ffffff",
     power: "REALITY BREAK",
     desc: "Extreme firepower and shield."
@@ -299,12 +310,12 @@ function setup() {
 
   createCanvas(windowWidth, windowHeight);
 
+  pixelDensity(min(2, window.devicePixelRatio || 1));
+
   textFont("Arial");
 
   sdLoad();
-
   sdCreateStars();
-
   sdUpdateSafeArea();
 
   sdShip = new SDShip();
@@ -322,8 +333,16 @@ function sdLoad() {
   try {
 
     let raw = localStorage.getItem(
-      "spaceDodgerSaveV4"
+      "spaceDodgerSaveV5"
     );
+
+    if (!raw) {
+
+      // Backward compatibility
+      raw = localStorage.getItem(
+        "spaceDodgerSaveV4"
+      );
+    }
 
     if (!raw) return;
 
@@ -350,6 +369,8 @@ function sdLoad() {
 
     sdUnlockedLevel = 1;
     sdSelectedShip = 0;
+    sdSound = true;
+    sdControlsSwapped = false;
   }
 }
 
@@ -359,7 +380,7 @@ function sdSave() {
   try {
 
     localStorage.setItem(
-      "spaceDodgerSaveV4",
+      "spaceDodgerSaveV5",
       JSON.stringify({
         unlockedLevel: sdUnlockedLevel,
         selectedShip: sdSelectedShip,
@@ -378,32 +399,13 @@ function sdSave() {
 
 function sdUpdateSafeArea() {
 
-  /*
-    The bottom of a mobile WebView may be partially occupied
-    by Android gesture/navigation UI.
-
-    Keep all interactive controls safely above that area.
-  */
-
   sdSafeBottom = constrain(
     max(105, height * 0.13),
     105,
-    145
+    150
   );
 
-  sdJoystick.baseY =
-    height - sdSafeBottom;
-
-  sdFire.y =
-    height - sdSafeBottom;
-
-  sdPowerButton.y =
-    height - sdSafeBottom;
-
-  sdHomeButton.y =
-    height - 52;
-
-  sdPauseButton.y = 52;
+  sdResetControls();
 }
 
 
@@ -414,7 +416,6 @@ function sdUpdateSafeArea() {
 function draw() {
 
   sdDrawBackground();
-
   sdDrawStars();
 
   if (sdState === "HOME") {
@@ -479,33 +480,12 @@ function sdDrawBackground() {
 
   if (sdBossActive) {
 
-    let pulse =
-      sin(frameCount * 0.05) * 5;
-
-    background(
-      18 + pulse,
-      2,
-      10
-    );
+    background(17, 3, 9);
 
     return;
   }
 
-  if (sdGalaxy === 1) {
-    background(25, 3, 18);
-  }
-
-  else if (sdGalaxy === 2) {
-    background(3, 10, 30);
-  }
-
-  else if (sdGalaxy === 3) {
-    background(0, 22, 15);
-  }
-
-  else {
-    background(2, 5, 17);
-  }
+  background(2, 6, 17);
 }
 
 
@@ -517,14 +497,14 @@ function sdCreateStars() {
 
   sdStars = [];
 
-  for (let i = 0; i < 150; i++) {
+  for (let i = 0; i < 145; i++) {
 
     sdStars.push({
       x: random(width),
       y: random(height),
-      s: random(1, 3),
-      speed: random(0.2, 1.1),
-      phase: random(TWO_PI)
+      size: random(0.8, 2.5),
+      speed: random(0.15, 0.9),
+      alpha: random(90, 210)
     });
   }
 }
@@ -536,79 +516,28 @@ function sdDrawStars() {
 
   for (let s of sdStars) {
 
-    s.phase += 0.025;
-
     if (sdState === "PLAYING") {
+
       s.y += s.speed;
+
+      if (s.y > height) {
+
+        s.y = -5;
+        s.x = random(width);
+      }
     }
 
-    if (s.y > height) {
-      s.y = 0;
-      s.x = random(width);
-    }
-
-    let alpha =
-      130 +
-      sin(s.phase) * 90;
-
-    if (sdBossActive) {
-
-      fill(
-        255,
-        60,
-        60,
-        alpha
-      );
-
-    }
-
-    else if (sdGalaxy === 1) {
-
-      fill(
-        255,
-        80,
-        120,
-        alpha
-      );
-
-    }
-
-    else if (sdGalaxy === 2) {
-
-      fill(
-        80,
-        190,
-        255,
-        alpha
-      );
-
-    }
-
-    else if (sdGalaxy === 3) {
-
-      fill(
-        80,
-        255,
-        170,
-        alpha
-      );
-
-    }
-
-    else {
-
-      fill(
-        255,
-        255,
-        255,
-        alpha
-      );
-    }
+    fill(
+      185,
+      220,
+      255,
+      s.alpha
+    );
 
     circle(
       s.x,
       s.y,
-      s.s
+      s.size
     );
   }
 }
@@ -622,99 +551,125 @@ function sdDrawHome() {
 
   textAlign(CENTER, CENTER);
 
-  fill(0, 225, 255);
+  // Title
+  fill(225, 245, 255);
 
   textStyle(BOLD);
 
   textSize(
-    min(44, width * 0.105)
+    min(42, width * 0.105)
   );
 
   text(
     "SPACE DODGER",
     width / 2,
-    height * 0.15
+    height * 0.14
   );
 
-  fill(255, 220, 60);
+  // Small accent
+  fill(130, 190, 215);
 
-  textSize(15);
+  textStyle(NORMAL);
+
+  textSize(12);
 
   text(
     "GALACTIC CAMPAIGN",
     width / 2,
-    height * 0.205
+    height * 0.195
   );
 
-  sdMenuButton(
-    "▶  PLAY",
-    height * 0.34
-  );
+  let buttons = [
+    ["PLAY", height * 0.32],
+    ["SHIP ARCHIVE", height * 0.43],
+    ["ABOUT", height * 0.54],
+    ["SETTINGS", height * 0.65],
+    ["RATE US", height * 0.76]
+  ];
 
-  sdMenuButton(
-    "🚀  ARCHIVE",
-    height * 0.45
-  );
+  for (let i = 0; i < buttons.length; i++) {
 
-  sdMenuButton(
-    "ℹ  ABOUT",
-    height * 0.56
-  );
+    sdMenuButton(
+      buttons[i][0],
+      buttons[i][1],
+      i
+    );
+  }
 
-  sdMenuButton(
-    "⚙  SETTINGS",
-    height * 0.67
-  );
+  fill(135);
 
-  sdMenuButton(
-    "★  RATE US",
-    height * 0.78
-  );
-
-  fill(180);
-
-  textStyle(NORMAL);
-
-  textSize(13);
+  textSize(11);
 
   text(
-    "Highest Level Unlocked: " +
+    "LEVEL " +
     sdUnlockedLevel +
-    " / 20",
+    " / " +
+    SD_TOTAL_LEVELS +
+    " UNLOCKED",
     width / 2,
-    height - sdSafeBottom + 25
+    height - 27
   );
 }
 
 
-function sdMenuButton(label, y) {
+// ================================================================
+// MENU BUTTON
+// ================================================================
 
-  let w =
-    min(310, width * 0.78);
+function sdMenuButton(
+  label,
+  y,
+  index
+) {
+
+  let w = min(
+    320,
+    width * 0.80
+  );
+
+  let h = 56;
+
+  let pressed =
+    sdMenuPressed === index &&
+    millis() - sdMenuPressTime < 180;
 
   rectMode(CENTER);
 
-  stroke(0, 210, 255, 180);
+  stroke(
+    pressed
+      ? color(220, 245, 255)
+      : color(70, 150, 180)
+  );
 
-  strokeWeight(2);
+  strokeWeight(
+    pressed ? 3 : 1.5
+  );
 
-  fill(5, 20, 40, 230);
+  fill(
+    pressed
+      ? color(13, 42, 62)
+      : color(6, 20, 35)
+  );
 
   rect(
     width / 2,
     y,
     w,
-    54,
-    14
+    h,
+    12
   );
 
   noStroke();
 
-  fill(255);
+  fill(
+    pressed
+      ? 255
+      : 225
+  );
 
   textStyle(BOLD);
 
-  textSize(16);
+  textSize(15);
 
   text(
     label,
@@ -725,73 +680,82 @@ function sdMenuButton(label, y) {
 
 
 // ================================================================
-// LEVELS
+// LEVEL SELECT
 // ================================================================
 
 function sdDrawLevels() {
 
   textAlign(CENTER, CENTER);
 
-  fill(0, 225, 255);
+  fill(225, 245, 255);
 
   textStyle(BOLD);
 
-  textSize(28);
+  textSize(27);
 
   text(
     "SELECT LEVEL",
     width / 2,
-    55
+    42
   );
 
-  fill(255, 220, 60);
+  fill(120, 175, 200);
 
-  textSize(13);
+  textStyle(NORMAL);
+
+  textSize(11);
 
   text(
     "CURRENT RANK",
     width / 2,
-    88
+    69
   );
 
-  fill(255);
+  fill(255, 220, 75);
 
-  textSize(17);
+  textStyle(BOLD);
+
+  textSize(14);
 
   text(
-    "★ " +
     SD_LEVEL_TITLES[
       sdUnlockedLevel - 1
-    ] +
-    " ★",
+    ],
     width / 2,
-    112
+    91
   );
 
   let cols = 4;
-  let gap = 10;
 
-  let size =
-    min(
-      67,
-      (width - 50) / cols
-    );
+  let gap = 9;
 
-  let startY = 170;
+  let size = min(
+    66,
+    (width - 48) / cols
+  );
 
-  for (let i = 1; i <= 20; i++) {
+  let startY = 140;
 
-    let col = (i - 1) % cols;
-    let row = floor((i - 1) / cols);
+  let totalWidth =
+    cols * size +
+    (cols - 1) * gap;
 
-    let total =
-      cols * size +
-      (cols - 1) * gap;
+  let startX =
+    width / 2 -
+    totalWidth / 2 +
+    size / 2;
 
-    let startX =
-      width / 2 -
-      total / 2 +
-      size / 2;
+  for (
+    let i = 1;
+    i <= SD_TOTAL_LEVELS;
+    i++
+  ) {
+
+    let col =
+      (i - 1) % cols;
+
+    let row =
+      floor((i - 1) / cols);
 
     let x =
       startX +
@@ -799,25 +763,32 @@ function sdDrawLevels() {
 
     let y =
       startY +
-      row * (size + 17);
+      row * (size + 15);
 
     let open =
       i <= sdUnlockedLevel;
+
+    let boss =
+      sdIsBossLevel(i);
 
     rectMode(CENTER);
 
     stroke(
       open
-        ? color(0, 220, 255)
-        : color(70)
+        ? boss
+          ? color(225, 115, 80)
+          : color(65, 155, 190)
+        : color(55)
     );
 
-    strokeWeight(2);
+    strokeWeight(1.5);
 
     fill(
       open
-        ? color(5, 35, 55)
-        : color(18, 18, 24)
+        ? boss
+          ? color(52, 24, 26)
+          : color(7, 30, 48)
+        : color(17, 18, 23)
     );
 
     rect(
@@ -825,42 +796,45 @@ function sdDrawLevels() {
       y,
       size,
       size,
-      12
+      10
     );
 
     noStroke();
 
     fill(
       open
-        ? 255
-        : 100
+        ? 240
+        : 95
     );
 
     textStyle(BOLD);
 
-    textSize(18);
+    textSize(17);
 
     text(
-      open ? i : "🔒",
+      open
+        ? i
+        : "LOCK",
       x,
-      y - 4
+      y - 5
     );
 
     if (open) {
 
-      fill(150, 225, 255);
+      fill(
+        boss
+          ? color(255, 145, 100)
+          : color(115, 185, 210)
+      );
 
-      textSize(9);
+      textSize(8);
 
       text(
-        i === 5 ||
-        i === 10 ||
-        i === 15 ||
-        i === 20
+        boss
           ? "BOSS"
           : "LEVEL",
         x,
-        y + 20
+        y + 19
       );
     }
   }
@@ -877,57 +851,58 @@ function sdDrawArchive() {
 
   textAlign(CENTER, CENTER);
 
-  fill(0, 225, 255);
+  fill(225, 245, 255);
 
   textStyle(BOLD);
 
-  textSize(27);
+  textSize(25);
 
   text(
-    "SPACE SHIP ARCHIVE",
+    "SHIP ARCHIVE",
     width / 2,
-    38
+    35
   );
 
-  fill(190);
+  fill(120, 175, 200);
 
   textStyle(NORMAL);
 
-  textSize(13);
+  textSize(11);
 
   text(
-    "Swipe up / down to browse ships",
+    "SWIPE TO BROWSE • TAP TO SELECT",
     width / 2,
-    68
+    61
   );
 
   let cardW =
-    min(350, width * 0.88);
+    min(355, width * 0.89);
 
-  let cardH = 142;
+  let cardH = 145;
 
-  let gap = 16;
+  let gap = 15;
 
-  let top = 105;
+  let top = 100;
 
-  let contentHeight =
-    SD_SHIPS.length *
-    (cardH + gap);
-
-  let viewportTop = 90;
+  let viewportTop = 83;
 
   let viewportBottom =
-    height - sdSafeBottom - 35;
+    height - sdSafeBottom - 32;
 
   let viewportHeight =
     viewportBottom -
     viewportTop;
 
+  let contentHeight =
+    SD_SHIPS.length *
+    (cardH + gap);
+
   let maxScroll =
     max(
       0,
       contentHeight -
-      viewportHeight
+      viewportHeight +
+      20
     );
 
   sdArchiveTarget =
@@ -937,11 +912,12 @@ function sdDrawArchive() {
       maxScroll
     );
 
-  sdArchiveScroll = lerp(
-    sdArchiveScroll,
-    sdArchiveTarget,
-    0.18
-  );
+  sdArchiveScroll =
+    lerp(
+      sdArchiveScroll,
+      sdArchiveTarget,
+      0.18
+    );
 
   push();
 
@@ -969,9 +945,12 @@ function sdDrawArchive() {
       i * (cardH + gap) -
       sdArchiveScroll;
 
+    let ship =
+      SD_SHIPS[i];
+
     let unlocked =
       sdUnlockedLevel >=
-      SD_SHIPS[i].unlock;
+      ship.unlock;
 
     let selected =
       sdSelectedShip === i;
@@ -980,90 +959,96 @@ function sdDrawArchive() {
 
     stroke(
       selected
-        ? color(255, 220, 40)
+        ? color(255, 220, 65)
         : unlocked
-          ? color(SD_SHIPS[i].edge)
-          : color(70)
+          ? color(70, 155, 185)
+          : color(60)
     );
 
     strokeWeight(
-      selected ? 3 : 2
+      selected ? 2.5 : 1.3
     );
 
-    fill(5, 15, 30);
+    fill(
+      unlocked
+        ? color(6, 19, 32)
+        : color(16, 17, 23)
+    );
 
     rect(
       width / 2,
       y,
       cardW,
       cardH,
-      15
+      14
     );
 
     if (unlocked) {
 
       sdDrawArchiveShip(
-        width / 2 - cardW * 0.30,
-        y - 3,
+        width / 2 -
+        cardW * 0.31,
+        y,
         i,
-        1.0
+        0.85
       );
-
-      noStroke();
 
       textAlign(LEFT, CENTER);
 
-      fill(255);
+      fill(245);
 
       textStyle(BOLD);
 
-      textSize(14);
+      textSize(13);
 
       text(
-        SD_SHIPS[i].name,
-        width / 2 - cardW * 0.05,
-        y - 42
+        ship.name,
+        width / 2 -
+        cardW * 0.05,
+        y - 40
       );
 
-      fill(255, 220, 60);
-
-      textSize(12);
-
-      text(
-        "⚡ " +
-        SD_SHIPS[i].power,
-        width / 2 - cardW * 0.05,
-        y - 15
-      );
-
-      fill(180);
-
-      textStyle(NORMAL);
+      fill(255, 215, 70);
 
       textSize(10);
 
       text(
-        SD_SHIPS[i].desc,
-        width / 2 - cardW * 0.05,
+        ship.power,
+        width / 2 -
+        cardW * 0.05,
+        y - 14
+      );
+
+      fill(165);
+
+      textStyle(NORMAL);
+
+      textSize(9);
+
+      text(
+        ship.desc,
+        width / 2 -
+        cardW * 0.05,
         y + 10
       );
 
       fill(
         selected
-          ? color(255, 220, 40)
-          : color(100, 220, 255)
+          ? color(255, 220, 65)
+          : color(95, 185, 215)
       );
 
       textStyle(BOLD);
 
-      textSize(11);
+      textSize(9);
 
       text(
         selected
           ? "SELECTED"
           : "TAP TO SELECT",
-        width / 2 - cardW * 0.05,
-        y + 39
+        width / 2 -
+        cardW * 0.05,
+        y + 38
       );
 
     } else {
@@ -1072,24 +1057,22 @@ function sdDrawArchive() {
         width / 2,
         y - 5,
         i,
-        0.72
+        0.65
       );
-
-      noStroke();
-
-      fill(160);
 
       textAlign(CENTER, CENTER);
 
+      fill(135);
+
       textStyle(BOLD);
 
-      textSize(12);
+      textSize(10);
 
       text(
-        "🔒  UNLOCK AT LEVEL " +
-        SD_SHIPS[i].unlock,
+        "LOCKED • LEVEL " +
+        ship.unlock,
         width / 2,
-        y + 45
+        y + 48
       );
     }
   }
@@ -1097,8 +1080,6 @@ function sdDrawArchive() {
   drawingContext.restore();
 
   pop();
-
-  // Scroll indicators
 
   if (maxScroll > 0) {
 
@@ -1110,10 +1091,9 @@ function sdDrawArchive() {
           contentHeight)
       );
 
-    let barX = width - 12;
-
     let barTravel =
-      viewportHeight - barH;
+      viewportHeight -
+      barH;
 
     let barY =
       viewportTop +
@@ -1123,20 +1103,29 @@ function sdDrawArchive() {
 
     noStroke();
 
-    fill(0, 220, 255, 100);
+    fill(
+      80,
+      160,
+      190,
+      130
+    );
 
     rect(
-      barX,
+      width - 9,
       barY,
-      5,
+      4,
       barH,
-      3
+      2
     );
   }
 
   sdHomeBottomButton();
 }
 
+
+// ================================================================
+// ARCHIVE SHIP DRAW
+// ================================================================
 
 function sdDrawArchiveShip(
   x,
@@ -1145,7 +1134,8 @@ function sdDrawArchiveShip(
   scaleValue
 ) {
 
-  let d = SD_SHIPS[index];
+  let d =
+    SD_SHIPS[index];
 
   push();
 
@@ -1155,20 +1145,22 @@ function sdDrawArchiveShip(
 
   stroke(d.edge);
 
-  strokeWeight(3);
+  strokeWeight(2.5);
 
   fill(d.body);
 
   beginShape();
 
   vertex(0, -42);
-  vertex(-17, -8);
-  vertex(-42, 25);
-  vertex(-12, 18);
-  vertex(0, 32);
-  vertex(12, 18);
-  vertex(42, 25);
-  vertex(17, -8);
+  vertex(-13, -17);
+  vertex(-40, -5);
+  vertex(-24, 11);
+  vertex(-14, 27);
+  vertex(0, 18);
+  vertex(14, 27);
+  vertex(24, 11);
+  vertex(40, -5);
+  vertex(13, -17);
 
   endShape(CLOSE);
 
@@ -1178,8 +1170,8 @@ function sdDrawArchiveShip(
 
   ellipse(
     0,
-    -5,
-    13,
+    -4,
+    12,
     20
   );
 
@@ -1187,11 +1179,11 @@ function sdDrawArchiveShip(
 
   triangle(
     -7,
-    24,
+    25,
     7,
-    24,
+    25,
     0,
-    39
+    38
   );
 
   pop();
@@ -1206,64 +1198,70 @@ function sdDrawAbout() {
 
   textAlign(CENTER, CENTER);
 
-  fill(0, 225, 255);
+  fill(225, 245, 255);
 
   textStyle(BOLD);
 
-  textSize(31);
+  textSize(30);
 
   text(
     "ABOUT",
     width / 2,
-    height * 0.20
+    height * 0.18
   );
 
-  fill(255);
-
-  textStyle(NORMAL);
-
-  textSize(17);
-
-  text(
-    "Developed by",
-    width / 2,
-    height * 0.38
-  );
-
-  fill(255, 220, 60);
-
-  textStyle(BOLD);
-
-  textSize(
-    min(24, width * 0.06)
-  );
-
-  text(
-    "Aazad S Rana",
-    width / 2,
-    height * 0.46
-  );
-
-  fill(180);
+  fill(170);
 
   textStyle(NORMAL);
 
   textSize(14);
 
   text(
-    "Space Dodger • Galactic Campaign",
+    "Developed by",
     width / 2,
-    height * 0.55
+    height * 0.34
   );
 
-  fill(150);
+  fill(255, 220, 70);
+
+  textStyle(BOLD);
+
+  textSize(
+    min(23, width * 0.06)
+  );
+
+  text(
+    "Aazad S Rana",
+    width / 2,
+    height * 0.42
+  );
+
+  fill(175);
+
+  textStyle(NORMAL);
 
   textSize(12);
 
   text(
+    "Space Dodger • Galactic Campaign",
+    width / 2,
+    height * 0.51
+  );
+
+  fill(125);
+
+  textSize(11);
+
+  text(
     "20 levels • Alien invasion • Boss battles",
     width / 2,
-    height * 0.61
+    height * 0.57
+  );
+
+  text(
+    "Built for mobile arcade gameplay.",
+    width / 2,
+    height * 0.62
   );
 
   sdHomeBottomButton();
@@ -1278,16 +1276,16 @@ function sdDrawSettings() {
 
   textAlign(CENTER, CENTER);
 
-  fill(0, 225, 255);
+  fill(225, 245, 255);
 
   textStyle(BOLD);
 
-  textSize(30);
+  textSize(29);
 
   text(
     "SETTINGS",
     width / 2,
-    height * 0.16
+    height * 0.15
   );
 
   sdSettingBox(
@@ -1295,23 +1293,25 @@ function sdDrawSettings() {
     sdControlsSwapped
       ? "FIRE LEFT  •  MOVE RIGHT"
       : "MOVE LEFT  •  FIRE RIGHT",
-    height * 0.34
+    height * 0.33,
+    0
   );
 
   sdSettingBox(
     "SOUND",
     sdSound ? "ON" : "OFF",
-    height * 0.50
+    height * 0.49,
+    1
   );
 
-  fill(170);
+  fill(125);
 
   textStyle(NORMAL);
 
-  textSize(13);
+  textSize(11);
 
   text(
-    "Tap an option to change it",
+    "Tap a panel to change its setting.",
     width / 2,
     height * 0.63
   );
@@ -1323,35 +1323,40 @@ function sdDrawSettings() {
 function sdSettingBox(
   title,
   value,
-  y
+  y,
+  index
 ) {
 
   let w =
-    min(330, width * 0.84);
+    min(340, width * 0.84);
 
   rectMode(CENTER);
 
-  stroke(0, 210, 255);
+  stroke(
+    sdMenuPressed === index
+      ? color(220, 245, 255)
+      : color(65, 150, 180)
+  );
 
-  strokeWeight(2);
+  strokeWeight(1.6);
 
-  fill(5, 25, 45);
+  fill(6, 22, 37);
 
   rect(
     width / 2,
     y,
     w,
     82,
-    15
+    14
   );
 
   noStroke();
 
-  fill(180);
+  fill(145);
 
   textStyle(BOLD);
 
-  textSize(13);
+  textSize(11);
 
   text(
     title,
@@ -1359,14 +1364,14 @@ function sdSettingBox(
     y - 18
   );
 
-  fill(255);
+  fill(245);
 
-  textSize(16);
+  textSize(15);
 
   text(
     value,
     width / 2,
-    y + 15
+    y + 14
   );
 }
 
@@ -1379,80 +1384,83 @@ function sdDrawRating() {
 
   textAlign(CENTER, CENTER);
 
-  fill(0, 225, 255);
+  fill(225, 245, 255);
 
   textStyle(BOLD);
 
-  textSize(29);
+  textSize(27);
 
   text(
     "RATE SPACE DODGER",
     width / 2,
-    height * 0.25
+    height * 0.24
   );
 
-  fill(180);
+  fill(155);
 
   textStyle(NORMAL);
 
-  textSize(14);
+  textSize(13);
 
   text(
-    "How was your experience?",
+    "HOW WAS YOUR EXPERIENCE?",
     width / 2,
-    height * 0.33
+    height * 0.32
   );
 
-  let starGap =
-    min(55, width * 0.13);
+  let gap =
+    min(53, width * 0.13);
 
   let total =
-    starGap * 4;
+    gap * 4;
 
-  for (let i = 1; i <= 5; i++) {
+  for (
+    let i = 1;
+    i <= 5;
+    i++
+  ) {
 
     let x =
       width / 2 -
       total / 2 +
-      (i - 1) * starGap;
+      (i - 1) * gap;
 
     fill(
       i <= sdRating
-        ? color(255, 215, 40)
-        : color(70)
+        ? color(255, 215, 50)
+        : color(65)
     );
 
-    textSize(42);
+    textSize(39);
 
     text(
       "★",
       x,
-      height * 0.46
+      height * 0.45
     );
   }
 
-  fill(255);
+  fill(245);
 
   textStyle(BOLD);
 
-  textSize(18);
+  textSize(16);
 
   text(
-    sdRating +
-    " / 5",
+    sdRating + " / 5",
     width / 2,
-    height * 0.56
+    height * 0.55
   );
 
   sdActionButton(
     "SUBMIT",
-    height * 0.66,
+    height * 0.65,
     250
   );
 
   sdActionButton(
     "CANCEL",
-    height * 0.76,
+    height * 0.75,
     250
   );
 }
@@ -1485,52 +1493,40 @@ function sdStartLevel(level) {
       sdCurrentLevel
     );
 
-  sdLevelStart =
-    millis();
+  sdLevelStart = millis();
 
-  sdLastAlien =
-    millis();
-
-  sdLastPower =
-    millis();
-
+  sdLastAlien = millis();
+  sdLastPower = millis();
   sdLastShot = 0;
 
   sdAliens = [];
   sdBullets = [];
-  sdParticles = [];
-  sdPowerUps = [];
   sdEnemyShots = [];
+  sdPowerUps = [];
+  sdParticles = [];
 
   sdBoss = null;
   sdBossActive = false;
   sdBossDefeated = false;
 
-  sdPortal = null;
-
-  sdGalaxy = 0;
-  sdGalaxyEnd = 0;
-
-  sdShake = 0;
-
   sdResetPowers();
 
-  sdShip = new SDShip();
+  sdShip =
+    new SDShip();
 
   sdResetControls();
 
-  sdPowerReadyAt = millis() + 3000;
+  sdPowerReadyAt =
+    millis() + 3000;
 
   sdState = "PLAYING";
-
-  sdStopBossMusic();
 
   sdTone(
     350,
     700,
-    0.25,
+    0.22,
     "sine",
-    0.04
+    0.025
   );
 }
 
@@ -1544,36 +1540,39 @@ class SDShip {
   constructor() {
 
     this.x = width / 2;
-    this.y = height * 0.67;
+    this.y = height * 0.68;
 
     this.angle = -HALF_PI;
 
-    this.radius = 18;
+    this.radius = 17;
 
     this.invincibleUntil = 0;
   }
 
+
   update() {
 
-    if (this.x < -45)
-      this.x = width + 45;
+    // Screen wrapping.
+    if (this.x < -40)
+      this.x = width + 40;
 
-    if (this.x > width + 45)
-      this.x = -45;
+    if (this.x > width + 40)
+      this.x = -40;
 
-    if (this.y < -45)
-      this.y = height + 45;
+    if (this.y < -40)
+      this.y = height + 40;
 
-    if (this.y > height + 45)
-      this.y = -45;
+    if (this.y > height + 40)
+      this.y = -40;
   }
+
 
   display() {
 
     if (
       millis() <
       this.invincibleUntil &&
-      floor(millis() / 100) % 2 === 0
+      floor(millis() / 90) % 2 === 0
     ) {
       return;
     }
@@ -1585,46 +1584,11 @@ class SDShip {
 
     let scaleValue = 1;
 
-    if (
-      sdSelectedShip === 5
-    ) {
-      scaleValue = 1.12;
-    }
+    if (sdSelectedShip === 8)
+      scaleValue = 1.15;
 
-    if (
-      sdSelectedShip === 8
-    ) {
-      scaleValue = 1.25;
-    }
-
-    if (
-      sdSelectedShip === 9
-    ) {
-      scaleValue = 1.3;
-    }
-
-    let power =
-      d.power;
-
-    let edge = d.edge;
-    let body = d.body;
-    let core = d.core;
-
-    if (
-      millis() <
-      sdPowerEnds.BERSERKER
-    ) {
-      edge = "#ff1744";
-      body = "#5b0715";
-    }
-
-    if (
-      millis() <
-      sdPowerEnds.CRYO
-    ) {
-      edge = "#8cecff";
-      body = "#123b61";
-    }
+    if (sdSelectedShip === 9)
+      scaleValue = 1.2;
 
     push();
 
@@ -1639,40 +1603,38 @@ class SDShip {
 
     scale(scaleValue);
 
-    drawingContext.shadowBlur = 18;
-    drawingContext.shadowColor = edge;
+    // No heavy glow.
+    stroke(d.edge);
 
-    stroke(edge);
+    strokeWeight(2.2);
 
-    strokeWeight(2.5);
-
-    fill(body);
+    fill(d.body);
 
     beginShape();
 
-    vertex(0, -34);
-    vertex(-13, -8);
-    vertex(-32, 20);
-    vertex(-9, 13);
+    vertex(0, -32);
+    vertex(-11, -9);
+    vertex(-29, 17);
+    vertex(-9, 12);
     vertex(0, 23);
-    vertex(9, 13);
-    vertex(32, 20);
-    vertex(13, -8);
+    vertex(9, 12);
+    vertex(29, 17);
+    vertex(11, -9);
 
     endShape(CLOSE);
 
     noStroke();
 
-    fill(core);
+    fill(d.core);
 
     ellipse(
       0,
       -5,
-      10,
-      17
+      9,
+      16
     );
 
-    fill(edge);
+    fill(d.edge);
 
     triangle(
       -5,
@@ -1680,16 +1642,13 @@ class SDShip {
       5,
       17,
       0,
-      31
+      29
     );
-
-    drawingContext.shadowBlur = 0;
 
     pop();
 
-    if (
-      sdHasShield()
-    ) {
+    if (sdHasShield()) {
+
       sdDrawShield(
         this.x,
         this.y
@@ -1700,7 +1659,7 @@ class SDShip {
 
 
 // ================================================================
-// SHIP POWER LOGIC
+// SHIP POWER
 // ================================================================
 
 function sdShipPower() {
@@ -1728,25 +1687,35 @@ function sdShipDamageMultiplier() {
 
   if (
     sdShipPower() === "BURN SHOT"
-  ) mult = 1.12;
+  ) {
+    mult = 1.12;
+  }
 
   if (
     sdShipPower() === "DRAGON RAGE" &&
     sdBossActive
-  ) mult = 1.75;
+  ) {
+    mult = 1.75;
+  }
 
   if (
     sdShipPower() === "TITAN CORE"
-  ) mult = 1.65;
+  ) {
+    mult = 1.65;
+  }
 
   if (
     sdShipPower() === "REALITY BREAK"
-  ) mult = 2.1;
+  ) {
+    mult = 2.1;
+  }
 
   if (
     millis() <
     sdPowerEnds.BERSERKER
-  ) mult *= 1.55;
+  ) {
+    mult *= 1.55;
+  }
 
   return mult;
 }
@@ -1758,25 +1727,35 @@ function sdShipFireDelay() {
 
   if (
     sdShipPower() === "QUANTUM DASH"
-  ) delay = 85;
+  ) {
+    delay = 85;
+  }
 
   if (
     sdShipPower() === "TITAN CORE"
-  ) delay = 105;
+  ) {
+    delay = 105;
+  }
 
   if (
     sdShipPower() === "REALITY BREAK"
-  ) delay = 75;
+  ) {
+    delay = 75;
+  }
 
   if (
     millis() <
     sdPowerEnds.BERSERKER
-  ) delay = 70;
+  ) {
+    delay = 70;
+  }
 
   if (
     millis() <
     sdPowerEnds.CRYO
-  ) delay = 125;
+  ) {
+    delay = 125;
+  }
 
   return delay;
 }
@@ -1788,15 +1767,21 @@ function sdShipMoveSpeed() {
 
   if (
     sdShipPower() === "QUANTUM DASH"
-  ) speed *= 1.35;
+  ) {
+    speed *= 1.35;
+  }
 
   if (
     sdShipPower() === "TITAN CORE"
-  ) speed *= 0.9;
+  ) {
+    speed *= 0.9;
+  }
 
   if (
     sdShipPower() === "REALITY BREAK"
-  ) speed *= 1.2;
+  ) {
+    speed *= 1.2;
+  }
 
   return speed;
 }
@@ -1811,19 +1796,19 @@ function sdDrawShield(x, y) {
   noFill();
 
   stroke(
-    0,
-    220,
-    255,
-    170
+    70,
+    210,
+    245,
+    150
   );
 
-  strokeWeight(3);
+  strokeWeight(2);
 
   circle(
     x,
     y,
-    78 +
-    sin(frameCount * 0.1) * 5
+    66 +
+    sin(frameCount * 0.08) * 4
   );
 }
 
@@ -1850,8 +1835,6 @@ function sdRunGame() {
     sdUpdateBoss();
   }
 
-  sdUpdatePortal();
-
   sdCollideBulletsAliens();
   sdCollideShipAliens();
   sdCollideShipShots();
@@ -1877,35 +1860,24 @@ function sdRunGame() {
 function sdStartShake(amount) {
 
   sdShake =
-    max(
-      sdShake,
-      amount
-    );
+    max(sdShake, amount);
 }
 
 
 function sdUpdateShake() {
 
-  if (sdShake <= 0) return;
-
-  push();
-
-  translate(
-    random(-sdShake, sdShake),
-    random(-sdShake, sdShake)
-  );
+  if (sdShake <= 0)
+    return;
 
   sdShake *= 0.86;
 
-  if (sdShake < 0.3)
+  if (sdShake < 0.25)
     sdShake = 0;
-
-  pop();
 }
 
 
 // ================================================================
-// BULLET
+// PLAYER BULLET
 // ================================================================
 
 class SDBullet {
@@ -1925,13 +1897,16 @@ class SDBullet {
     this.power = power;
 
     this.speed =
-      11 + power * 0.8;
+      11 +
+      power * 0.8;
 
     this.radius =
-      4 + power;
+      4 +
+      power;
 
     this.life = 110;
   }
+
 
   update() {
 
@@ -1946,6 +1921,7 @@ class SDBullet {
     this.life--;
   }
 
+
   display() {
 
     let c =
@@ -1959,7 +1935,7 @@ class SDBullet {
 
     if (
       sdShipPower() === "DRAGON RAGE"
-    ) c = "#ff1744";
+    ) c = "#ff3455";
 
     if (
       sdShipPower() === "TIME FREEZE"
@@ -1967,23 +1943,25 @@ class SDBullet {
 
     if (
       sdShipPower() === "REALITY BREAK"
-    ) c = "#ffd700";
+    ) c = "#ffd84a";
 
     stroke(c);
 
     strokeWeight(
-      3 + this.power
+      2.5 +
+      this.power
     );
 
     line(
       this.x,
       this.y,
       this.x -
-      cos(this.angle) * 17,
+      cos(this.angle) * 15,
       this.y -
-      sin(this.angle) * 17
+      sin(this.angle) * 15
     );
   }
+
 
   dead() {
 
@@ -2025,14 +2003,14 @@ function sdShoot() {
     now <
     sdPowerEnds.TRINITY
   ) {
-    copies = [-24, 0, 24];
+    copies = [-22, 0, 22];
   }
 
   else if (
     now <
     sdPowerEnds.TWIN
   ) {
-    copies = [-18, 18];
+    copies = [-17, 17];
   }
 
   let angles = [
@@ -2045,9 +2023,9 @@ function sdShoot() {
   ) {
 
     angles = [
-      sdShip.angle - radians(14),
+      sdShip.angle - radians(12),
       sdShip.angle,
-      sdShip.angle + radians(14)
+      sdShip.angle + radians(12)
     ];
   }
 
@@ -2067,11 +2045,11 @@ function sdShoot() {
   ) {
 
     angles = [
-      sdShip.angle - radians(22),
-      sdShip.angle - radians(11),
+      sdShip.angle - radians(20),
+      sdShip.angle - radians(10),
       sdShip.angle,
-      sdShip.angle + radians(11),
-      sdShip.angle + radians(22)
+      sdShip.angle + radians(10),
+      sdShip.angle + radians(20)
     ];
   }
 
@@ -2079,12 +2057,16 @@ function sdShoot() {
 
     let sx =
       sdShip.x +
-      cos(sdShip.angle + HALF_PI) *
+      cos(
+        sdShip.angle + HALF_PI
+      ) *
       off;
 
     let sy =
       sdShip.y +
-      sin(sdShip.angle + HALF_PI) *
+      sin(
+        sdShip.angle + HALF_PI
+      ) *
       off;
 
     for (let a of angles) {
@@ -2092,13 +2074,10 @@ function sdShoot() {
       sdBullets.push(
         new SDBullet(
           sx +
-          cos(a) * 28,
-
+          cos(a) * 27,
           sy +
-          sin(a) * 28,
-
+          sin(a) * 27,
           a,
-
           sdShipDamageMultiplier()
         )
       );
@@ -2108,9 +2087,9 @@ function sdShoot() {
   sdTone(
     800,
     1000,
-    0.06,
+    0.05,
     "square",
-    0.018
+    0.014
   );
 }
 
@@ -2127,14 +2106,18 @@ function sdUpdateBullets() {
     i--
   ) {
 
-    sdBullets[i].update();
+    let b =
+      sdBullets[i];
 
-    if (
-      !sdBullets[i].dead()
-    ) {
-      sdBullets[i].display();
-    } else {
+    b.update();
+
+    if (b.dead()) {
+
       sdBullets.splice(i, 1);
+
+    } else {
+
+      b.display();
     }
   }
 }
@@ -2172,50 +2155,74 @@ class SDAAlien {
       floor(random(4));
 
     if (side === 0) {
+
       this.x = random(width);
-      this.y = -60;
-    }
+      this.y = -70;
 
-    else if (side === 1) {
-      this.x = width + 60;
-      this.y = random(height * 0.15, height * 0.8);
-    }
+    } else if (side === 1) {
 
-    else if (side === 2) {
+      this.x = width + 70;
+      this.y =
+        random(
+          height * 0.16,
+          height * 0.75
+        );
+
+    } else if (side === 2) {
+
       this.x = random(width);
-      this.y = -60;
-    }
+      this.y = height + 70;
 
-    else {
-      this.x = -60;
-      this.y = random(height * 0.15, height * 0.8);
+    } else {
+
+      this.x = -70;
+      this.y =
+        random(
+          height * 0.16,
+          height * 0.75
+        );
     }
 
     this.radius = 22;
-
     this.hp = 1;
 
+    if (this.type === "INTERCEPTOR") {
+      this.radius = 20;
+      this.hp = 1;
+    }
+
+    if (this.type === "HUNTER") {
+      this.radius = 24;
+      this.hp = 2;
+    }
+
     if (this.type === "HEAVY") {
-      this.radius = 31;
+      this.radius = 32;
       this.hp = 4;
     }
 
     if (this.type === "ELITE") {
-      this.radius = 27;
+      this.radius = 29;
       this.hp = 3;
     }
 
     this.speed =
-      random(1.4, 2.2) *
+      random(1.35, 2.15) *
       sdDifficulty(
         sdCurrentLevel
       );
 
-    if (this.type === "INTERCEPTOR")
+    if (
+      this.type === "INTERCEPTOR"
+    ) {
       this.speed *= 1.35;
+    }
 
-    if (this.type === "HEAVY")
+    if (
+      this.type === "HEAVY"
+    ) {
       this.speed *= 0.65;
+    }
 
     this.phase =
       random(TWO_PI);
@@ -2224,11 +2231,11 @@ class SDAAlien {
       random(TWO_PI);
 
     this.rotSpeed =
-      random(-0.04, 0.04);
+      random(-0.025, 0.025);
 
     this.lastShot =
       millis() +
-      random(1000, 3500);
+      random(1200, 3000);
   }
 
 
@@ -2245,23 +2252,26 @@ class SDAAlien {
     let angle =
       atan2(dy, dx);
 
+    let speed =
+      this.speed;
+
     if (
       sdShipPower() === "GRAVITY PULSE"
     ) {
-      this.speed *= 0.994;
+      speed *= 0.35;
     }
 
     if (
       sdShipPower() === "TIME FREEZE"
     ) {
-      this.speed *= 0.985;
+      speed *= 0.28;
     }
 
     if (
       millis() <
       sdPowerEnds.CRYO
     ) {
-      this.speed *= 0.985;
+      speed *= 0.45;
     }
 
     if (
@@ -2270,27 +2280,43 @@ class SDAAlien {
 
       angle +=
         sin(
-          frameCount * 0.04 +
+          frameCount * 0.045 +
           this.phase
         ) *
-        0.35;
+        0.55;
     }
 
     if (
-      this.type === "HEAVY"
+      this.type === "HUNTER"
     ) {
+
       angle +=
-        sin(frameCount * 0.015) *
-        0.12;
+        sin(
+          frameCount * 0.025 +
+          this.phase
+        ) *
+        0.18;
+    }
+
+    if (
+      this.type === "ELITE"
+    ) {
+
+      angle +=
+        sin(
+          frameCount * 0.035 +
+          this.phase
+        ) *
+        0.28;
     }
 
     this.x +=
       cos(angle) *
-      this.speed;
+      speed;
 
     this.y +=
       sin(angle) *
-      this.speed;
+      speed;
 
     this.rot +=
       this.rotSpeed;
@@ -2303,8 +2329,11 @@ class SDAAlien {
       if (
         millis() -
         this.lastShot >
-        2600 -
-        sdCurrentLevel * 25
+        max(
+          1500,
+          2700 -
+          sdCurrentLevel * 28
+        )
       ) {
 
         this.fire();
@@ -2330,48 +2359,14 @@ class SDAAlien {
         this.y,
         angle,
         this.type === "ELITE"
-          ? 4.3
-          : 3.1
+          ? 4.2
+          : 3.0
       )
     );
   }
 
 
   display() {
-
-    let edge =
-      "#66eaff";
-
-    let body =
-      "#173f68";
-
-    if (
-      this.type === "INTERCEPTOR"
-    ) {
-      edge = "#ff4dd2";
-      body = "#4d154e";
-    }
-
-    if (
-      this.type === "HUNTER"
-    ) {
-      edge = "#ffb13b";
-      body = "#553014";
-    }
-
-    if (
-      this.type === "HEAVY"
-    ) {
-      edge = "#ff4b4b";
-      body = "#4f1515";
-    }
-
-    if (
-      this.type === "ELITE"
-    ) {
-      edge = "#b66cff";
-      body = "#30154d";
-    }
 
     push();
 
@@ -2382,77 +2377,34 @@ class SDAAlien {
 
     rotate(this.rot);
 
-    stroke(edge);
-
-    strokeWeight(2.5);
-
-    fill(body);
-
-    beginShape();
-
     if (
       this.type === "SCOUT"
     ) {
 
-      vertex(0, -22);
-      vertex(-24, 14);
-      vertex(0, 8);
-      vertex(24, 14);
+      sdAlienScout();
 
-    }
-
-    else if (
+    } else if (
       this.type === "INTERCEPTOR"
     ) {
 
-      vertex(0, -28);
-      vertex(-32, 18);
-      vertex(-7, 10);
-      vertex(0, 24);
-      vertex(7, 10);
-      vertex(32, 18);
+      sdAlienInterceptor();
 
-    }
-
-    else if (
+    } else if (
       this.type === "HUNTER"
     ) {
 
-      vertex(0, -25);
-      vertex(-28, -4);
-      vertex(-18, 22);
-      vertex(0, 14);
-      vertex(18, 22);
-      vertex(28, -4);
+      sdAlienHunter();
 
+    } else if (
+      this.type === "HEAVY"
+    ) {
+
+      sdAlienHeavy();
+
+    } else {
+
+      sdAlienElite();
     }
-
-    else {
-
-      vertex(0, -30);
-      vertex(-30, -10);
-      vertex(-27, 22);
-      vertex(0, 14);
-      vertex(27, 22);
-      vertex(30, -10);
-    }
-
-    endShape(CLOSE);
-
-    noStroke();
-
-    fill(
-      this.type === "ELITE"
-        ? "#ffddff"
-        : "#ffffff"
-    );
-
-    ellipse(
-      0,
-      -3,
-      9,
-      13
-    );
 
     pop();
   }
@@ -2461,12 +2413,237 @@ class SDAAlien {
   dead() {
 
     return (
-      this.x < -150 ||
-      this.x > width + 150 ||
-      this.y < -150 ||
-      this.y > height + 150
+      this.x < -160 ||
+      this.x > width + 160 ||
+      this.y < -160 ||
+      this.y > height + 160
     );
   }
+}
+
+
+// ================================================================
+// ALIEN VISUALS
+// Proper alien silhouettes — no generic triangles.
+// ================================================================
+
+function sdAlienScout() {
+
+  // Classic flying-saucer alien craft.
+
+  stroke("#66dff5");
+  strokeWeight(2);
+
+  fill("#183f58");
+
+  ellipse(
+    0,
+    5,
+    48,
+    20
+  );
+
+  ellipse(
+    0,
+    -2,
+    28,
+    18
+  );
+
+  noStroke();
+
+  fill("#bdfaff");
+
+  ellipse(
+    0,
+    -3,
+    10,
+    7
+  );
+
+  fill("#4de5ff");
+
+  circle(-15, 6, 4);
+  circle(0, 9, 4);
+  circle(15, 6, 4);
+}
+
+
+function sdAlienInterceptor() {
+
+  // Fast insect / manta-like alien craft.
+
+  stroke("#f05bcf");
+  strokeWeight(2);
+
+  fill("#42143f");
+
+  beginShape();
+
+  vertex(0, -27);
+  vertex(13, -10);
+  vertex(34, -5);
+  vertex(20, 7);
+  vertex(11, 24);
+  vertex(0, 13);
+  vertex(-11, 24);
+  vertex(-20, 7);
+  vertex(-34, -5);
+  vertex(-13, -10);
+
+  endShape(CLOSE);
+
+  noStroke();
+
+  fill("#ffd9f7");
+
+  ellipse(
+    0,
+    -2,
+    9,
+    14
+  );
+
+  fill("#ff6de0");
+
+  circle(-22, -4, 5);
+  circle(22, -4, 5);
+}
+
+
+function sdAlienHunter() {
+
+  // Organic predator-like ship.
+
+  stroke("#ffad43");
+  strokeWeight(2.2);
+
+  fill("#572b14");
+
+  beginShape();
+
+  vertex(0, -30);
+  vertex(12, -18);
+  vertex(27, -20);
+  vertex(22, -4);
+  vertex(31, 16);
+  vertex(10, 11);
+  vertex(0, 27);
+  vertex(-10, 11);
+  vertex(-31, 16);
+  vertex(-22, -4);
+  vertex(-27, -20);
+  vertex(-12, -18);
+
+  endShape(CLOSE);
+
+  noStroke();
+
+  fill("#fff0c7");
+
+  ellipse(
+    0,
+    -2,
+    13,
+    18
+  );
+
+  fill("#ff9c38");
+
+  circle(-18, -8, 4);
+  circle(18, -8, 4);
+}
+
+
+function sdAlienHeavy() {
+
+  // Armored alien cruiser.
+
+  stroke("#ff5757");
+  strokeWeight(2.5);
+
+  fill("#4b1518");
+
+  beginShape();
+
+  vertex(0, -34);
+  vertex(19, -24);
+  vertex(36, -7);
+  vertex(31, 20);
+  vertex(14, 30);
+  vertex(0, 24);
+  vertex(-14, 30);
+  vertex(-31, 20);
+  vertex(-36, -7);
+  vertex(-19, -24);
+
+  endShape(CLOSE);
+
+  stroke("#8c2b31");
+  strokeWeight(2);
+
+  line(-27, -3, -10, 7);
+  line(27, -3, 10, 7);
+
+  noStroke();
+
+  fill("#ffb4b4");
+
+  ellipse(
+    0,
+    -4,
+    15,
+    20
+  );
+
+  fill("#ff5555");
+
+  circle(-20, 10, 5);
+  circle(20, 10, 5);
+}
+
+
+function sdAlienElite() {
+
+  // Advanced alien crystal / command craft.
+
+  stroke("#b879ff");
+  strokeWeight(2.5);
+
+  fill("#32184d");
+
+  beginShape();
+
+  vertex(0, -36);
+  vertex(14, -20);
+  vertex(32, -12);
+  vertex(22, 4);
+  vertex(28, 23);
+  vertex(9, 17);
+  vertex(0, 31);
+  vertex(-9, 17);
+  vertex(-28, 23);
+  vertex(-22, 4);
+  vertex(-32, -12);
+  vertex(-14, -20);
+
+  endShape(CLOSE);
+
+  noStroke();
+
+  fill("#f3d9ff");
+
+  ellipse(
+    0,
+    -5,
+    12,
+    18
+  );
+
+  fill("#c879ff");
+
+  circle(-19, -8, 4);
+  circle(19, -8, 4);
 }
 
 
@@ -2476,15 +2653,14 @@ class SDAAlien {
 
 function sdSpawnAliens() {
 
-  if (
-    sdBossActive
-  ) return;
+  if (sdBossActive)
+    return;
 
   let delay =
     max(
-      430,
+      470,
       1100 -
-      sdCurrentLevel * 34
+      sdCurrentLevel * 32
     );
 
   if (
@@ -2497,7 +2673,7 @@ function sdSpawnAliens() {
 
     if (
       sdCurrentLevel >= 7 &&
-      random() < 0.18
+      random() < 0.17
     ) {
       count = 2;
     }
@@ -2538,17 +2714,18 @@ function sdUpdateAliens() {
     i--
   ) {
 
-    sdAliens[i].update();
+    let a =
+      sdAliens[i];
 
-    if (
-      !sdAliens[i].dead()
-    ) {
+    a.update();
 
-      sdAliens[i].display();
+    if (a.dead()) {
+
+      sdAliens.splice(i, 1);
 
     } else {
 
-      sdAliens.splice(i, 1);
+      a.display();
     }
   }
 }
@@ -2573,10 +2750,11 @@ class SDEnemyShot {
     this.angle = angle;
     this.speed = speed;
 
-    this.radius = 8;
+    this.radius = 7;
 
     this.life = 220;
   }
+
 
   update() {
 
@@ -2591,25 +2769,27 @@ class SDEnemyShot {
     this.life--;
   }
 
+
   display() {
 
     stroke(
       255,
-      50,
-      80
+      70,
+      90
     );
 
-    strokeWeight(4);
+    strokeWeight(3);
 
     line(
       this.x,
       this.y,
       this.x -
-      cos(this.angle) * 12,
+      cos(this.angle) * 11,
       this.y -
-      sin(this.angle) * 12
+      sin(this.angle) * 11
     );
   }
+
 
   dead() {
 
@@ -2632,24 +2812,25 @@ function sdUpdateEnemyShots() {
     i--
   ) {
 
-    sdEnemyShots[i].update();
+    let s =
+      sdEnemyShots[i];
 
-    if (
-      !sdEnemyShots[i].dead()
-    ) {
+    s.update();
 
-      sdEnemyShots[i].display();
+    if (s.dead()) {
+
+      sdEnemyShots.splice(i, 1);
 
     } else {
 
-      sdEnemyShots.splice(i, 1);
+      s.display();
     }
   }
 }
 
 
 // ================================================================
-// BULLET / ALIEN
+// BULLET / ALIEN COLLISION
 // ================================================================
 
 function sdCollideBulletsAliens() {
@@ -2694,7 +2875,7 @@ function sdCollideBulletsAliens() {
         sdCreateExplosion(
           bullet.x,
           bullet.y,
-          5,
+          4,
           SD_SHIPS[
             sdSelectedShip
           ].edge
@@ -2704,20 +2885,19 @@ function sdCollideBulletsAliens() {
           alien.hp <= 0
         ) {
 
-          let points =
-            alien.type === "HEAVY"
-              ? 70
-              : alien.type === "ELITE"
-                ? 100
-                : alien.type === "HUNTER"
-                  ? 45
-                  : 30;
+          let points = 30;
 
           if (
-            sdShipPower() === "BURN SHOT"
-          ) {
-            points += 10;
-          }
+            alien.type === "HUNTER"
+          ) points = 45;
+
+          if (
+            alien.type === "HEAVY"
+          ) points = 70;
+
+          if (
+            alien.type === "ELITE"
+          ) points = 100;
 
           sdScore += points;
           sdLevelScore += points;
@@ -2726,8 +2906,8 @@ function sdCollideBulletsAliens() {
             alien.x,
             alien.y,
             alien.type === "HEAVY"
-              ? 38
-              : 25,
+              ? 32
+              : 22,
             SD_SHIPS[
               sdSelectedShip
             ].edge
@@ -2735,8 +2915,8 @@ function sdCollideBulletsAliens() {
 
           sdStartShake(
             alien.type === "HEAVY"
-              ? 8
-              : 4
+              ? 7
+              : 3
           );
 
           sdExplosionSound();
@@ -2763,7 +2943,9 @@ function sdCollideShipAliens() {
   if (
     millis() <
     sdShip.invincibleUntil
-  ) return;
+  ) {
+    return;
+  }
 
   for (
     let i = sdAliens.length - 1;
@@ -2785,15 +2967,13 @@ function sdCollideShipAliens() {
       a.radius * 0.7
     ) {
 
-      if (
-        sdHasShield()
-      ) {
+      if (sdHasShield()) {
 
         sdCreateExplosion(
           a.x,
           a.y,
-          24,
-          "#00ccff"
+          22,
+          "#00cfff"
         );
 
         sdAliens.splice(
@@ -2840,7 +3020,9 @@ function sdCollideShipShots() {
   if (
     millis() <
     sdShip.invincibleUntil
-  ) return;
+  ) {
+    return;
+  }
 
   for (
     let i = sdEnemyShots.length - 1;
@@ -2862,9 +3044,7 @@ function sdCollideShipShots() {
       s.radius
     ) {
 
-      if (
-        sdHasShield()
-      ) {
+      if (sdHasShield()) {
 
         sdEnemyShots.splice(
           i,
@@ -2914,26 +3094,24 @@ function sdDamagePlayer() {
   sdShip.invincibleUntil =
     millis() + 1800;
 
-  sdStartShake(12);
+  sdStartShake(11);
 
   sdTone(
     180,
     55,
-    0.28,
+    0.25,
     "sawtooth",
-    0.05
+    0.04
   );
 
-  if (
-    sdLives <= 0
-  ) {
+  if (sdLives <= 0) {
 
     sdState = "GAMEOVER";
 
     sdCreateExplosion(
       sdShip.x,
       sdShip.y,
-      65
+      60
     );
   }
 }
@@ -2966,19 +3144,21 @@ class SDPowerUp {
         50
       );
 
-    this.radius = 23;
+    this.radius = 22;
 
     this.life = 850;
 
     this.rot = 0;
   }
 
+
   update() {
 
-    this.rot += 0.04;
+    this.rot += 0.035;
 
     this.life--;
   }
+
 
   display() {
 
@@ -2998,24 +3178,24 @@ class SDPowerUp {
 
     stroke(cfg.color);
 
-    strokeWeight(3);
+    strokeWeight(2);
 
     fill(
       red(cfg.color),
       green(cfg.color),
       blue(cfg.color),
-      45
+      35
     );
 
     circle(
       0,
       0,
-      50
+      44
     );
 
     noStroke();
 
-    fill(255);
+    fill(245);
 
     textAlign(
       CENTER,
@@ -3024,7 +3204,7 @@ class SDPowerUp {
 
     textStyle(BOLD);
 
-    textSize(10);
+    textSize(9);
 
     text(
       cfg.label,
@@ -3039,7 +3219,7 @@ class SDPowerUp {
 
 function sdPowerConfig(type) {
 
-  let data = {
+  const data = {
 
     MULTI: {
       color: "#ffe600",
@@ -3047,7 +3227,7 @@ function sdPowerConfig(type) {
     },
 
     SHIELD: {
-      color: "#00bfff",
+      color: "#00cfff",
       label: "S"
     },
 
@@ -3072,7 +3252,7 @@ function sdPowerConfig(type) {
     },
 
     BERSERKER: {
-      color: "#ff1744",
+      color: "#ff3455",
       label: "BR"
     },
 
@@ -3085,7 +3265,6 @@ function sdPowerConfig(type) {
       color: "#fff176",
       label: "CX"
     }
-
   };
 
   return data[type];
@@ -3128,17 +3307,18 @@ function sdUpdatePowerUps() {
     i--
   ) {
 
-    sdPowerUps[i].update();
-    sdPowerUps[i].display();
+    let p =
+      sdPowerUps[i];
 
-    if (
-      sdPowerUps[i].life <= 0
-    ) {
+    p.update();
 
-      sdPowerUps.splice(
-        i,
-        1
-      );
+    if (p.life <= 0) {
+
+      sdPowerUps.splice(i, 1);
+
+    } else {
+
+      p.display();
     }
   }
 
@@ -3169,7 +3349,7 @@ function sdUpdatePowerUps() {
       sdCreateExplosion(
         p.x,
         p.y,
-        25,
+        22,
         sdPowerConfig(
           p.type
         ).color
@@ -3192,6 +3372,7 @@ function sdUpdatePowerUps() {
 function sdActivatePower(type) {
 
   let duration = {
+
     MULTI: 9000,
     SHIELD: 9000,
     TWIN: 9000,
@@ -3200,14 +3381,13 @@ function sdActivatePower(type) {
     BERSERKER: 7500,
     CRYO: 8500,
     CELESTIAL: 7000
+
   }[type] || 7000;
 
   sdPowerEnds[type] =
     millis() + duration;
 
-  if (
-    type === "NOVA"
-  ) {
+  if (type === "NOVA") {
 
     for (
       let i = sdAliens.length - 1;
@@ -3218,7 +3398,7 @@ function sdActivatePower(type) {
       sdCreateExplosion(
         sdAliens[i].x,
         sdAliens[i].y,
-        20
+        18
       );
 
       sdAliens.splice(
@@ -3230,43 +3410,29 @@ function sdActivatePower(type) {
       sdLevelScore += 20;
     }
 
-    if (
-      sdBossActive &&
-      sdBoss
-    ) {
-
-      sdBoss.hp -=
-        sdBoss.maxHp *
-        0.15;
-    }
-
-    sdStartShake(16);
+    sdStartShake(14);
   }
 
-  if (
-    type === "TWIN"
-  ) {
+  if (type === "TWIN") {
     sdPowerEnds.TRINITY = 0;
   }
 
-  if (
-    type === "TRINITY"
-  ) {
+  if (type === "TRINITY") {
     sdPowerEnds.TWIN = 0;
   }
 
   sdTone(
     300,
     1100,
-    0.35,
+    0.3,
     "sine",
-    0.045
+    0.035
   );
 }
 
 
 // ================================================================
-// BOSS DRAGON
+// BOSS
 // ================================================================
 
 class SDBoss {
@@ -3309,7 +3475,7 @@ class SDBoss {
       this.targetY
     ) {
 
-      this.y += 1;
+      this.y += 1.2;
 
       return;
     }
@@ -3373,9 +3539,7 @@ class SDBoss {
           ? [-16, 0, 16]
           : [-30, -15, 0, 15, 30];
 
-    for (
-      let d of spread
-    ) {
+    for (let d of spread) {
 
       sdEnemyShots.push(
         new SDEnemyShot(
@@ -3388,14 +3552,6 @@ class SDBoss {
         )
       );
     }
-
-    sdTone(
-      100,
-      45,
-      0.3,
-      "sawtooth",
-      0.04
-    );
   }
 
 
@@ -3403,13 +3559,13 @@ class SDBoss {
 
     let edge =
       this.phase === 3
-        ? "#ff1744"
-        : "#ff7a00";
+        ? "#ff304d"
+        : "#ff8238";
 
     let body =
       this.phase === 3
-        ? "#650019"
-        : "#54170e";
+        ? "#65101b"
+        : "#52180e";
 
     push();
 
@@ -3420,43 +3576,46 @@ class SDBoss {
 
     stroke(edge);
 
-    strokeWeight(4);
+    strokeWeight(3.5);
 
     fill(body);
 
+    // Left wing
     beginShape();
 
-    vertex(-25, -5);
-    vertex(-100, -48);
-    vertex(-68, 5);
-    vertex(-108, 40);
+    vertex(-25, -4);
+    vertex(-95, -45);
+    vertex(-65, 5);
+    vertex(-105, 38);
     vertex(-30, 25);
 
     endShape(CLOSE);
 
+    // Right wing
     beginShape();
 
-    vertex(25, -5);
-    vertex(100, -48);
-    vertex(68, 5);
-    vertex(108, 40);
+    vertex(25, -4);
+    vertex(95, -45);
+    vertex(65, 5);
+    vertex(105, 38);
     vertex(30, 25);
 
     endShape(CLOSE);
 
+    // Body
     ellipse(
       0,
-      10,
+      8,
       92,
-      122
+      120
     );
 
     beginShape();
 
-    vertex(0, -76);
+    vertex(0, -75);
     vertex(-38, -38);
     vertex(-28, 10);
-    vertex(0, 30);
+    vertex(0, 31);
     vertex(28, 10);
     vertex(38, -38);
 
@@ -3466,8 +3625,8 @@ class SDBoss {
 
     fill(
       this.phase === 3
-        ? "#ff0044"
-        : "#ffff00"
+        ? "#ff1744"
+        : "#fff05a"
     );
 
     ellipse(
@@ -3495,17 +3654,15 @@ class SDBoss {
 
 function sdCheckBoss() {
 
-  let isBoss =
-    sdCurrentLevel === 5 ||
-    sdCurrentLevel === 10 ||
-    sdCurrentLevel === 15 ||
-    sdCurrentLevel === 20;
-
   if (
-    !isBoss ||
+    !sdIsBossLevel(
+      sdCurrentLevel
+    ) ||
     sdBossActive ||
     sdBossDefeated
-  ) return;
+  ) {
+    return;
+  }
 
   let elapsed =
     millis() -
@@ -3525,16 +3682,14 @@ function sdCheckBoss() {
     sdAliens = [];
     sdPowerUps = [];
 
-    sdStartShake(18);
-
-    sdStartBossMusic();
+    sdStartShake(15);
 
     sdTone(
       50,
       120,
-      1.1,
+      0.8,
       "sawtooth",
-      0.055
+      0.04
     );
   }
 }
@@ -3542,11 +3697,11 @@ function sdCheckBoss() {
 
 function sdUpdateBoss() {
 
-  if (
-    !sdBoss
-  ) return;
+  if (!sdBoss)
+    return;
 
   sdBoss.update();
+
   sdBoss.display();
 
   sdDrawBossHealth();
@@ -3557,8 +3712,7 @@ function sdUpdateBoss() {
 
     let reward =
       1000 +
-      sdCurrentLevel *
-      100;
+      sdCurrentLevel * 100;
 
     sdScore += reward;
     sdLevelScore += reward;
@@ -3566,11 +3720,11 @@ function sdUpdateBoss() {
     sdCreateExplosion(
       sdBoss.x,
       sdBoss.y,
-      120,
-      "#ff5b30"
+      100,
+      "#ff6735"
     );
 
-    sdStartShake(28);
+    sdStartShake(24);
 
     sdEnemyShots = [];
 
@@ -3580,14 +3734,12 @@ function sdUpdateBoss() {
 
     sdBossDefeated = true;
 
-    sdStopBossMusic();
-
     sdTone(
       100,
       900,
-      0.9,
+      0.8,
       "sine",
-      0.06
+      0.05
     );
   }
 }
@@ -3595,19 +3747,20 @@ function sdUpdateBoss() {
 
 function sdDrawBossHealth() {
 
-  if (!sdBoss) return;
+  if (!sdBoss)
+    return;
 
   let w =
     min(
-      340,
-      width * 0.76
+      330,
+      width * 0.74
     );
 
   let x =
     width / 2 -
     w / 2;
 
-  let y = 92;
+  let y = 91;
 
   let ratio =
     constrain(
@@ -3622,14 +3775,14 @@ function sdDrawBossHealth() {
     BOTTOM
   );
 
-  fill(255, 80, 60);
+  fill(255, 120, 90);
 
   textStyle(BOLD);
 
-  textSize(14);
+  textSize(12);
 
   text(
-    "METEOR DRAGON • PHASE " +
+    "METEOR DRAGON  •  PHASE " +
     sdBoss.phase,
     width / 2,
     y - 7
@@ -3641,29 +3794,29 @@ function sdDrawBossHealth() {
     255,
     255,
     255,
-    40
+    35
   );
 
   rect(
     x,
     y,
     w,
-    12,
-    6
+    9,
+    4
   );
 
   fill(
-    255,
-    60,
-    50
+    235,
+    70,
+    55
   );
 
   rect(
     x,
     y,
     w * ratio,
-    12,
-    6
+    9,
+    4
   );
 }
 
@@ -3677,7 +3830,9 @@ function sdCollideBulletsBoss() {
   if (
     !sdBossActive ||
     !sdBoss
-  ) return;
+  ) {
+    return;
+  }
 
   for (
     let i = sdBullets.length - 1;
@@ -3711,160 +3866,12 @@ function sdCollideBulletsBoss() {
       sdCreateExplosion(
         b.x,
         b.y,
-        4,
+        3,
         "#ff9a40"
       );
 
-      sdStartShake(2);
+      sdStartShake(1.5);
     }
-  }
-}
-
-
-// ================================================================
-// PORTAL
-// ================================================================
-
-class SDPortal {
-
-  constructor() {
-
-    this.x =
-      random(
-        width * 0.25,
-        width * 0.75
-      );
-
-    this.y =
-      random(
-        height * 0.25,
-        height * 0.55
-      );
-
-    this.radius = 50;
-
-    this.life = 800;
-
-    this.rot = 0;
-  }
-
-  update() {
-
-    this.rot += 0.04;
-
-    this.life--;
-  }
-
-  display() {
-
-    push();
-
-    translate(
-      this.x,
-      this.y
-    );
-
-    rotate(this.rot);
-
-    noFill();
-
-    stroke(
-      180,
-      70,
-      255,
-      190
-    );
-
-    strokeWeight(5);
-
-    circle(
-      0,
-      0,
-      this.radius * 2
-    );
-
-    stroke(
-      80,
-      200,
-      255,
-      160
-    );
-
-    strokeWeight(3);
-
-    circle(
-      0,
-      0,
-      this.radius * 1.45
-    );
-
-    pop();
-  }
-}
-
-
-function sdUpdatePortal() {
-
-  if (
-    sdBossActive
-  ) return;
-
-  if (
-    !sdPortal &&
-    sdLevelScore >
-    850 +
-    sdCurrentLevel * 100
-  ) {
-
-    sdPortal =
-      new SDPortal();
-  }
-
-  if (!sdPortal) return;
-
-  sdPortal.update();
-  sdPortal.display();
-
-  if (
-    dist(
-      sdShip.x,
-      sdShip.y,
-      sdPortal.x,
-      sdPortal.y
-    ) <
-    sdPortal.radius
-  ) {
-
-    sdGalaxy =
-      floor(
-        random(1, 4)
-      );
-
-    sdGalaxyEnd =
-      millis() + 15000;
-
-    sdPortal = null;
-
-    sdAliens = [];
-
-    sdTone(
-      900,
-      100,
-      0.6,
-      "sawtooth",
-      0.04
-    );
-  }
-
-  if (
-    sdGalaxy !== 0 &&
-    millis() >
-    sdGalaxyEnd
-  ) {
-
-    sdGalaxy = 0;
-
-    sdAliens = [];
   }
 }
 
@@ -3887,14 +3894,10 @@ function sdCheckLevelComplete() {
     sdLevelScore >=
     sdTargetScore;
 
-  let bossRequired =
-    sdCurrentLevel === 5 ||
-    sdCurrentLevel === 10 ||
-    sdCurrentLevel === 15 ||
-    sdCurrentLevel === 20;
-
   let bossDone =
-    !bossRequired ||
+    !sdIsBossLevel(
+      sdCurrentLevel
+    ) ||
     sdBossDefeated;
 
   if (
@@ -3912,7 +3915,9 @@ function sdCompleteLevel() {
 
   if (
     sdState !== "PLAYING"
-  ) return;
+  ) {
+    return;
+  }
 
   sdState = "LEVELUP";
 
@@ -3935,21 +3940,17 @@ function sdCompleteLevel() {
 
   sdCreateCelebration();
 
-  sdStartShake(10);
-
-  sdStopBossMusic();
+  sdStartShake(8);
 
   sdPlayVictory();
 }
 
 
 // ================================================================
-// LEVEL UP SCREEN
+// LEVEL UP
 // ================================================================
 
 function sdDrawLevelUp() {
-
-  // Full canvas overlay — no partial black rectangle.
 
   noStroke();
 
@@ -3957,7 +3958,7 @@ function sdDrawLevelUp() {
     2,
     6,
     20,
-    235
+    238
   );
 
   rect(
@@ -3972,16 +3973,12 @@ function sdDrawLevelUp() {
     CENTER
   );
 
-  fill(
-    255,
-    220,
-    50
-  );
+  fill(255, 220, 55);
 
   textStyle(BOLD);
 
   textSize(
-    min(34, width * 0.085)
+    min(33, width * 0.082)
   );
 
   text(
@@ -3995,9 +3992,9 @@ function sdDrawLevelUp() {
     height * 0.30
   );
 
-  fill(255);
+  fill(245);
 
-  textSize(19);
+  textSize(18);
 
   text(
     "SCORE  " +
@@ -4011,9 +4008,9 @@ function sdDrawLevelUp() {
     SD_TOTAL_LEVELS
   ) {
 
-    fill(0, 225, 255);
+    fill(90, 205, 235);
 
-    textSize(17);
+    textSize(15);
 
     text(
       "NEW LEVEL UNLOCKED",
@@ -4021,9 +4018,9 @@ function sdDrawLevelUp() {
       height * 0.49
     );
 
-    fill(255);
+    fill(245);
 
-    textSize(23);
+    textSize(22);
 
     text(
       "LEVEL " +
@@ -4034,7 +4031,7 @@ function sdDrawLevelUp() {
 
     fill(255, 220, 60);
 
-    textSize(16);
+    textSize(14);
 
     text(
       SD_LEVEL_TITLES[
@@ -4046,9 +4043,9 @@ function sdDrawLevelUp() {
 
   } else {
 
-    fill(255);
+    fill(180);
 
-    textSize(18);
+    textSize(16);
 
     text(
       "You conquered the Multiverse.",
@@ -4107,11 +4104,11 @@ function sdDrawGameOver() {
     CENTER
   );
 
-  fill(255, 70, 80);
+  fill(255, 75, 85);
 
   textStyle(BOLD);
 
-  textSize(38);
+  textSize(36);
 
   text(
     "MISSION LOST",
@@ -4119,9 +4116,9 @@ function sdDrawGameOver() {
     height * 0.28
   );
 
-  fill(255);
+  fill(245);
 
-  textSize(18);
+  textSize(17);
 
   text(
     "LEVEL " +
@@ -4132,7 +4129,7 @@ function sdDrawGameOver() {
 
   fill(255, 220, 50);
 
-  textSize(15);
+  textSize(14);
 
   text(
     SD_LEVEL_TITLES[
@@ -4143,13 +4140,13 @@ function sdDrawGameOver() {
   );
 
   sdActionButton(
-    "↻  RETRY LEVEL",
+    "RETRY LEVEL",
     height * 0.55,
     280
   );
 
   sdActionButton(
-    "⌂  HOME",
+    "HOME",
     height * 0.66,
     240
   );
@@ -4178,7 +4175,9 @@ function sdResumeGame() {
 
   if (
     sdState !== "PAUSED"
-  ) return;
+  ) {
+    return;
+  }
 
   let paused =
     millis() -
@@ -4195,19 +4194,16 @@ function sdResumeGame() {
   for (
     let key in sdPowerEnds
   ) {
-    sdPowerEnds[key] += paused;
-  }
 
-  if (
-    sdGalaxy !== 0
-  ) {
-    sdGalaxyEnd += paused;
+    sdPowerEnds[key] += paused;
   }
 
   if (
     sdBoss
   ) {
-    sdBoss.lastAttack += paused;
+
+    sdBoss.lastAttack +=
+      paused;
   }
 
   sdState = "PLAYING";
@@ -4219,21 +4215,17 @@ function sdDrawFrozen() {
   if (sdShip)
     sdShip.display();
 
-  for (
-    let a of sdAliens
-  ) a.display();
+  for (let a of sdAliens)
+    a.display();
 
-  for (
-    let b of sdBullets
-  ) b.display();
+  for (let b of sdBullets)
+    b.display();
 
-  for (
-    let p of sdPowerUps
-  ) p.display();
+  for (let p of sdPowerUps)
+    p.display();
 
-  for (
-    let s of sdEnemyShots
-  ) s.display();
+  for (let s of sdEnemyShots)
+    s.display();
 
   if (sdBoss)
     sdBoss.display();
@@ -4241,6 +4233,10 @@ function sdDrawFrozen() {
   sdDrawHUD();
 }
 
+
+// ================================================================
+// PAUSE SCREEN
+// ================================================================
 
 function sdDrawPause() {
 
@@ -4265,7 +4261,7 @@ function sdDrawPause() {
     CENTER
   );
 
-  fill(255);
+  fill(245);
 
   textStyle(BOLD);
 
@@ -4277,14 +4273,14 @@ function sdDrawPause() {
     height * 0.30
   );
 
-  fill(0, 220, 255);
+  fill(90, 200, 230);
 
-  textSize(15);
+  textSize(14);
 
   text(
     "LEVEL " +
     sdCurrentLevel +
-    " • " +
+    "  •  " +
     SD_LEVEL_TITLES[
       sdCurrentLevel - 1
     ],
@@ -4293,13 +4289,13 @@ function sdDrawPause() {
   );
 
   sdActionButton(
-    "▶  RESUME",
+    "RESUME",
     height * 0.53,
     270
   );
 
   sdActionButton(
-    "⌂  HOME",
+    "HOME",
     height * 0.64,
     240
   );
@@ -4308,20 +4304,22 @@ function sdDrawPause() {
 
 // ================================================================
 // HUD
+// Clean, no unnecessary glow.
 // ================================================================
 
 function sdDrawHUD() {
 
   textStyle(BOLD);
 
+  // Score
   textAlign(
     LEFT,
     TOP
   );
 
-  fill(255);
+  fill(240);
 
-  textSize(15);
+  textSize(14);
 
   text(
     "SCORE  " +
@@ -4330,26 +4328,30 @@ function sdDrawHUD() {
     12
   );
 
+  // Lives
   textAlign(
     RIGHT,
     TOP
   );
 
+  fill(240);
+
   text(
-    "♥ " +
+    "LIVES  " +
     sdLives,
     width - 14,
     12
   );
 
+  // Level
   textAlign(
     CENTER,
     TOP
   );
 
-  fill(0, 225, 255);
+  fill(215, 240, 250);
 
-  textSize(15);
+  textSize(14);
 
   text(
     "LEVEL " +
@@ -4358,16 +4360,18 @@ function sdDrawHUD() {
     12
   );
 
-  fill(255, 220, 60);
+  fill(150, 185, 200);
 
-  textSize(11);
+  textStyle(NORMAL);
+
+  textSize(9);
 
   text(
     SD_LEVEL_TITLES[
       sdCurrentLevel - 1
     ],
     width / 2,
-    33
+    32
   );
 
   let w =
@@ -4380,7 +4384,7 @@ function sdDrawHUD() {
     width / 2 -
     w / 2;
 
-  let y = 58;
+  let y = 56;
 
   let elapsed =
     millis() -
@@ -4402,66 +4406,67 @@ function sdDrawHUD() {
       1
     );
 
+  // SURVIVAL BAR
+  noStroke();
+
   fill(
     255,
     255,
     255,
-    35
+    28
   );
 
   rect(
     x,
     y,
     w,
-    9,
-    5
+    7,
+    3
   );
 
-  fill(0, 220, 255);
+  fill(80, 170, 205);
 
   rect(
     x,
     y,
     w * timeRatio,
-    9,
-    5
+    7,
+    3
   );
 
+  // SCORE BAR
   fill(
     255,
     255,
     255,
-    35
+    28
   );
 
   rect(
     x,
-    y + 22,
+    y + 18,
     w,
-    9,
-    5
+    7,
+    3
   );
 
-  fill(
-    255,
-    220,
-    40
-  );
+  fill(220, 180, 60);
 
   rect(
     x,
-    y + 22,
+    y + 18,
     w * scoreRatio,
-    9,
-    5
+    7,
+    3
   );
 
-  fill(210);
+  // Small labels only.
+  fill(140, 170, 180);
 
-  textSize(11);
+  textSize(9);
 
   text(
-    "SURVIVAL   " +
+    "SURVIVAL  " +
     floor(
       min(
         elapsed / 1000,
@@ -4472,22 +4477,21 @@ function sdDrawHUD() {
     floor(
       sdLevelDuration / 1000
     ) +
-    " sec",
+    " SEC",
     width / 2,
-    y + 36
+    y + 31
   );
 
-  fill(210);
-
   text(
-    "SCORE   " +
+    "SCORE  " +
     sdLevelScore +
     " / " +
     sdTargetScore,
     width / 2,
-    y + 52
+    y + 45
   );
 
+  // Top controls.
   sdTopButton(
     sdPauseButton.x,
     sdPauseButton.y,
@@ -4499,17 +4503,11 @@ function sdDrawHUD() {
     sdHomeButton.y,
     "⌂"
   );
-
-  if (
-    sdBossActive
-  ) {
-    // Boss health is drawn separately.
-  }
 }
 
 
 // ================================================================
-// CONTROLS
+// GAME CONTROLS
 // ================================================================
 
 function sdResetControls() {
@@ -4570,15 +4568,11 @@ function sdResetControls() {
 
 function sdHandleMovement() {
 
-  let movement =
-    null;
+  let movement = null;
 
-  let firing =
-    false;
+  let firing = false;
 
-  for (
-    let t of touches
-  ) {
+  for (let t of touches) {
 
     if (
       dist(
@@ -4587,7 +4581,7 @@ function sdHandleMovement() {
         sdFire.x,
         sdFire.y
       ) <
-      sdFire.radius + 20
+      sdFire.radius + 18
     ) {
 
       firing = true;
@@ -4602,8 +4596,7 @@ function sdHandleMovement() {
 
     if (
       movementSide &&
-      t.y >
-      height * 0.40
+      t.y > height * 0.40
     ) {
 
       movement = t;
@@ -4616,9 +4609,7 @@ function sdHandleMovement() {
 
   if (movement) {
 
-    if (
-      !sdJoystick.active
-    ) {
+    if (!sdJoystick.active) {
 
       sdJoystick.active = true;
 
@@ -4649,10 +4640,7 @@ function sdHandleMovement() {
     ) {
 
       let angle =
-        atan2(
-          dy,
-          dx
-        );
+        atan2(dy, dx);
 
       dx =
         cos(angle) *
@@ -4682,7 +4670,9 @@ function sdMoveShip() {
 
   if (
     !sdJoystick.active
-  ) return;
+  ) {
+    return;
+  }
 
   let dx =
     sdJoystick.knobX -
@@ -4698,9 +4688,8 @@ function sdMoveShip() {
       dy * dy
     );
 
-  if (
-    mag < 4
-  ) return;
+  if (mag < 4)
+    return;
 
   let angle =
     atan2(
@@ -4759,28 +4748,31 @@ function sdResetJoystick() {
 }
 
 
+// ================================================================
+// CONTROL DISPLAY
+// ================================================================
+
 function sdDrawControls() {
 
   let y =
     height -
     sdSafeBottom;
 
-  // Joystick
-
+  // MOVE
   stroke(
-    0,
-    220,
-    255,
+    70,
+    180,
+    210,
     120
   );
 
-  strokeWeight(2);
+  strokeWeight(1.5);
 
   fill(
     0,
-    150,
-    255,
-    25
+    120,
+    170,
+    20
   );
 
   circle(
@@ -4790,31 +4782,31 @@ function sdDrawControls() {
   );
 
   fill(
-    0,
+    70,
+    190,
     220,
-    255,
-    100
+    90
   );
 
   circle(
     sdJoystick.knobX,
     sdJoystick.knobY,
-    50
+    46
   );
 
-  // Fire
-
+  // FIRE
   stroke(
-    255,
-    70,
-    90
+    230,
+    75,
+    90,
+    170
   );
 
   fill(
-    255,
+    180,
     30,
-    60,
-    55
+    50,
+    35
   );
 
   circle(
@@ -4825,7 +4817,7 @@ function sdDrawControls() {
 
   noStroke();
 
-  fill(255);
+  fill(245);
 
   textAlign(
     CENTER,
@@ -4834,7 +4826,7 @@ function sdDrawControls() {
 
   textStyle(BOLD);
 
-  textSize(15);
+  textSize(13);
 
   text(
     "FIRE",
@@ -4842,24 +4834,23 @@ function sdDrawControls() {
     y
   );
 
-  // Special power
-
+  // POWER
   if (
     sdPowerReadyAt <= millis()
   ) {
 
     stroke(
-      255,
       220,
-      50,
-      180
+      185,
+      55,
+      160
     );
 
     fill(
-      255,
-      190,
+      200,
+      150,
       20,
-      50
+      30
     );
 
     circle(
@@ -4870,9 +4861,9 @@ function sdDrawControls() {
 
     noStroke();
 
-    fill(255);
+    fill(245);
 
-    textSize(10);
+    textSize(9);
 
     text(
       "POWER",
@@ -4894,30 +4885,29 @@ function sdTopButton(
 ) {
 
   stroke(
-    0,
-    210,
-    255,
-    180
+    65,
+    145,
+    175
   );
 
-  strokeWeight(2);
+  strokeWeight(1.5);
 
   fill(
     5,
-    25,
-    45,
-    230
+    22,
+    36,
+    235
   );
 
   circle(
     x,
     y,
-    44
+    43
   );
 
   noStroke();
 
-  fill(255);
+  fill(245);
 
   textAlign(
     CENTER,
@@ -4926,7 +4916,7 @@ function sdTopButton(
 
   textStyle(BOLD);
 
-  textSize(18);
+  textSize(17);
 
   text(
     label,
@@ -4942,12 +4932,6 @@ function sdTopButton(
 
 function sdHomeBottomButton() {
 
-  /*
-    IMPORTANT:
-    This button is now positioned using the mobile-safe
-    bottom zone instead of raw height - 55.
-  */
-
   let y =
     height -
     sdSafeBottom +
@@ -4962,17 +4946,17 @@ function sdHomeBottomButton() {
   rectMode(CENTER);
 
   stroke(
-    0,
-    210,
-    255
+    65,
+    150,
+    180
   );
 
-  strokeWeight(2);
+  strokeWeight(1.5);
 
   fill(
     5,
     20,
-    35
+    34
   );
 
   rect(
@@ -4980,12 +4964,12 @@ function sdHomeBottomButton() {
     y,
     w,
     48,
-    13
+    12
   );
 
   noStroke();
 
-  fill(255);
+  fill(235);
 
   textAlign(
     CENTER,
@@ -4994,10 +4978,10 @@ function sdHomeBottomButton() {
 
   textStyle(BOLD);
 
-  textSize(15);
+  textSize(14);
 
   text(
-    "←  HOME",
+    "HOME",
     width / 2,
     y
   );
@@ -5017,30 +5001,33 @@ function sdActionButton(
   rectMode(CENTER);
 
   stroke(
-    0,
-    210,
-    255
+    65,
+    150,
+    180
   );
 
-  strokeWeight(2);
+  strokeWeight(1.5);
 
   fill(
     5,
-    25,
-    45
+    23,
+    38
   );
 
   rect(
     width / 2,
     y,
-    min(w, width * 0.80),
+    min(
+      w,
+      width * 0.80
+    ),
     52,
-    13
+    12
   );
 
   noStroke();
 
-  fill(255);
+  fill(245);
 
   textAlign(
     CENTER,
@@ -5049,7 +5036,7 @@ function sdActionButton(
 
   textStyle(BOLD);
 
-  textSize(15);
+  textSize(14);
 
   text(
     label,
@@ -5078,7 +5065,7 @@ class SDParticle {
       random(TWO_PI);
 
     let speed =
-      random(1, 7);
+      random(1, 6);
 
     this.vx =
       cos(a) * speed;
@@ -5086,14 +5073,15 @@ class SDParticle {
     this.vy =
       sin(a) * speed;
 
-    this.life = 255;
+    this.life = 230;
 
     this.size =
-      random(2, 7);
+      random(2, 6);
 
     this.tint =
       tint || "#ff8a30";
   }
+
 
   update() {
 
@@ -5105,6 +5093,7 @@ class SDParticle {
 
     this.life -= 7;
   }
+
 
   display() {
 
@@ -5162,11 +5151,14 @@ function sdUpdateParticles() {
     i--
   ) {
 
-    sdParticles[i].update();
-    sdParticles[i].display();
+    let p =
+      sdParticles[i];
+
+    p.update();
+    p.display();
 
     if (
-      sdParticles[i].life <= 0
+      p.life <= 0
     ) {
 
       sdParticles.splice(
@@ -5182,7 +5174,7 @@ function sdCreateCelebration() {
 
   for (
     let i = 0;
-    i < 100;
+    i < 80;
     i++
   ) {
 
@@ -5225,8 +5217,7 @@ function sdInitAudio() {
 
   if (
     sdAudio &&
-    sdAudio.state ===
-    "suspended"
+    sdAudio.state === "suspended"
   ) {
 
     sdAudio.resume();
@@ -5245,7 +5236,9 @@ function sdTone(
   if (
     !sdSound ||
     !sdAudio
-  ) return;
+  ) {
+    return;
+  }
 
   try {
 
@@ -5281,6 +5274,7 @@ function sdTone(
     );
 
     osc.connect(gain);
+
     gain.connect(
       sdAudio.destination
     );
@@ -5301,9 +5295,9 @@ function sdExplosionSound() {
   sdTone(
     150,
     45,
-    0.16,
+    0.14,
     "sawtooth",
-    0.035
+    0.03
   );
 }
 
@@ -5313,9 +5307,9 @@ function sdPlayVictory() {
   sdTone(
     400,
     600,
-    0.18,
+    0.16,
     "sine",
-    0.045
+    0.035
   );
 
   setTimeout(
@@ -5324,13 +5318,13 @@ function sdPlayVictory() {
       sdTone(
         600,
         850,
-        0.18,
+        0.16,
         "sine",
-        0.045
+        0.035
       );
 
     },
-    180
+    170
   );
 
   setTimeout(
@@ -5339,102 +5333,14 @@ function sdPlayVictory() {
       sdTone(
         850,
         1300,
-        0.3,
+        0.25,
         "sine",
-        0.05
+        0.04
       );
 
     },
-    360
+    340
   );
-}
-
-
-// ================================================================
-// PROCEDURAL BOSS MUSIC
-// ================================================================
-
-function sdStartBossMusic() {
-
-  if (
-    sdBossMusicOn
-  ) return;
-
-  sdBossMusicOn = true;
-
-  if (
-    !sdSound ||
-    !sdAudio
-  ) return;
-
-  let notes = [
-    110,
-    130.8,
-    146.8,
-    98,
-    123.5,
-    110
-  ];
-
-  let index = 0;
-
-  sdBossMusicTimer =
-    setInterval(
-      function() {
-
-        if (
-          !sdBossMusicOn ||
-          sdState !== "PLAYING" ||
-          !sdBossActive
-        ) {
-
-          return;
-        }
-
-        let n =
-          notes[
-            index %
-            notes.length
-          ];
-
-        sdTone(
-          n,
-          n * 0.97,
-          0.28,
-          "triangle",
-          0.025
-        );
-
-        sdTone(
-          n * 2,
-          n * 1.8,
-          0.12,
-          "sawtooth",
-          0.009
-        );
-
-        index++;
-
-      },
-      360
-    );
-}
-
-
-function sdStopBossMusic() {
-
-  sdBossMusicOn = false;
-
-  if (
-    sdBossMusicTimer
-  ) {
-
-    clearInterval(
-      sdBossMusicTimer
-    );
-
-    sdBossMusicTimer = null;
-  }
 }
 
 
@@ -5474,6 +5380,14 @@ function touchStarted() {
   sdTouchStartX = x;
   sdTouchStartY = y;
 
+  if (
+    sdState === "ARCHIVE"
+  ) {
+
+    sdArchiveDragging = false;
+    sdArchiveLastY = y;
+  }
+
   sdHandleTap(
     x,
     y
@@ -5496,20 +5410,19 @@ function touchMoved() {
       let y =
         touches[0].y;
 
+      let delta =
+        sdArchiveLastY -
+        y;
+
       if (
-        sdArchiveDragging
+        abs(delta) > 0
       ) {
 
-        let delta =
-          sdArchiveLastY -
-          y;
-
         sdArchiveTarget +=
-          delta * 1.3;
-      }
+          delta * 1.25;
 
-      sdArchiveDragging =
-        true;
+        sdArchiveDragging = true;
+      }
 
       sdArchiveLastY =
         y;
@@ -5539,90 +5452,93 @@ function touchEnded() {
 
 
 // ================================================================
-// TAP ROUTER
+// UNIVERSAL TAP ROUTER
+// This is the important menu fix.
+// Every screen uses explicit rectangular hit zones.
 // ================================================================
 
-function sdHandleTap(x, y) {
+function sdHandleTap(
+  x,
+  y
+) {
 
+  // ------------------------------------------------------------
   // HOME
+  // ------------------------------------------------------------
 
   if (
     sdState === "HOME"
   ) {
 
-    if (
-      sdNearY(
-        y,
-        height * 0.34
-      )
+    let buttons = [
+      height * 0.32,
+      height * 0.43,
+      height * 0.54,
+      height * 0.65,
+      height * 0.76
+    ];
+
+    for (
+      let i = 0;
+      i < buttons.length;
+      i++
     ) {
 
-      sdState =
-        "LEVELS";
+      if (
+        sdPointInRect(
+          x,
+          y,
+          width / 2,
+          buttons[i],
+          min(320, width * 0.80),
+          70
+        )
+      ) {
 
-      return;
+        sdMenuPressed =
+          i;
+
+        sdMenuPressTime =
+          millis();
+
+        if (i === 0) {
+
+          sdState = "LEVELS";
+
+        } else if (i === 1) {
+
+          sdState = "ARCHIVE";
+
+          sdArchiveScroll = 0;
+          sdArchiveTarget = 0;
+
+        } else if (i === 2) {
+
+          sdState = "ABOUT";
+
+        } else if (i === 3) {
+
+          sdState = "SETTINGS";
+
+        } else if (i === 4) {
+
+          sdRating = 0;
+          sdState = "RATING";
+        }
+
+        sdMenuPressed = -1;
+
+        return;
+      }
     }
 
-    if (
-      sdNearY(
-        y,
-        height * 0.45
-      )
-    ) {
-
-      sdState =
-        "ARCHIVE";
-
-      sdArchiveScroll = 0;
-      sdArchiveTarget = 0;
-
-      return;
-    }
-
-    if (
-      sdNearY(
-        y,
-        height * 0.56
-      )
-    ) {
-
-      sdState =
-        "ABOUT";
-
-      return;
-    }
-
-    if (
-      sdNearY(
-        y,
-        height * 0.67
-      )
-    ) {
-
-      sdState =
-        "SETTINGS";
-
-      return;
-    }
-
-    if (
-      sdNearY(
-        y,
-        height * 0.78
-      )
-    ) {
-
-      sdRating = 0;
-
-      sdState =
-        "RATING";
-
-      return;
-    }
+    return;
   }
 
 
-  // HOME BUTTON ON MENUS
+  // ------------------------------------------------------------
+  // COMMON HOME BUTTON
+  // ------------------------------------------------------------
 
   if (
     sdState === "LEVELS" ||
@@ -5637,18 +5553,26 @@ function sdHandleTap(x, y) {
       20;
 
     if (
-      abs(y - homeY) < 32
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        homeY,
+        min(210, width * 0.60),
+        68
+      )
     ) {
 
-      sdState =
-        "HOME";
+      sdState = "HOME";
 
       return;
     }
   }
 
 
-  // LEVELS
+  // ------------------------------------------------------------
+  // LEVEL SELECT
+  // ------------------------------------------------------------
 
   if (
     sdState === "LEVELS"
@@ -5656,30 +5580,28 @@ function sdHandleTap(x, y) {
 
     let cols = 4;
 
-    let gap = 10;
+    let gap = 9;
 
     let size =
       min(
-        67,
-        (width - 50) /
-        cols
+        66,
+        (width - 48) / cols
       );
 
-    let startY = 170;
+    let startY = 140;
 
-    let total =
+    let totalWidth =
       cols * size +
-      (cols - 1) *
-      gap;
+      (cols - 1) * gap;
 
     let startX =
       width / 2 -
-      total / 2 +
+      totalWidth / 2 +
       size / 2;
 
     for (
       let i = 1;
-      i <= 20;
+      i <= SD_TOTAL_LEVELS;
       i++
     ) {
 
@@ -5699,13 +5621,17 @@ function sdHandleTap(x, y) {
       let by =
         startY +
         row *
-        (size + 17);
+        (size + 15);
 
       if (
-        abs(x - bx) <
-        size / 2 &&
-        abs(y - by) <
-        size / 2
+        sdPointInRect(
+          x,
+          y,
+          bx,
+          by,
+          size + 12,
+          size + 12
+        )
       ) {
 
         if (
@@ -5720,35 +5646,45 @@ function sdHandleTap(x, y) {
           sdTone(
             150,
             80,
-            0.15,
+            0.12,
             "square",
-            0.025
+            0.02
           );
         }
 
         return;
       }
     }
+
+    return;
   }
 
 
+  // ------------------------------------------------------------
   // ARCHIVE
+  // ------------------------------------------------------------
 
   if (
     sdState === "ARCHIVE"
   ) {
 
+    if (
+      sdArchiveDragging
+    ) {
+      return;
+    }
+
     let cardW =
       min(
-        350,
-        width * 0.88
+        355,
+        width * 0.89
       );
 
-    let cardH = 142;
+    let cardH = 145;
 
-    let gap = 16;
+    let gap = 15;
 
-    let top = 105;
+    let top = 100;
 
     for (
       let i = 0;
@@ -5763,16 +5699,14 @@ function sdHandleTap(x, y) {
         sdArchiveScroll;
 
       if (
-        abs(
-          x -
-          width / 2
-        ) <
-        cardW / 2 &&
-        abs(
-          y -
-          cy
-        ) <
-        cardH / 2
+        sdPointInRect(
+          x,
+          y,
+          width / 2,
+          cy,
+          cardW + 12,
+          cardH + 12
+        )
       ) {
 
         if (
@@ -5788,29 +5722,37 @@ function sdHandleTap(x, y) {
           sdTone(
             300,
             900,
-            0.25,
+            0.2,
             "sine",
-            0.035
+            0.025
           );
         }
 
         return;
       }
     }
+
+    return;
   }
 
 
+  // ------------------------------------------------------------
   // SETTINGS
+  // ------------------------------------------------------------
 
   if (
     sdState === "SETTINGS"
   ) {
 
     if (
-      abs(
-        y -
-        height * 0.34
-      ) < 45
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        height * 0.33,
+        min(350, width * 0.88),
+        100
+      )
     ) {
 
       sdControlsSwapped =
@@ -5820,14 +5762,21 @@ function sdHandleTap(x, y) {
 
       sdSave();
 
+      sdMenuPressed = 0;
+      sdMenuPressTime = millis();
+
       return;
     }
 
     if (
-      abs(
-        y -
-        height * 0.50
-      ) < 45
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        height * 0.49,
+        min(350, width * 0.88),
+        100
+      )
     ) {
 
       sdSound =
@@ -5840,25 +5789,35 @@ function sdHandleTap(x, y) {
         sdTone(
           400,
           800,
-          0.2,
+          0.18,
           "sine",
-          0.04
+          0.035
         );
       }
 
+      sdMenuPressed = 1;
+      sdMenuPressTime = millis();
+
       return;
     }
+
+    return;
   }
 
 
+  // ------------------------------------------------------------
   // RATING
+  // ------------------------------------------------------------
 
   if (
     sdState === "RATING"
   ) {
 
     let gap =
-      min(55, width * 0.13);
+      min(
+        53,
+        width * 0.13
+      );
 
     let total =
       gap * 4;
@@ -5879,38 +5838,42 @@ function sdHandleTap(x, y) {
           x,
           y,
           sx,
-          height * 0.46
-        ) < 30
+          height * 0.45
+        ) < 35
       ) {
 
-        if (
-          sdRating === i
-        ) {
+        sdRating =
+          i;
 
-          sdRating = 0;
-
-        } else {
-
-          sdRating = i;
-        }
+        sdTone(
+          450,
+          850,
+          0.12,
+          "sine",
+          0.025
+        );
 
         return;
       }
     }
 
     if (
-      abs(
-        y -
-        height * 0.66
-      ) < 30
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        height * 0.65,
+        280,
+        68
+      )
     ) {
 
       sdTone(
         500,
         900,
-        0.2,
+        0.18,
         "sine",
-        0.035
+        0.03
       );
 
       sdState =
@@ -5920,10 +5883,14 @@ function sdHandleTap(x, y) {
     }
 
     if (
-      abs(
-        y -
-        height * 0.76
-      ) < 30
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        height * 0.75,
+        280,
+        68
+      )
     ) {
 
       sdState =
@@ -5931,10 +5898,14 @@ function sdHandleTap(x, y) {
 
       return;
     }
+
+    return;
   }
 
 
-  // PLAYING TOP CONTROLS
+  // ------------------------------------------------------------
+  // PLAYING
+  // ------------------------------------------------------------
 
   if (
     sdState === "PLAYING"
@@ -5962,8 +5933,6 @@ function sdHandleTap(x, y) {
         sdHomeButton.y
       ) < 32
     ) {
-
-      sdStopBossMusic();
 
       sdState =
         "HOME";
@@ -6002,20 +5971,28 @@ function sdHandleTap(x, y) {
 
       return;
     }
+
+    return;
   }
 
 
+  // ------------------------------------------------------------
   // PAUSED
+  // ------------------------------------------------------------
 
   if (
     sdState === "PAUSED"
   ) {
 
     if (
-      abs(
-        y -
-        height * 0.53
-      ) < 32
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        height * 0.53,
+        300,
+        70
+      )
     ) {
 
       sdResumeGame();
@@ -6024,33 +6001,43 @@ function sdHandleTap(x, y) {
     }
 
     if (
-      abs(
-        y -
-        height * 0.64
-      ) < 32
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        height * 0.64,
+        270,
+        70
+      )
     ) {
-
-      sdStopBossMusic();
 
       sdState =
         "HOME";
 
       return;
     }
+
+    return;
   }
 
 
+  // ------------------------------------------------------------
   // GAME OVER
+  // ------------------------------------------------------------
 
   if (
     sdState === "GAMEOVER"
   ) {
 
     if (
-      abs(
-        y -
-        height * 0.55
-      ) < 32
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        height * 0.55,
+        300,
+        70
+      )
     ) {
 
       sdStartLevel(
@@ -6061,10 +6048,14 @@ function sdHandleTap(x, y) {
     }
 
     if (
-      abs(
-        y -
-        height * 0.66
-      ) < 32
+      sdPointInRect(
+        x,
+        y,
+        width / 2,
+        height * 0.66,
+        270,
+        70
+      )
     ) {
 
       sdState =
@@ -6077,6 +6068,28 @@ function sdHandleTap(x, y) {
 
 
 // ================================================================
+// RECTANGLE HIT TEST
+// ================================================================
+
+function sdPointInRect(
+  px,
+  py,
+  cx,
+  cy,
+  w,
+  h
+) {
+
+  return (
+    px >= cx - w / 2 &&
+    px <= cx + w / 2 &&
+    py >= cy - h / 2 &&
+    py <= cy + h / 2
+  );
+}
+
+
+// ================================================================
 // SPECIAL SHIP ABILITIES
 // ================================================================
 
@@ -6085,7 +6098,9 @@ function sdUseShipSpecial() {
   if (
     sdPowerReadyAt >
     millis()
-  ) return;
+  ) {
+    return;
+  }
 
   let p =
     sdShipPower();
@@ -6096,48 +6111,42 @@ function sdUseShipSpecial() {
 
     sdPowerEnds.BERSERKER =
       millis() + 5000;
-  }
 
-  else if (
+  } else if (
     p === "GRAVITY PULSE"
   ) {
 
     for (
       let a of sdAliens
     ) {
-
       a.speed *= 0.3;
     }
 
     sdPowerEnds.CRYO =
       millis() + 4500;
-  }
 
-  else if (
+  } else if (
     p === "TIME FREEZE"
   ) {
 
     sdPowerEnds.CRYO =
       millis() + 6500;
-  }
 
-  else if (
+  } else if (
     p === "PHASE DODGE"
   ) {
 
     sdShip.invincibleUntil =
       millis() + 4500;
-  }
 
-  else if (
+  } else if (
     p === "DRAGON RAGE"
   ) {
 
     sdPowerEnds.BERSERKER =
       millis() + 6500;
-  }
 
-  else if (
+  } else if (
     p === "QUANTUM DASH"
   ) {
 
@@ -6146,25 +6155,22 @@ function sdUseShipSpecial() {
 
     sdPowerEnds.BERSERKER =
       millis() + 5000;
-  }
 
-  else if (
+  } else if (
     p === "HOLY SHIELD"
   ) {
 
     sdPowerEnds.SHIELD =
       millis() + 7000;
-  }
 
-  else if (
+  } else if (
     p === "TITAN CORE"
   ) {
 
     sdPowerEnds.BERSERKER =
       millis() + 6500;
-  }
 
-  else if (
+  } else if (
     p === "REALITY BREAK"
   ) {
 
@@ -6184,7 +6190,7 @@ function sdUseShipSpecial() {
       sdCreateExplosion(
         sdAliens[i].x,
         sdAliens[i].y,
-        18
+        15
       );
 
       sdAliens.splice(
@@ -6196,16 +6202,13 @@ function sdUseShipSpecial() {
       sdLevelScore += 35;
     }
 
-    if (
-      sdBoss
-    ) {
+    if (sdBoss) {
 
       sdBoss.hp -=
-        sdBoss.maxHp *
-        0.12;
+        sdBoss.maxHp * 0.12;
     }
 
-    sdStartShake(20);
+    sdStartShake(18);
   }
 
   else {
@@ -6220,33 +6223,15 @@ function sdUseShipSpecial() {
   sdTone(
     250,
     1200,
-    0.4,
+    0.35,
     "sine",
-    0.05
+    0.04
   );
 }
 
 
 // ================================================================
-// UTILITY
-// ================================================================
-
-function sdNearY(
-  y,
-  target
-) {
-
-  return (
-    abs(
-      y -
-      target
-    ) < 32
-  );
-}
-
-
-// ================================================================
-// MOUSE
+// MOUSE SUPPORT
 // ================================================================
 
 function mousePressed() {
@@ -6273,9 +6258,9 @@ function windowResized() {
     windowHeight
   );
 
-  sdUpdateSafeArea();
-
   sdCreateStars();
+
+  sdUpdateSafeArea();
 
   sdResetControls();
 }
