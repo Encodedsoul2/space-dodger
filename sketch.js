@@ -1,79 +1,120 @@
 // ================================================================
-// 🚀 SPACE DODGER — GALACTIC CAMPAIGN v4
-// COMPLETE SINGLE sketch.js
-// p5.js v2 compatible
-// Mobile First
+// SPACE DODGER — GALACTIC CAMPAIGN
+// COMPLETE MOBILE-FIRST REBUILD
+// p5.js single-file sketch.js
 // ================================================================
 
 // ================================================================
-// GLOBAL STATE
+// GAME STATE
 // ================================================================
 
-let gameState = "HOME";
+let sdState = "HOME";
+// HOME, LEVELS, ARCHIVE, ABOUT, SETTINGS,
+// PLAYING, PAUSED, GAMEOVER, LEVELUP, RATING
 
-let ship;
+let sdShip = null;
 
-let bullets = [];
-let aliens = [];
-let enemyShots = [];
-let particles = [];
-let powerUps = [];
-let stars = [];
+let sdBullets = [];
+let sdAliens = [];
+let sdParticles = [];
+let sdPowerUps = [];
+let sdEnemyShots = [];
+let sdStars = [];
 
-let boss = null;
+let sdBoss = null;
+let sdPortal = null;
 
-let currentLevel = 1;
-let unlockedLevel = 1;
-let selectedShip = 0;
+let sdCurrentLevel = 1;
+let sdUnlockedLevel = 1;
+let sdSelectedShip = 0;
 
-let score = 0;
-let levelScore = 0;
-let lives = 3;
+let sdScore = 0;
+let sdLevelScore = 0;
+let sdLives = 3;
 
-let levelStartTime = 0;
-let levelDuration = 45000;
-let levelTargetScore = 500;
+let sdLevelStart = 0;
+let sdLevelDuration = 45000;
+let sdTargetScore = 500;
 
-let lastEnemySpawn = 0;
-let lastPowerSpawn = 0;
-let lastShot = 0;
+let sdLastAlien = 0;
+let sdLastPower = 0;
+let sdLastShot = 0;
 
-let levelCompleteAt = 0;
+let sdLevelUpStart = 0;
 
-let shakeUntil = 0;
-let shakePower = 0;
+let sdGalaxy = 0;
+let sdGalaxyEnd = 0;
 
-let soundEnabled = true;
-let controlsSwapped = false;
+let sdBossActive = false;
+let sdBossDefeated = false;
 
-let audioCtx = null;
+let sdSound = true;
+let sdControlsSwapped = false;
 
-// Rating
-let ratingOpen = false;
-let selectedRating = 0;
+let sdAudio = null;
+let sdBossMusicTimer = null;
+let sdBossMusicOn = false;
 
-// Archive scrolling
-let archiveScroll = 0;
-let archiveTargetScroll = 0;
-let archiveDragging = false;
-let archiveStartY = 0;
-let archiveStartScroll = 0;
-let archiveMoved = false;
+let sdShake = 0;
 
-// Pause
-let pauseStarted = 0;
+let sdRating = 0;
 
-// Boss music
-let bossMusicTimer = null;
-let bossMusicStep = 0;
+let sdArchiveScroll = 0;
+let sdArchiveTarget = 0;
+let sdArchiveDragging = false;
+let sdArchiveLastY = 0;
+
+let sdTouchStartY = 0;
+let sdTouchStartX = 0;
+
+let sdPauseStarted = 0;
+
+let sdSafeBottom = 110;
+
+let sdJoystick = {
+  active: false,
+  id: null,
+  baseX: 90,
+  baseY: 0,
+  knobX: 90,
+  knobY: 0,
+  radius: 58
+};
+
+let sdFire = {
+  x: 0,
+  y: 0,
+  radius: 52
+};
+
+let sdPowerButton = {
+  x: 0,
+  y: 0,
+  radius: 42
+};
+
+let sdPauseButton = {
+  x: 38,
+  y: 60,
+  radius: 23
+};
+
+let sdHomeButton = {
+  x: 0,
+  y: 60,
+  radius: 23
+};
+
+let sdPowerReadyAt = 0;
+
 
 // ================================================================
 // CAMPAIGN
 // ================================================================
 
-const TOTAL_LEVELS = 20;
+const SD_TOTAL_LEVELS = 20;
 
-const LEVEL_TITLES = [
+const SD_LEVEL_TITLES = [
   "SPACE ROOKIE",
   "STAR CADET",
   "ORBIT SCOUT",
@@ -96,36 +137,29 @@ const LEVEL_TITLES = [
   "SPACE LEGEND"
 ];
 
-function getLevelDuration(level) {
-  return 40000 + (level - 1) * 5000;
+function sdDuration(level) {
+  return 45000 + (level - 1) * 6000;
 }
 
-function getLevelTarget(level) {
-  return 350 + (level - 1) * 145 + floor(pow(level, 1.35) * 20);
-}
-
-function getEnemyDelay(level) {
-  return max(350, 1050 - (level - 1) * 34);
-}
-
-function getDifficulty(level) {
-  return 1 + (level - 1) * 0.06;
-}
-
-function isBossLevel() {
-  return (
-    currentLevel === 5 ||
-    currentLevel === 10 ||
-    currentLevel === 15 ||
-    currentLevel === 20
+function sdTarget(level) {
+  return floor(
+    450 +
+    (level - 1) * 180 +
+    pow(level, 1.35) * 30
   );
 }
+
+function sdDifficulty(level) {
+  return 1 + (level - 1) * 0.055;
+}
+
 
 // ================================================================
 // SHIP ARCHIVE
 // ================================================================
 
-const SHIPS = [
+const SD_SHIPS = [
+
   {
     name: "NOVA SCOUT",
     unlock: 1,
@@ -133,7 +167,7 @@ const SHIPS = [
     edge: "#00eaff",
     core: "#ffffff",
     power: "BALANCED",
-    desc: "Balanced firepower"
+    desc: "Balanced weapons and movement."
   },
 
   {
@@ -143,7 +177,7 @@ const SHIPS = [
     edge: "#ff8a00",
     core: "#ffe066",
     power: "BURN SHOT",
-    desc: "Extra damage"
+    desc: "Shots ignite aliens for extra damage."
   },
 
   {
@@ -152,8 +186,8 @@ const SHIPS = [
     body: "#32105b",
     edge: "#c66cff",
     core: "#ffffff",
-    power: "RAPID FIRE",
-    desc: "Faster lasers"
+    power: "GRAVITY PULSE",
+    desc: "Nearby aliens are slowed."
   },
 
   {
@@ -162,8 +196,8 @@ const SHIPS = [
     body: "#103c60",
     edge: "#7ee8ff",
     core: "#dfffff",
-    power: "CRYO FIELD",
-    desc: "Slows aliens"
+    power: "TIME FREEZE",
+    desc: "Enemies move much slower."
   },
 
   {
@@ -172,8 +206,8 @@ const SHIPS = [
     body: "#251033",
     edge: "#ff4ddd",
     core: "#ffffff",
-    power: "PIERCING",
-    desc: "Shots pierce enemies"
+    power: "PHASE DODGE",
+    desc: "Chance to phase through attacks."
   },
 
   {
@@ -182,8 +216,8 @@ const SHIPS = [
     body: "#5c0715",
     edge: "#ff1744",
     core: "#ffe600",
-    power: "DRAGON HUNTER",
-    desc: "Boss damage +50%"
+    power: "DRAGON RAGE",
+    desc: "Extra damage against the boss."
   },
 
   {
@@ -192,8 +226,8 @@ const SHIPS = [
     body: "#063f45",
     edge: "#00ffd5",
     core: "#ffffff",
-    power: "QUANTUM",
-    desc: "Double-hit chance"
+    power: "QUANTUM DASH",
+    desc: "Faster movement and rapid fire."
   },
 
   {
@@ -202,8 +236,8 @@ const SHIPS = [
     body: "#55490a",
     edge: "#fff176",
     core: "#ffffff",
-    power: "AUTO SHIELD",
-    desc: "Periodic protection"
+    power: "HOLY SHIELD",
+    desc: "Automatic protective shield."
   },
 
   {
@@ -212,8 +246,8 @@ const SHIPS = [
     body: "#431c58",
     edge: "#ff78ff",
     core: "#ffffaa",
-    power: "TITAN CANNON",
-    desc: "Heavy laser"
+    power: "TITAN CORE",
+    desc: "Huge shots and increased damage."
   },
 
   {
@@ -222,867 +256,1083 @@ const SHIPS = [
     body: "#5a3f00",
     edge: "#ffd700",
     core: "#ffffff",
-    power: "CELESTIAL",
-    desc: "Five-way laser"
+    power: "REALITY BREAK",
+    desc: "Extreme firepower and shield."
   }
+
 ];
 
-// ================================================================
-// POWER TIMERS
-// ================================================================
-
-let shieldUntil = 0;
-let rapidUntil = 0;
-let multiUntil = 0;
-let cryoUntil = 0;
-let celestialUntil = 0;
-
-let autoShieldReady = 0;
-
-function resetPowerTimers() {
-  shieldUntil = 0;
-  rapidUntil = 0;
-  multiUntil = 0;
-  cryoUntil = 0;
-  celestialUntil = 0;
-  autoShieldReady = 0;
-}
 
 // ================================================================
-// TOUCH CONTROLS
+// POWER UPS
 // ================================================================
 
-const joystick = {
-  baseX: 90,
-  baseY: 0,
-  knobX: 90,
-  knobY: 0,
-  radius: 58,
-  active: false
+const SD_POWER_TYPES = [
+  "MULTI",
+  "SHIELD",
+  "TWIN",
+  "TRINITY",
+  "NOVA",
+  "PHANTOM",
+  "BERSERKER",
+  "CRYO",
+  "CELESTIAL"
+];
+
+let sdPowerEnds = {
+  MULTI: 0,
+  SHIELD: 0,
+  TWIN: 0,
+  TRINITY: 0,
+  PHANTOM: 0,
+  BERSERKER: 0,
+  CRYO: 0,
+  CELESTIAL: 0
 };
 
-const fireButton = {
-  x: 0,
-  y: 0,
-  radius: 52
-};
-
-const pauseButton = {
-  x: 38,
-  y: 90,
-  radius: 22
-};
-
-const homeButton = {
-  x: 0,
-  y: 90,
-  radius: 22
-};
 
 // ================================================================
 // SETUP
 // ================================================================
 
 function setup() {
+
   createCanvas(windowWidth, windowHeight);
 
   textFont("Arial");
 
-  loadSave();
-  createStars();
-  resetControls();
+  sdLoad();
 
-  ship = new PlayerShip();
+  sdCreateStars();
 
-  lastEnemySpawn = millis();
-  lastPowerSpawn = millis();
+  sdUpdateSafeArea();
+
+  sdShip = new SDShip();
+
+  sdResetControls();
 }
 
+
 // ================================================================
-// SAVE
+// SAVE / LOAD
 // ================================================================
 
-function saveGame() {
+function sdLoad() {
+
   try {
-    localStorage.setItem(
-      "spaceDodgerSaveV4",
-      JSON.stringify({
-        unlockedLevel: unlockedLevel,
-        selectedShip: selectedShip,
-        soundEnabled: soundEnabled,
-        controlsSwapped: controlsSwapped
-      })
+
+    let raw = localStorage.getItem(
+      "spaceDodgerSaveV4"
     );
-  } catch (err) {
-    // Storage may be unavailable in some preview environments.
-  }
-}
-
-function loadSave() {
-  try {
-    const raw = localStorage.getItem("spaceDodgerSaveV4");
 
     if (!raw) return;
 
-    const data = JSON.parse(raw);
+    let d = JSON.parse(raw);
 
-    if (Number.isFinite(data.unlockedLevel)) {
-      unlockedLevel = constrain(
-        floor(data.unlockedLevel),
-        1,
-        TOTAL_LEVELS
-      );
-    }
+    sdUnlockedLevel = constrain(
+      int(d.unlockedLevel || 1),
+      1,
+      SD_TOTAL_LEVELS
+    );
 
-    if (Number.isFinite(data.selectedShip)) {
-      selectedShip = constrain(
-        floor(data.selectedShip),
-        0,
-        SHIPS.length - 1
-      );
-    }
+    sdSelectedShip = constrain(
+      int(d.selectedShip || 0),
+      0,
+      SD_SHIPS.length - 1
+    );
 
-    soundEnabled = data.soundEnabled !== false;
-    controlsSwapped = data.controlsSwapped === true;
-  } catch (err) {
-    // Ignore invalid save data.
+    sdSound = d.sound !== false;
+
+    sdControlsSwapped =
+      d.controlsSwapped === true;
+
+  } catch (e) {
+
+    sdUnlockedLevel = 1;
+    sdSelectedShip = 0;
   }
 }
 
+
+function sdSave() {
+
+  try {
+
+    localStorage.setItem(
+      "spaceDodgerSaveV4",
+      JSON.stringify({
+        unlockedLevel: sdUnlockedLevel,
+        selectedShip: sdSelectedShip,
+        sound: sdSound,
+        controlsSwapped: sdControlsSwapped
+      })
+    );
+
+  } catch (e) {}
+}
+
+
 // ================================================================
-// MAIN DRAW
+// SAFE AREA
+// ================================================================
+
+function sdUpdateSafeArea() {
+
+  /*
+    The bottom of a mobile WebView may be partially occupied
+    by Android gesture/navigation UI.
+
+    Keep all interactive controls safely above that area.
+  */
+
+  sdSafeBottom = constrain(
+    max(105, height * 0.13),
+    105,
+    145
+  );
+
+  sdJoystick.baseY =
+    height - sdSafeBottom;
+
+  sdFire.y =
+    height - sdSafeBottom;
+
+  sdPowerButton.y =
+    height - sdSafeBottom;
+
+  sdHomeButton.y =
+    height - 52;
+
+  sdPauseButton.y = 52;
+}
+
+
+// ================================================================
+// DRAW
 // ================================================================
 
 function draw() {
-  drawBackground();
-  updateStars();
-  drawStars();
 
-  if (gameState === "HOME") {
-    drawHome();
+  sdDrawBackground();
+
+  sdDrawStars();
+
+  if (sdState === "HOME") {
+    sdDrawHome();
     return;
   }
 
-  if (gameState === "LEVELS") {
-    drawLevels();
+  if (sdState === "LEVELS") {
+    sdDrawLevels();
     return;
   }
 
-  if (gameState === "ARCHIVE") {
-    drawArchive();
+  if (sdState === "ARCHIVE") {
+    sdDrawArchive();
     return;
   }
 
-  if (gameState === "ABOUT") {
-    drawAbout();
+  if (sdState === "ABOUT") {
+    sdDrawAbout();
     return;
   }
 
-  if (gameState === "SETTINGS") {
-    drawSettings();
+  if (sdState === "SETTINGS") {
+    sdDrawSettings();
     return;
   }
 
-  if (gameState === "RATING") {
-    drawRating();
+  if (sdState === "RATING") {
+    sdDrawRating();
     return;
   }
 
-  if (gameState === "PLAYING") {
-    runGame();
+  if (sdState === "PLAYING") {
+    sdRunGame();
     return;
   }
 
-  if (gameState === "PAUSED") {
-    drawFrozenWorld();
-    drawHUD();
-    drawPauseOverlay();
+  if (sdState === "PAUSED") {
+    sdDrawFrozen();
+    sdDrawPause();
     return;
   }
 
-  if (gameState === "GAMEOVER") {
-    drawFrozenWorld();
-    drawHUD();
-    drawGameOver();
+  if (sdState === "GAMEOVER") {
+    sdDrawFrozen();
+    sdDrawGameOver();
     return;
   }
 
-  if (gameState === "LEVELUP") {
-    updateParticles();
-    drawLevelComplete();
+  if (sdState === "LEVELUP") {
+    sdUpdateParticles();
+    sdDrawLevelUp();
   }
 }
+
 
 // ================================================================
 // BACKGROUND
 // ================================================================
 
-function drawBackground() {
-  if (boss) {
-    const pulse = sin(frameCount * 0.05) * 5;
-    background(18 + pulse, 2, 9);
+function sdDrawBackground() {
+
+  if (sdBossActive) {
+
+    let pulse =
+      sin(frameCount * 0.05) * 5;
+
+    background(
+      18 + pulse,
+      2,
+      10
+    );
+
     return;
   }
 
-  if (currentLevel >= 15) {
-    background(4, 3, 20);
-  } else if (currentLevel >= 10) {
-    background(2, 10, 24);
-  } else if (currentLevel >= 5) {
-    background(12, 4, 20);
-  } else {
-    background(2, 6, 18);
+  if (sdGalaxy === 1) {
+    background(25, 3, 18);
+  }
+
+  else if (sdGalaxy === 2) {
+    background(3, 10, 30);
+  }
+
+  else if (sdGalaxy === 3) {
+    background(0, 22, 15);
+  }
+
+  else {
+    background(2, 5, 17);
   }
 }
+
 
 // ================================================================
 // STARS
 // ================================================================
 
-function createStars() {
-  stars = [];
+function sdCreateStars() {
+
+  sdStars = [];
 
   for (let i = 0; i < 150; i++) {
-    stars.push({
+
+    sdStars.push({
       x: random(width),
       y: random(height),
-      size: random(1, 3),
+      s: random(1, 3),
       speed: random(0.2, 1.1),
-      alpha: random(100, 230)
+      phase: random(TWO_PI)
     });
   }
 }
 
-function updateStars() {
-  for (const star of stars) {
-    star.y += star.speed;
 
-    if (star.y > height) {
-      star.y = -2;
-      star.x = random(width);
-    }
-  }
-}
+function sdDrawStars() {
 
-function drawStars() {
   noStroke();
 
-  for (const star of stars) {
-    fill(255, 255, 255, star.alpha);
-    circle(star.x, star.y, star.size);
+  for (let s of sdStars) {
+
+    s.phase += 0.025;
+
+    if (sdState === "PLAYING") {
+      s.y += s.speed;
+    }
+
+    if (s.y > height) {
+      s.y = 0;
+      s.x = random(width);
+    }
+
+    let alpha =
+      130 +
+      sin(s.phase) * 90;
+
+    if (sdBossActive) {
+
+      fill(
+        255,
+        60,
+        60,
+        alpha
+      );
+
+    }
+
+    else if (sdGalaxy === 1) {
+
+      fill(
+        255,
+        80,
+        120,
+        alpha
+      );
+
+    }
+
+    else if (sdGalaxy === 2) {
+
+      fill(
+        80,
+        190,
+        255,
+        alpha
+      );
+
+    }
+
+    else if (sdGalaxy === 3) {
+
+      fill(
+        80,
+        255,
+        170,
+        alpha
+      );
+
+    }
+
+    else {
+
+      fill(
+        255,
+        255,
+        255,
+        alpha
+      );
+    }
+
+    circle(
+      s.x,
+      s.y,
+      s.s
+    );
   }
 }
+
 
 // ================================================================
 // HOME
 // ================================================================
 
-function drawHome() {
-  push();
+function sdDrawHome() {
 
   textAlign(CENTER, CENTER);
 
   fill(0, 225, 255);
+
   textStyle(BOLD);
-  textSize(min(44, width * 0.115));
 
-  text("SPACE DODGER", width / 2, height * 0.16);
+  textSize(
+    min(44, width * 0.105)
+  );
 
-  fill(255, 220, 50);
-  textSize(14);
-  text("GALACTIC CAMPAIGN", width / 2, height * 0.22);
+  text(
+    "SPACE DODGER",
+    width / 2,
+    height * 0.15
+  );
 
-  drawMenuButton("PLAY", height * 0.35);
-  drawMenuButton("ARCHIVE", height * 0.45);
-  drawMenuButton("ABOUT", height * 0.55);
-  drawMenuButton("SETTINGS", height * 0.65);
-  drawMenuButton("RATE US", height * 0.75);
+  fill(255, 220, 60);
+
+  textSize(15);
+
+  text(
+    "GALACTIC CAMPAIGN",
+    width / 2,
+    height * 0.205
+  );
+
+  sdMenuButton(
+    "▶  PLAY",
+    height * 0.34
+  );
+
+  sdMenuButton(
+    "🚀  ARCHIVE",
+    height * 0.45
+  );
+
+  sdMenuButton(
+    "ℹ  ABOUT",
+    height * 0.56
+  );
+
+  sdMenuButton(
+    "⚙  SETTINGS",
+    height * 0.67
+  );
+
+  sdMenuButton(
+    "★  RATE US",
+    height * 0.78
+  );
 
   fill(180);
+
   textStyle(NORMAL);
-  textSize(12);
+
+  textSize(13);
 
   text(
     "Highest Level Unlocked: " +
-      unlockedLevel +
-      " / " +
-      TOTAL_LEVELS,
+    sdUnlockedLevel +
+    " / 20",
     width / 2,
-    height * 0.88
+    height - sdSafeBottom + 25
   );
-
-  pop();
 }
 
-function drawMenuButton(label, y) {
-  const w = min(310, width * 0.78);
 
-  push();
+function sdMenuButton(label, y) {
+
+  let w =
+    min(310, width * 0.78);
 
   rectMode(CENTER);
 
-  stroke(0, 205, 255, 180);
-  strokeWeight(2);
-  fill(5, 22, 42, 235);
+  stroke(0, 210, 255, 180);
 
-  rect(width / 2, y, w, 52, 13);
+  strokeWeight(2);
+
+  fill(5, 20, 40, 230);
+
+  rect(
+    width / 2,
+    y,
+    w,
+    54,
+    14
+  );
 
   noStroke();
+
   fill(255);
 
-  textAlign(CENTER, CENTER);
   textStyle(BOLD);
+
   textSize(16);
 
-  text(label, width / 2, y);
-
-  pop();
+  text(
+    label,
+    width / 2,
+    y
+  );
 }
 
+
 // ================================================================
-// LEVEL SELECT
+// LEVELS
 // ================================================================
 
-function drawLevels() {
-  push();
+function sdDrawLevels() {
 
   textAlign(CENTER, CENTER);
 
   fill(0, 225, 255);
+
   textStyle(BOLD);
-  textSize(27);
 
-  text("SELECT LEVEL", width / 2, 50);
+  textSize(28);
 
-  fill(255, 220, 50);
-  textSize(12);
+  text(
+    "SELECT LEVEL",
+    width / 2,
+    55
+  );
+
+  fill(255, 220, 60);
+
+  textSize(13);
 
   text(
     "CURRENT RANK",
     width / 2,
-    82
+    88
   );
 
   fill(255);
+
   textSize(17);
 
   text(
-    LEVEL_TITLES[unlockedLevel - 1],
+    "★ " +
+    SD_LEVEL_TITLES[
+      sdUnlockedLevel - 1
+    ] +
+    " ★",
     width / 2,
-    105
+    112
   );
 
-  const cols = 4;
-  const gap = 10;
+  let cols = 4;
+  let gap = 10;
 
-  const size = min(
-    65,
-    (width - 48) / cols
-  );
+  let size =
+    min(
+      67,
+      (width - 50) / cols
+    );
 
-  const totalWidth =
-    cols * size +
-    (cols - 1) * gap;
+  let startY = 170;
 
-  const startX =
-    width / 2 -
-    totalWidth / 2 +
-    size / 2;
+  for (let i = 1; i <= 20; i++) {
 
-  const startY = 165;
+    let col = (i - 1) % cols;
+    let row = floor((i - 1) / cols);
 
-  for (let i = 1; i <= TOTAL_LEVELS; i++) {
-    const col = (i - 1) % cols;
-    const row = floor((i - 1) / cols);
+    let total =
+      cols * size +
+      (cols - 1) * gap;
 
-    const x =
+    let startX =
+      width / 2 -
+      total / 2 +
+      size / 2;
+
+    let x =
       startX +
       col * (size + gap);
 
-    const y =
+    let y =
       startY +
       row * (size + 17);
 
-    const unlocked = i <= unlockedLevel;
+    let open =
+      i <= sdUnlockedLevel;
 
     rectMode(CENTER);
 
     stroke(
-      unlocked
-        ? color(0, 215, 255)
+      open
+        ? color(0, 220, 255)
         : color(70)
     );
 
     strokeWeight(2);
 
     fill(
-      unlocked
-        ? color(5, 32, 52)
-        : color(20, 20, 25)
+      open
+        ? color(5, 35, 55)
+        : color(18, 18, 24)
     );
 
-    rect(x, y, size, size, 11);
+    rect(
+      x,
+      y,
+      size,
+      size,
+      12
+    );
 
     noStroke();
 
-    fill(unlocked ? 255 : 90);
+    fill(
+      open
+        ? 255
+        : 100
+    );
 
     textStyle(BOLD);
+
     textSize(18);
 
     text(
-      unlocked ? String(i) : "LOCK",
+      open ? i : "🔒",
       x,
       y - 4
     );
 
-    if (unlocked) {
-      fill(140, 220, 255);
-      textSize(8);
+    if (open) {
+
+      fill(150, 225, 255);
+
+      textSize(9);
+
       text(
-        isSpecialLevel(i) ? "BOSS" : "MISSION",
+        i === 5 ||
+        i === 10 ||
+        i === 15 ||
+        i === 20
+          ? "BOSS"
+          : "LEVEL",
         x,
         y + 20
       );
     }
   }
 
-  drawBackButton();
-
-  pop();
+  sdHomeBottomButton();
 }
 
-function isSpecialLevel(level) {
-  return (
-    level === 5 ||
-    level === 10 ||
-    level === 15 ||
-    level === 20
-  );
-}
 
 // ================================================================
 // ARCHIVE
 // ================================================================
 
-function archiveCardHeight() {
-  return 142;
-}
-
-function archiveContentHeight() {
-  return (
-    145 +
-    SHIPS.length * archiveCardHeight()
-  );
-}
-
-function archiveMaxScroll() {
-  const visible =
-    height - 175;
-
-  return max(
-    0,
-    archiveContentHeight() - visible
-  );
-}
-
-function drawArchive() {
-  push();
+function sdDrawArchive() {
 
   textAlign(CENTER, CENTER);
 
   fill(0, 225, 255);
+
   textStyle(BOLD);
-  textSize(25);
+
+  textSize(27);
 
   text(
-    "SHIP ARCHIVE",
+    "SPACE SHIP ARCHIVE",
     width / 2,
-    40
+    38
   );
 
-  fill(175);
+  fill(190);
+
   textStyle(NORMAL);
-  textSize(12);
+
+  textSize(13);
 
   text(
-    "Drag up/down to explore • Tap a ship to select",
+    "Swipe up / down to browse ships",
     width / 2,
-    70
+    68
   );
 
-  // Clip archive content.
-  drawingContext.save();
-  drawingContext.beginPath();
-  drawingContext.rect(
-    0,
-    92,
-    width,
-    height - 150
+  let cardW =
+    min(350, width * 0.88);
+
+  let cardH = 142;
+
+  let gap = 16;
+
+  let top = 105;
+
+  let contentHeight =
+    SD_SHIPS.length *
+    (cardH + gap);
+
+  let viewportTop = 90;
+
+  let viewportBottom =
+    height - sdSafeBottom - 35;
+
+  let viewportHeight =
+    viewportBottom -
+    viewportTop;
+
+  let maxScroll =
+    max(
+      0,
+      contentHeight -
+      viewportHeight
+    );
+
+  sdArchiveTarget =
+    constrain(
+      sdArchiveTarget,
+      0,
+      maxScroll
+    );
+
+  sdArchiveScroll = lerp(
+    sdArchiveScroll,
+    sdArchiveTarget,
+    0.18
   );
-  drawingContext.clip();
 
   push();
 
-  translate(
+  drawingContext.save();
+
+  drawingContext.beginPath();
+
+  drawingContext.rect(
     0,
-    100 - archiveScroll
+    viewportTop,
+    width,
+    viewportHeight
   );
 
-  const cardW = min(
-    330,
-    width * 0.84
-  );
+  drawingContext.clip();
 
-  const cardH = archiveCardHeight();
+  for (
+    let i = 0;
+    i < SD_SHIPS.length;
+    i++
+  ) {
 
-  for (let i = 0; i < SHIPS.length; i++) {
-    drawShipCard(
-      i,
-      width / 2,
-      75 + i * cardH,
-      cardW,
-      cardH - 10
+    let y =
+      top +
+      i * (cardH + gap) -
+      sdArchiveScroll;
+
+    let unlocked =
+      sdUnlockedLevel >=
+      SD_SHIPS[i].unlock;
+
+    let selected =
+      sdSelectedShip === i;
+
+    rectMode(CENTER);
+
+    stroke(
+      selected
+        ? color(255, 220, 40)
+        : unlocked
+          ? color(SD_SHIPS[i].edge)
+          : color(70)
     );
-  }
 
-  pop();
+    strokeWeight(
+      selected ? 3 : 2
+    );
+
+    fill(5, 15, 30);
+
+    rect(
+      width / 2,
+      y,
+      cardW,
+      cardH,
+      15
+    );
+
+    if (unlocked) {
+
+      sdDrawArchiveShip(
+        width / 2 - cardW * 0.30,
+        y - 3,
+        i,
+        1.0
+      );
+
+      noStroke();
+
+      textAlign(LEFT, CENTER);
+
+      fill(255);
+
+      textStyle(BOLD);
+
+      textSize(14);
+
+      text(
+        SD_SHIPS[i].name,
+        width / 2 - cardW * 0.05,
+        y - 42
+      );
+
+      fill(255, 220, 60);
+
+      textSize(12);
+
+      text(
+        "⚡ " +
+        SD_SHIPS[i].power,
+        width / 2 - cardW * 0.05,
+        y - 15
+      );
+
+      fill(180);
+
+      textStyle(NORMAL);
+
+      textSize(10);
+
+      text(
+        SD_SHIPS[i].desc,
+        width / 2 - cardW * 0.05,
+        y + 10
+      );
+
+      fill(
+        selected
+          ? color(255, 220, 40)
+          : color(100, 220, 255)
+      );
+
+      textStyle(BOLD);
+
+      textSize(11);
+
+      text(
+        selected
+          ? "SELECTED"
+          : "TAP TO SELECT",
+        width / 2 - cardW * 0.05,
+        y + 39
+      );
+
+    } else {
+
+      sdDrawArchiveShip(
+        width / 2,
+        y - 5,
+        i,
+        0.72
+      );
+
+      noStroke();
+
+      fill(160);
+
+      textAlign(CENTER, CENTER);
+
+      textStyle(BOLD);
+
+      textSize(12);
+
+      text(
+        "🔒  UNLOCK AT LEVEL " +
+        SD_SHIPS[i].unlock,
+        width / 2,
+        y + 45
+      );
+    }
+  }
 
   drawingContext.restore();
 
-  // Scroll bar.
-  const trackX = width - 12;
-  const trackY = 100;
-  const trackH = height - 165;
+  pop();
 
-  noStroke();
-  fill(255, 255, 255, 35);
+  // Scroll indicators
 
-  rect(
-    trackX,
-    trackY,
-    5,
-    trackH,
-    3
-  );
+  if (maxScroll > 0) {
 
-  if (archiveMaxScroll() > 0) {
-    const thumbH = max(
-      45,
-      trackH *
-        ((height - 165) /
-          archiveContentHeight())
-    );
+    let barH =
+      max(
+        35,
+        viewportHeight *
+        (viewportHeight /
+          contentHeight)
+      );
 
-    const thumbY =
-      trackY +
-      (archiveScroll /
-        archiveMaxScroll()) *
-        (trackH - thumbH);
+    let barX = width - 12;
 
-    fill(0, 220, 255, 170);
+    let barTravel =
+      viewportHeight - barH;
+
+    let barY =
+      viewportTop +
+      barTravel *
+      (sdArchiveScroll /
+        maxScroll);
+
+    noStroke();
+
+    fill(0, 220, 255, 100);
 
     rect(
-      trackX,
-      thumbY,
+      barX,
+      barY,
       5,
-      thumbH,
+      barH,
       3
     );
   }
 
-  drawBackButton();
-
-  pop();
+  sdHomeBottomButton();
 }
 
-function drawShipCard(
-  index,
-  x,
-  y,
-  w,
-  h
-) {
-  const data = SHIPS[index];
 
-  const unlocked =
-    unlockedLevel >= data.unlock;
-
-  const selected =
-    selectedShip === index;
-
-  rectMode(CENTER);
-
-  stroke(
-    selected
-      ? color(255, 220, 40)
-      : unlocked
-      ? color(data.edge)
-      : color(65)
-  );
-
-  strokeWeight(selected ? 3 : 2);
-
-  fill(5, 17, 31);
-
-  rect(x, y, w, h, 15);
-
-  if (unlocked) {
-    drawArchiveShip(
-      x - w * 0.26,
-      y,
-      index,
-      0.9
-    );
-
-    noStroke();
-
-    textAlign(LEFT, CENTER);
-
-    fill(255);
-    textStyle(BOLD);
-    textSize(15);
-
-    text(
-      data.name,
-      x - w * 0.02,
-      y - 28
-    );
-
-    fill(0, 230, 255);
-    textSize(12);
-
-    text(
-      data.power,
-      x - w * 0.02,
-      y
-    );
-
-    fill(175);
-    textStyle(NORMAL);
-    textSize(11);
-
-    text(
-      data.desc,
-      x - w * 0.02,
-      y + 22
-    );
-
-    fill(
-      selected
-        ? color(255, 220, 50)
-        : color(120, 220, 255)
-    );
-
-    textStyle(BOLD);
-    textSize(10);
-
-    text(
-      selected
-        ? "SELECTED"
-        : "TAP TO SELECT",
-      x - w * 0.02,
-      y + 43
-    );
-  } else {
-    noStroke();
-
-    fill(100);
-
-    textAlign(CENTER, CENTER);
-    textStyle(BOLD);
-    textSize(13);
-
-    text(
-      "LOCKED",
-      x,
-      y - 8
-    );
-
-    fill(150);
-    textStyle(NORMAL);
-    textSize(10);
-
-    text(
-      "UNLOCK AT LEVEL " + data.unlock,
-      x,
-      y + 18
-    );
-  }
-}
-
-function drawArchiveShip(
+function sdDrawArchiveShip(
   x,
   y,
   index,
   scaleValue
 ) {
-  const data = SHIPS[index];
+
+  let d = SD_SHIPS[index];
 
   push();
 
   translate(x, y);
+
   scale(scaleValue);
 
-  stroke(data.edge);
+  stroke(d.edge);
+
   strokeWeight(3);
 
-  fill(data.body);
+  fill(d.body);
 
   beginShape();
 
-  vertex(0, -40);
-  vertex(-15, -8);
-  vertex(-37, 22);
-  vertex(-10, 14);
-  vertex(0, 22);
-  vertex(10, 14);
-  vertex(37, 22);
-  vertex(15, -8);
+  vertex(0, -42);
+  vertex(-17, -8);
+  vertex(-42, 25);
+  vertex(-12, 18);
+  vertex(0, 32);
+  vertex(12, 18);
+  vertex(42, 25);
+  vertex(17, -8);
 
   endShape(CLOSE);
 
   noStroke();
 
-  fill(data.core);
+  fill(d.core);
 
   ellipse(
     0,
     -5,
-    11,
-    17
+    13,
+    20
   );
 
-  fill(data.edge);
+  fill(d.edge);
 
   triangle(
-    -5,
-    20,
-    5,
-    20,
+    -7,
+    24,
+    7,
+    24,
     0,
-    34
+    39
   );
 
   pop();
 }
+
 
 // ================================================================
 // ABOUT
 // ================================================================
 
-function drawAbout() {
-  push();
+function sdDrawAbout() {
 
   textAlign(CENTER, CENTER);
 
   fill(0, 225, 255);
+
   textStyle(BOLD);
-  textSize(30);
 
-  text("ABOUT", width / 2, height * 0.19);
+  textSize(31);
 
-  fill(190);
+  text(
+    "ABOUT",
+    width / 2,
+    height * 0.20
+  );
+
+  fill(255);
+
   textStyle(NORMAL);
-  textSize(16);
+
+  textSize(17);
 
   text(
     "Developed by",
     width / 2,
-    height * 0.37
+    height * 0.38
   );
 
-  fill(255, 220, 50);
+  fill(255, 220, 60);
+
   textStyle(BOLD);
-  textSize(19);
+
+  textSize(
+    min(24, width * 0.06)
+  );
 
   text(
     "Aazad S Rana",
     width / 2,
-    height * 0.44
+    height * 0.46
   );
 
-  fill(255);
+  fill(180);
+
   textStyle(NORMAL);
-  textSize(15);
+
+  textSize(14);
 
   text(
-    "A mobile space adventure",
+    "Space Dodger • Galactic Campaign",
     width / 2,
-    height * 0.52
+    height * 0.55
   );
 
-  fill(130, 210, 255);
-  textSize(13);
+  fill(150);
+
+  textSize(12);
 
   text(
-    "20 levels • Alien battles • Dragon bosses",
+    "20 levels • Alien invasion • Boss battles",
     width / 2,
-    height * 0.58
+    height * 0.61
   );
 
-  drawBackButton();
-
-  pop();
+  sdHomeBottomButton();
 }
+
 
 // ================================================================
 // SETTINGS
 // ================================================================
 
-function drawSettings() {
-  push();
+function sdDrawSettings() {
 
   textAlign(CENTER, CENTER);
 
   fill(0, 225, 255);
+
   textStyle(BOLD);
-  textSize(29);
 
-  text("SETTINGS", width / 2, height * 0.18);
+  textSize(30);
 
-  drawSettingBox(
+  text(
+    "SETTINGS",
+    width / 2,
+    height * 0.16
+  );
+
+  sdSettingBox(
     "CONTROL LAYOUT",
-    controlsSwapped
-      ? "FIRE LEFT • MOVE RIGHT"
-      : "MOVE LEFT • FIRE RIGHT",
-    height * 0.36
+    sdControlsSwapped
+      ? "FIRE LEFT  •  MOVE RIGHT"
+      : "MOVE LEFT  •  FIRE RIGHT",
+    height * 0.34
   );
 
-  drawSettingBox(
-    "SOUND EFFECTS",
-    soundEnabled ? "ON" : "OFF",
-    height * 0.52
+  sdSettingBox(
+    "SOUND",
+    sdSound ? "ON" : "OFF",
+    height * 0.50
   );
 
-  fill(160);
+  fill(170);
+
   textStyle(NORMAL);
-  textSize(12);
+
+  textSize(13);
 
   text(
     "Tap an option to change it",
     width / 2,
-    height * 0.64
+    height * 0.63
   );
 
-  drawBackButton();
-
-  pop();
+  sdHomeBottomButton();
 }
 
-function drawSettingBox(
+
+function sdSettingBox(
   title,
   value,
   y
 ) {
-  const w = min(
-    330,
-    width * 0.84
-  );
+
+  let w =
+    min(330, width * 0.84);
 
   rectMode(CENTER);
 
   stroke(0, 210, 255);
+
   strokeWeight(2);
 
   fill(5, 25, 45);
@@ -1097,631 +1347,283 @@ function drawSettingBox(
 
   noStroke();
 
-  fill(170);
-  textStyle(NORMAL);
-  textSize(12);
+  fill(180);
 
-  text(title, width / 2, y - 18);
+  textStyle(BOLD);
+
+  textSize(13);
+
+  text(
+    title,
+    width / 2,
+    y - 18
+  );
 
   fill(255);
-  textStyle(BOLD);
+
   textSize(16);
 
-  text(value, width / 2, y + 13);
+  text(
+    value,
+    width / 2,
+    y + 15
+  );
 }
+
 
 // ================================================================
 // RATING
 // ================================================================
 
-function drawRating() {
-  push();
-
-  fill(0, 0, 0, 205);
-
-  rectMode(CORNER);
-  rect(0, 0, width, height);
+function sdDrawRating() {
 
   textAlign(CENTER, CENTER);
 
   fill(0, 225, 255);
+
   textStyle(BOLD);
+
   textSize(29);
 
   text(
     "RATE SPACE DODGER",
     width / 2,
-    height * 0.28
+    height * 0.25
   );
 
-  fill(190);
+  fill(180);
+
   textStyle(NORMAL);
+
   textSize(14);
 
   text(
     "How was your experience?",
     width / 2,
-    height * 0.36
+    height * 0.33
   );
 
-  const gap = min(
-    48,
-    width * 0.12
-  );
+  let starGap =
+    min(55, width * 0.13);
+
+  let total =
+    starGap * 4;
 
   for (let i = 1; i <= 5; i++) {
-    const x =
-      width / 2 +
-      (i - 3) * gap;
+
+    let x =
+      width / 2 -
+      total / 2 +
+      (i - 1) * starGap;
 
     fill(
-      i <= selectedRating
+      i <= sdRating
         ? color(255, 215, 40)
         : color(70)
     );
 
-    noStroke();
-
     textSize(42);
 
-    text("★", x, height * 0.48);
+    text(
+      "★",
+      x,
+      height * 0.46
+    );
   }
 
   fill(255);
+
   textStyle(BOLD);
-  textSize(15);
+
+  textSize(18);
 
   text(
-    selectedRating > 0
-      ? selectedRating + " / 5"
-      : "SELECT A RATING",
+    sdRating +
+    " / 5",
     width / 2,
-    height * 0.57
+    height * 0.56
   );
 
-  drawActionButton(
-    "SUBMIT RATING",
-    height * 0.67
+  sdActionButton(
+    "SUBMIT",
+    height * 0.66,
+    250
   );
 
-  drawActionButton(
+  sdActionButton(
     "CANCEL",
-    height * 0.76
+    height * 0.76,
+    250
   );
-
-  pop();
 }
 
-// ================================================================
-// BACK BUTTON
-// ================================================================
-
-function drawBackButton() {
-  push();
-
-  rectMode(CENTER);
-
-  stroke(0, 200, 255);
-  strokeWeight(2);
-
-  fill(5, 20, 35);
-
-  rect(
-    width / 2,
-    height - 52,
-    150,
-    42,
-    12
-  );
-
-  noStroke();
-
-  fill(255);
-  textAlign(CENTER, CENTER);
-  textStyle(BOLD);
-  textSize(14);
-
-  text(
-    "HOME",
-    width / 2,
-    height - 52
-  );
-
-  pop();
-}
 
 // ================================================================
 // START LEVEL
 // ================================================================
 
-function startLevel(level) {
-  stopBossMusic();
+function sdStartLevel(level) {
 
-  currentLevel = constrain(
-    floor(level),
-    1,
-    TOTAL_LEVELS
-  );
+  sdCurrentLevel =
+    constrain(
+      level,
+      1,
+      SD_TOTAL_LEVELS
+    );
 
-  score = 0;
-  levelScore = 0;
-  lives = 3;
+  sdScore = 0;
+  sdLevelScore = 0;
+  sdLives = 3;
 
-  levelDuration =
-    getLevelDuration(currentLevel);
+  sdLevelDuration =
+    sdDuration(
+      sdCurrentLevel
+    );
 
-  levelTargetScore =
-    getLevelTarget(currentLevel);
+  sdTargetScore =
+    sdTarget(
+      sdCurrentLevel
+    );
 
-  levelStartTime = millis();
+  sdLevelStart =
+    millis();
 
-  bullets = [];
-  aliens = [];
-  enemyShots = [];
-  particles = [];
-  powerUps = [];
+  sdLastAlien =
+    millis();
 
-  boss = null;
+  sdLastPower =
+    millis();
 
-  resetPowerTimers();
+  sdLastShot = 0;
 
-  autoShieldReady =
-    millis() + 12000;
+  sdAliens = [];
+  sdBullets = [];
+  sdParticles = [];
+  sdPowerUps = [];
+  sdEnemyShots = [];
 
-  ship = new PlayerShip();
+  sdBoss = null;
+  sdBossActive = false;
+  sdBossDefeated = false;
 
-  resetControls();
+  sdPortal = null;
 
-  lastEnemySpawn = millis();
-  lastPowerSpawn = millis();
-  lastShot = 0;
+  sdGalaxy = 0;
+  sdGalaxyEnd = 0;
 
-  shakeUntil = 0;
-  shakePower = 0;
+  sdShake = 0;
 
-  gameState = "PLAYING";
+  sdResetPowers();
 
-  playTone(
-    320,
-    720,
-    0.35,
+  sdShip = new SDShip();
+
+  sdResetControls();
+
+  sdPowerReadyAt = millis() + 3000;
+
+  sdState = "PLAYING";
+
+  sdStopBossMusic();
+
+  sdTone(
+    350,
+    700,
+    0.25,
     "sine",
-    0.045
+    0.04
   );
 }
 
+
 // ================================================================
-// PLAYER
+// PLAYER SHIP
 // ================================================================
 
-class PlayerShip {
+class SDShip {
+
   constructor() {
+
     this.x = width / 2;
-    this.y = height * 0.68;
+    this.y = height * 0.67;
 
     this.angle = -HALF_PI;
 
-    this.speed = 5.2;
     this.radius = 18;
 
     this.invincibleUntil = 0;
   }
 
   update() {
-    if (this.x < -35) this.x = width + 35;
-    if (this.x > width + 35) this.x = -35;
 
-    if (this.y < 115) this.y = 115;
-    if (this.y > height - 125) {
-      this.y = height - 125;
-    }
+    if (this.x < -45)
+      this.x = width + 45;
+
+    if (this.x > width + 45)
+      this.x = -45;
+
+    if (this.y < -45)
+      this.y = height + 45;
+
+    if (this.y > height + 45)
+      this.y = -45;
   }
 
-  draw() {
+  display() {
+
     if (
-      millis() < this.invincibleUntil &&
+      millis() <
+      this.invincibleUntil &&
       floor(millis() / 100) % 2 === 0
     ) {
       return;
     }
 
-    const data = SHIPS[selectedShip];
-
-    push();
-
-    translate(this.x, this.y);
-
-    rotate(this.angle + HALF_PI);
+    let d =
+      SD_SHIPS[
+        sdSelectedShip
+      ];
 
     let scaleValue = 1;
 
-    if (selectedShip === 7) {
-      scaleValue = 1.06;
-    }
-
-    if (selectedShip === 8) {
-      scaleValue = 1.15;
-    }
-
-    if (selectedShip === 9) {
-      scaleValue = 1.2;
-    }
-
-    scale(scaleValue);
-
-    stroke(data.edge);
-    strokeWeight(2.5);
-
-    fill(data.body);
-
-    beginShape();
-
-    vertex(0, -34);
-    vertex(-13, -8);
-    vertex(-32, 21);
-    vertex(-9, 14);
-    vertex(0, 21);
-    vertex(9, 14);
-    vertex(32, 21);
-    vertex(13, -8);
-
-    endShape(CLOSE);
-
-    noStroke();
-
-    fill(data.core);
-
-    ellipse(
-      0,
-      -4,
-      10,
-      16
-    );
-
-    fill(data.edge);
-
-    triangle(
-      -5,
-      20,
-      5,
-      20,
-      0,
-      random(29, 37)
-    );
-
-    pop();
-
-    // Auto shield ship.
     if (
-      selectedShip === 7 &&
-      millis() > autoShieldReady
+      sdSelectedShip === 5
     ) {
-      shieldUntil = millis() + 3500;
-      autoShieldReady = millis() + 15000;
+      scaleValue = 1.12;
     }
 
     if (
-      millis() < shieldUntil ||
-      millis() < celestialUntil
+      sdSelectedShip === 8
     ) {
-      drawShield(
-        this.x,
-        this.y
-      );
+      scaleValue = 1.25;
     }
-  }
-}
-
-// ================================================================
-// PLAYER MOVEMENT
-// ================================================================
-
-function movePlayer() {
-  if (!joystick.active) return;
-
-  const dx =
-    joystick.knobX -
-    joystick.baseX;
-
-  const dy =
-    joystick.knobY -
-    joystick.baseY;
-
-  const distance =
-    sqrt(dx * dx + dy * dy);
-
-  if (distance < 4) return;
-
-  const angle = atan2(dy, dx);
-
-  ship.angle = angle;
-
-  const strength = constrain(
-    distance / joystick.radius,
-    0,
-    1
-  );
-
-  let speed = ship.speed;
-
-  if (selectedShip === 2) {
-    speed *= 1.05;
-  }
-
-  ship.x +=
-    cos(angle) *
-    speed *
-    strength;
-
-  ship.y +=
-    sin(angle) *
-    speed *
-    strength;
-
-  ship.update();
-}
-
-// ================================================================
-// SHOOT
-// ================================================================
-
-function shoot() {
-  if (gameState !== "PLAYING") return;
-
-  let delay = 155;
-  let damage = 1;
-
-  if (selectedShip === 2) {
-    delay = 85;
-  }
-
-  if (selectedShip === 5) {
-    damage = 1.35;
-  }
-
-  if (selectedShip === 8) {
-    delay = 120;
-    damage = 2;
-  }
-
-  if (selectedShip === 9) {
-    delay = 100;
-    damage = 2.2;
-  }
-
-  if (
-    millis() - lastShot <
-    delay
-  ) {
-    return;
-  }
-
-  lastShot = millis();
-
-  let angles = [
-    ship.angle
-  ];
-
-  if (
-    selectedShip === 9 ||
-    millis() < celestialUntil
-  ) {
-    angles = [
-      ship.angle - radians(20),
-      ship.angle - radians(10),
-      ship.angle,
-      ship.angle + radians(10),
-      ship.angle + radians(20)
-    ];
-  } else if (
-    millis() < multiUntil
-  ) {
-    angles = [
-      ship.angle - radians(14),
-      ship.angle,
-      ship.angle + radians(14)
-    ];
-  }
-
-  for (const angle of angles) {
-    bullets.push(
-      new PlayerBullet(
-        ship.x +
-          cos(angle) * 28,
-        ship.y +
-          sin(angle) * 28,
-        angle,
-        damage
-      )
-    );
-  }
-
-  playTone(
-    selectedShip === 8 ||
-      selectedShip === 9
-      ? 500
-      : 850,
-    170,
-    0.07,
-    "square",
-    0.022
-  );
-}
-
-// ================================================================
-// PLAYER BULLET
-// ================================================================
-
-class PlayerBullet {
-  constructor(
-    x,
-    y,
-    angle,
-    damage
-  ) {
-    this.x = x;
-    this.y = y;
-    this.angle = angle;
-    this.damage = damage;
-    this.speed = 12;
-    this.life = 100;
-    this.radius = 4;
-  }
-
-  update() {
-    this.x +=
-      cos(this.angle) *
-      this.speed;
-
-    this.y +=
-      sin(this.angle) *
-      this.speed;
-
-    this.life--;
-  }
-
-  draw() {
-    let c = "#00ffff";
-
-    if (selectedShip === 1) {
-      c = "#ff9d22";
-    }
-
-    if (selectedShip === 2) {
-      c = "#c66cff";
-    }
-
-    if (selectedShip === 3) {
-      c = "#8cecff";
-    }
-
-    if (selectedShip === 4) {
-      c = "#ff4ddd";
-    }
-
-    if (selectedShip === 5) {
-      c = "#ff1744";
-    }
-
-    if (selectedShip === 6) {
-      c = "#00ffd5";
-    }
-
-    if (selectedShip === 7) {
-      c = "#fff176";
-    }
-
-    if (selectedShip === 8) {
-      c = "#ff78ff";
-    }
-
-    if (selectedShip === 9) {
-      c = "#ffd700";
-    }
-
-    stroke(c);
-    strokeWeight(4);
-
-    line(
-      this.x,
-      this.y,
-      this.x -
-        cos(this.angle) * 18,
-      this.y -
-        sin(this.angle) * 18
-    );
-  }
-
-  dead() {
-    return (
-      this.life <= 0 ||
-      this.x < -80 ||
-      this.x > width + 80 ||
-      this.y < -80 ||
-      this.y > height + 80
-    );
-  }
-}
-
-// ================================================================
-// ALIEN
-// ================================================================
-
-class AlienShip {
-  constructor() {
-    this.radius = random(
-      17,
-      26 + currentLevel * 0.4
-    );
-
-    this.x = random(
-      30,
-      width - 30
-    );
-
-    this.y = -60;
-
-    this.speed =
-      random(1.1, 2.1) *
-      getDifficulty(currentLevel);
-
-    this.hp =
-      1 +
-      floor(currentLevel / 6);
-
-    this.maxHp = this.hp;
-
-    this.phase = random(TWO_PI);
-    this.type = floor(random(3));
-
-    this.points =
-      20 +
-      currentLevel * 2;
-  }
-
-  update() {
-    let slow = 1;
 
     if (
-      selectedShip === 3 ||
-      millis() < cryoUntil
+      sdSelectedShip === 9
     ) {
-      slow = 0.52;
+      scaleValue = 1.3;
     }
 
-    this.phase += 0.035;
+    let power =
+      d.power;
 
-    this.y +=
-      this.speed *
-      slow;
-
-    this.x +=
-      sin(this.phase) *
-      0.8;
+    let edge = d.edge;
+    let body = d.body;
+    let core = d.core;
 
     if (
-      this.y > height * 0.48
+      millis() <
+      sdPowerEnds.BERSERKER
     ) {
-      this.y +=
-        this.speed *
-        0.25 *
-        slow;
+      edge = "#ff1744";
+      body = "#5b0715";
     }
-  }
 
-  draw() {
-    let edge;
-    let body;
-
-    if (this.type === 0) {
-      edge = "#ff4d70";
-      body = "#42152a";
-    } else if (this.type === 1) {
-      edge = "#a86cff";
-      body = "#29144b";
-    } else {
-      edge = "#36e6a3";
-      body = "#103b30";
+    if (
+      millis() <
+      sdPowerEnds.CRYO
+    ) {
+      edge = "#8cecff";
+      body = "#123b61";
     }
 
     push();
@@ -1732,424 +1634,359 @@ class AlienShip {
     );
 
     rotate(
-      sin(this.phase) * 0.18
+      this.angle + HALF_PI
     );
 
+    scale(scaleValue);
+
+    drawingContext.shadowBlur = 18;
+    drawingContext.shadowColor = edge;
+
     stroke(edge);
-    strokeWeight(2);
+
+    strokeWeight(2.5);
 
     fill(body);
 
     beginShape();
 
-    vertex(0, -25);
-    vertex(-25, -7);
-    vertex(-18, 18);
-    vertex(0, 25);
-    vertex(18, 18);
-    vertex(25, -7);
+    vertex(0, -34);
+    vertex(-13, -8);
+    vertex(-32, 20);
+    vertex(-9, 13);
+    vertex(0, 23);
+    vertex(9, 13);
+    vertex(32, 20);
+    vertex(13, -8);
 
     endShape(CLOSE);
 
     noStroke();
 
+    fill(core);
+
+    ellipse(
+      0,
+      -5,
+      10,
+      17
+    );
+
     fill(edge);
 
-    ellipse(
-      -8,
-      -2,
-      7,
-      9
+    triangle(
+      -5,
+      17,
+      5,
+      17,
+      0,
+      31
     );
 
-    ellipse(
-      8,
-      -2,
-      7,
-      9
-    );
-
-    fill(255);
-
-    ellipse(
-      -8,
-      -2,
-      2.5,
-      3
-    );
-
-    ellipse(
-      8,
-      -2,
-      2.5,
-      3
-    );
+    drawingContext.shadowBlur = 0;
 
     pop();
-  }
-
-  dead() {
-    return this.y > height + 90;
-  }
-}
-
-// ================================================================
-// SPAWN ALIENS
-// ================================================================
-
-function spawnAliens() {
-  const delay =
-    boss
-      ? 1800
-      : getEnemyDelay(currentLevel);
-
-  if (
-    millis() -
-      lastEnemySpawn <
-    delay
-  ) {
-    return;
-  }
-
-  let count = 1;
-
-  if (
-    currentLevel >= 6 &&
-    random() < 0.2
-  ) {
-    count = 2;
-  }
-
-  if (
-    currentLevel >= 13 &&
-    random() < 0.15
-  ) {
-    count = 3;
-  }
-
-  if (boss) {
-    count = 1;
-  }
-
-  for (let i = 0; i < count; i++) {
-    aliens.push(
-      new AlienShip()
-    );
-  }
-
-  lastEnemySpawn = millis();
-}
-
-// ================================================================
-// UPDATE BULLETS
-// ================================================================
-
-function updateBullets() {
-  for (
-    let i = bullets.length - 1;
-    i >= 0;
-    i--
-  ) {
-    bullets[i].update();
-
-    if (bullets[i].dead()) {
-      bullets.splice(i, 1);
-    }
-  }
-}
-
-function drawBullets() {
-  for (const bullet of bullets) {
-    bullet.draw();
-  }
-}
-
-// ================================================================
-// UPDATE ALIENS
-// ================================================================
-
-function updateAliens() {
-  for (
-    let i = aliens.length - 1;
-    i >= 0;
-    i--
-  ) {
-    aliens[i].update();
-
-    if (aliens[i].dead()) {
-      aliens.splice(i, 1);
-    }
-  }
-}
-
-function drawAliens() {
-  for (const alien of aliens) {
-    alien.draw();
-  }
-}
-
-// ================================================================
-// BULLET / ALIEN COLLISION
-// ================================================================
-
-function bulletAlienCollisions() {
-  for (
-    let i = aliens.length - 1;
-    i >= 0;
-    i--
-  ) {
-    const alien = aliens[i];
-
-    for (
-      let j = bullets.length - 1;
-      j >= 0;
-      j--
-    ) {
-      const bullet = bullets[j];
-
-      if (
-        dist(
-          alien.x,
-          alien.y,
-          bullet.x,
-          bullet.y
-        ) <
-        alien.radius +
-          bullet.radius
-      ) {
-        let damage =
-          bullet.damage;
-
-        if (selectedShip === 1) {
-          damage *= 1.25;
-        }
-
-        if (
-          selectedShip === 6 &&
-          random() < 0.4
-        ) {
-          damage *= 2;
-        }
-
-        alien.hp -= damage;
-
-        // Piercing ship.
-        if (
-          selectedShip !== 4
-        ) {
-          bullets.splice(j, 1);
-        }
-
-        if (alien.hp <= 0) {
-          destroyAlien(
-            i
-          );
-        }
-
-        break;
-      }
-    }
-  }
-}
-
-function destroyAlien(index) {
-  if (!aliens[index]) return;
-
-  const alien =
-    aliens[index];
-
-  createExplosion(
-    alien.x,
-    alien.y,
-    28,
-    "#ff6688"
-  );
-
-  score += alien.points;
-  levelScore += alien.points;
-
-  screenShake(9, 180);
-
-  explosionSound();
-
-  aliens.splice(
-    index,
-    1
-  );
-}
-
-// ================================================================
-// SHIP / ALIEN COLLISION
-// ================================================================
-
-function playerAlienCollision() {
-  if (
-    millis() <
-    ship.invincibleUntil
-  ) {
-    return;
-  }
-
-  for (
-    let i = aliens.length - 1;
-    i >= 0;
-    i--
-  ) {
-    const alien = aliens[i];
 
     if (
-      dist(
-        ship.x,
-        ship.y,
-        alien.x,
-        alien.y
-      ) <
-      ship.radius +
-        alien.radius * 0.8
+      sdHasShield()
     ) {
-      if (
-        millis() < shieldUntil ||
-        millis() < celestialUntil
-      ) {
-        createExplosion(
-          alien.x,
-          alien.y,
-          24,
-          "#00ccff"
-        );
-
-        screenShake(8, 180);
-
-        aliens.splice(i, 1);
-
-        return;
-      }
-
-      aliens.splice(i, 1);
-
-      damagePlayer();
-
-      return;
-    }
-  }
-}
-
-// ================================================================
-// DAMAGE
-// ================================================================
-
-function damagePlayer() {
-  lives--;
-
-  ship.invincibleUntil =
-    millis() + 1800;
-
-  screenShake(
-    15,
-    300
-  );
-
-  playTone(
-    180,
-    50,
-    0.28,
-    "sawtooth",
-    0.055
-  );
-
-  if (lives <= 0) {
-    gameState = "GAMEOVER";
-
-    createExplosion(
-      ship.x,
-      ship.y,
-      60,
-      "#00ddff"
-    );
-  }
-}
-
-// ================================================================
-// ENEMY SHOOTS
-// ================================================================
-
-function enemyAttackUpdate() {
-  for (const alien of aliens) {
-    if (
-      random() <
-      0.0009 *
-        getDifficulty(currentLevel)
-    ) {
-      const angle =
-        atan2(
-          ship.y - alien.y,
-          ship.x - alien.x
-        );
-
-      enemyShots.push(
-        new EnemyShot(
-          alien.x,
-          alien.y,
-          angle
-        )
+      sdDrawShield(
+        this.x,
+        this.y
       );
     }
   }
 }
 
+
 // ================================================================
-// ENEMY SHOT
+// SHIP POWER LOGIC
 // ================================================================
 
-class EnemyShot {
+function sdShipPower() {
+
+  return SD_SHIPS[
+    sdSelectedShip
+  ].power;
+}
+
+
+function sdHasShield() {
+
+  return (
+    millis() <
+    sdPowerEnds.SHIELD ||
+    sdShipPower() === "HOLY SHIELD" ||
+    sdShipPower() === "REALITY BREAK"
+  );
+}
+
+
+function sdShipDamageMultiplier() {
+
+  let mult = 1;
+
+  if (
+    sdShipPower() === "BURN SHOT"
+  ) mult = 1.12;
+
+  if (
+    sdShipPower() === "DRAGON RAGE" &&
+    sdBossActive
+  ) mult = 1.75;
+
+  if (
+    sdShipPower() === "TITAN CORE"
+  ) mult = 1.65;
+
+  if (
+    sdShipPower() === "REALITY BREAK"
+  ) mult = 2.1;
+
+  if (
+    millis() <
+    sdPowerEnds.BERSERKER
+  ) mult *= 1.55;
+
+  return mult;
+}
+
+
+function sdShipFireDelay() {
+
+  let delay = 155;
+
+  if (
+    sdShipPower() === "QUANTUM DASH"
+  ) delay = 85;
+
+  if (
+    sdShipPower() === "TITAN CORE"
+  ) delay = 105;
+
+  if (
+    sdShipPower() === "REALITY BREAK"
+  ) delay = 75;
+
+  if (
+    millis() <
+    sdPowerEnds.BERSERKER
+  ) delay = 70;
+
+  if (
+    millis() <
+    sdPowerEnds.CRYO
+  ) delay = 125;
+
+  return delay;
+}
+
+
+function sdShipMoveSpeed() {
+
+  let speed = 5;
+
+  if (
+    sdShipPower() === "QUANTUM DASH"
+  ) speed *= 1.35;
+
+  if (
+    sdShipPower() === "TITAN CORE"
+  ) speed *= 0.9;
+
+  if (
+    sdShipPower() === "REALITY BREAK"
+  ) speed *= 1.2;
+
+  return speed;
+}
+
+
+// ================================================================
+// SHIELD
+// ================================================================
+
+function sdDrawShield(x, y) {
+
+  noFill();
+
+  stroke(
+    0,
+    220,
+    255,
+    170
+  );
+
+  strokeWeight(3);
+
+  circle(
+    x,
+    y,
+    78 +
+    sin(frameCount * 0.1) * 5
+  );
+}
+
+
+// ================================================================
+// MAIN GAME
+// ================================================================
+
+function sdRunGame() {
+
+  sdUpdateShake();
+
+  sdHandleMovement();
+
+  sdShip.update();
+
+  sdUpdateBullets();
+  sdUpdateAliens();
+  sdUpdateEnemyShots();
+  sdUpdatePowerUps();
+  sdUpdateParticles();
+
+  if (sdBossActive) {
+    sdUpdateBoss();
+  }
+
+  sdUpdatePortal();
+
+  sdCollideBulletsAliens();
+  sdCollideShipAliens();
+  sdCollideShipShots();
+  sdCollideBulletsBoss();
+
+  sdSpawnAliens();
+  sdSpawnPowerUps();
+
+  sdCheckBoss();
+  sdCheckLevelComplete();
+
+  sdDrawHUD();
+  sdDrawControls();
+
+  sdShip.display();
+}
+
+
+// ================================================================
+// SCREEN SHAKE
+// ================================================================
+
+function sdStartShake(amount) {
+
+  sdShake =
+    max(
+      sdShake,
+      amount
+    );
+}
+
+
+function sdUpdateShake() {
+
+  if (sdShake <= 0) return;
+
+  push();
+
+  translate(
+    random(-sdShake, sdShake),
+    random(-sdShake, sdShake)
+  );
+
+  sdShake *= 0.86;
+
+  if (sdShake < 0.3)
+    sdShake = 0;
+
+  pop();
+}
+
+
+// ================================================================
+// BULLET
+// ================================================================
+
+class SDBullet {
+
   constructor(
     x,
     y,
-    angle
+    angle,
+    power
   ) {
+
     this.x = x;
     this.y = y;
+
     this.angle = angle;
 
-    this.speed = 4;
-    this.radius = 8;
-    this.life = 260;
+    this.power = power;
+
+    this.speed =
+      11 + power * 0.8;
+
+    this.radius =
+      4 + power;
+
+    this.life = 110;
   }
 
   update() {
-    let slow =
-      selectedShip === 3 ||
-      millis() < cryoUntil
-        ? 0.55
-        : 1;
 
     this.x +=
       cos(this.angle) *
-      this.speed *
-      slow;
+      this.speed;
 
     this.y +=
       sin(this.angle) *
-      this.speed *
-      slow;
+      this.speed;
 
     this.life--;
   }
 
-  draw() {
-    noFill();
+  display() {
 
-    stroke(255, 60, 100);
-    strokeWeight(4);
+    let c =
+      SD_SHIPS[
+        sdSelectedShip
+      ].edge;
 
-    circle(
+    if (
+      sdShipPower() === "BURN SHOT"
+    ) c = "#ff8a00";
+
+    if (
+      sdShipPower() === "DRAGON RAGE"
+    ) c = "#ff1744";
+
+    if (
+      sdShipPower() === "TIME FREEZE"
+    ) c = "#8cecff";
+
+    if (
+      sdShipPower() === "REALITY BREAK"
+    ) c = "#ffd700";
+
+    stroke(c);
+
+    strokeWeight(
+      3 + this.power
+    );
+
+    line(
       this.x,
       this.y,
-      this.radius * 2
+      this.x -
+      cos(this.angle) * 17,
+      this.y -
+      sin(this.angle) * 17
     );
   }
 
   dead() {
+
     return (
       this.life <= 0 ||
       this.x < -80 ||
@@ -2160,527 +1997,382 @@ class EnemyShot {
   }
 }
 
-function updateEnemyShots() {
-  for (
-    let i = enemyShots.length - 1;
-    i >= 0;
-    i--
-  ) {
-    enemyShots[i].update();
 
-    if (
-      enemyShots[i].dead()
-    ) {
-      enemyShots.splice(i, 1);
-    }
-  }
-}
+// ================================================================
+// SHOOT
+// ================================================================
 
-function drawEnemyShots() {
-  for (const shot of enemyShots) {
-    shot.draw();
-  }
-}
+function sdShoot() {
 
-function enemyShotCollision() {
   if (
-    millis() <
-    ship.invincibleUntil
+    sdState !== "PLAYING"
+  ) return;
+
+  let now = millis();
+
+  if (
+    now - sdLastShot <
+    sdShipFireDelay()
   ) {
     return;
   }
 
-  for (
-    let i = enemyShots.length - 1;
-    i >= 0;
-    i--
-  ) {
-    const shot =
-      enemyShots[i];
+  sdLastShot = now;
 
-    if (
-      dist(
-        ship.x,
-        ship.y,
-        shot.x,
-        shot.y
-      ) <
-      ship.radius +
-        shot.radius
-    ) {
-      if (
-        millis() < shieldUntil ||
-        millis() < celestialUntil
-      ) {
-        enemyShots.splice(
-          i,
-          1
-        );
-
-        return;
-      }
-
-      enemyShots.splice(
-        i,
-        1
-      );
-
-      damagePlayer();
-
-      return;
-    }
-  }
-}
-
-// ================================================================
-// POWER UPS
-// ================================================================
-
-const POWER_TYPES = [
-  "SHIELD",
-  "MULTI",
-  "RAPID",
-  "CRYO",
-  "NOVA",
-  "CELESTIAL"
-];
-
-class PowerUp {
-  constructor() {
-    this.type =
-      random(POWER_TYPES);
-
-    this.x = random(
-      60,
-      width - 60
-    );
-
-    this.y = random(
-      150,
-      height - 170
-    );
-
-    this.radius = 22;
-
-    this.life = 900;
-
-    this.rotation = 0;
-  }
-
-  update() {
-    this.rotation += 0.04;
-    this.life--;
-  }
-
-  draw() {
-    const config =
-      getPowerConfig(
-        this.type
-      );
-
-    push();
-
-    translate(
-      this.x,
-      this.y
-    );
-
-    rotate(this.rotation);
-
-    stroke(config.color);
-    strokeWeight(3);
-
-    fill(
-      red(config.colorValue),
-      green(config.colorValue),
-      blue(config.colorValue),
-      55
-    );
-
-    circle(
-      0,
-      0,
-      48
-    );
-
-    noStroke();
-
-    fill(255);
-    textAlign(CENTER, CENTER);
-    textStyle(BOLD);
-    textSize(10);
-
-    text(
-      config.label,
-      0,
-      0
-    );
-
-    pop();
-  }
-}
-
-function getPowerConfig(type) {
-  const map = {
-    SHIELD: {
-      label: "SHIELD",
-      color: "#00cfff"
-    },
-
-    MULTI: {
-      label: "3X",
-      color: "#ffe600"
-    },
-
-    RAPID: {
-      label: "RAPID",
-      color: "#c66cff"
-    },
-
-    CRYO: {
-      label: "CRYO",
-      color: "#9eefff"
-    },
-
-    NOVA: {
-      label: "NOVA",
-      color: "#ffffff"
-    },
-
-    CELESTIAL: {
-      label: "5X",
-      color: "#ffd700"
-    }
-  };
-
-  const data =
-    map[type] || map.SHIELD;
-
-  return {
-    label: data.label,
-    color: data.color,
-    colorValue: color(data.color)
-  };
-}
-
-function spawnPowerUps() {
-  const delay =
-    boss
-      ? 5000
-      : max(
-          6500,
-          9500 -
-            currentLevel * 100
-        );
+  let copies = [0];
 
   if (
-    millis() -
-      lastPowerSpawn <
-    delay
+    now <
+    sdPowerEnds.TRINITY
   ) {
-    return;
+    copies = [-24, 0, 24];
+  }
+
+  else if (
+    now <
+    sdPowerEnds.TWIN
+  ) {
+    copies = [-18, 18];
+  }
+
+  let angles = [
+    sdShip.angle
+  ];
+
+  if (
+    now <
+    sdPowerEnds.MULTI
+  ) {
+
+    angles = [
+      sdShip.angle - radians(14),
+      sdShip.angle,
+      sdShip.angle + radians(14)
+    ];
   }
 
   if (
-    powerUps.length < 2
+    sdShipPower() === "TITAN CORE"
   ) {
-    powerUps.push(
-      new PowerUp()
-    );
+
+    angles = [
+      sdShip.angle - radians(8),
+      sdShip.angle,
+      sdShip.angle + radians(8)
+    ];
   }
 
-  lastPowerSpawn = millis();
-}
-
-function updatePowerUps() {
-  for (
-    let i = powerUps.length - 1;
-    i >= 0;
-    i--
+  if (
+    sdShipPower() === "REALITY BREAK"
   ) {
-    powerUps[i].update();
 
-    if (
-      powerUps[i].life <= 0
-    ) {
-      powerUps.splice(i, 1);
-    }
-  }
-}
-
-function drawPowerUps() {
-  for (const power of powerUps) {
-    power.draw();
-  }
-}
-
-function powerCollision() {
-  for (
-    let i = powerUps.length - 1;
-    i >= 0;
-    i--
-  ) {
-    const p =
-      powerUps[i];
-
-    if (
-      dist(
-        ship.x,
-        ship.y,
-        p.x,
-        p.y
-      ) <
-      ship.radius +
-        p.radius
-    ) {
-      activatePower(
-        p.type
-      );
-
-      createExplosion(
-        p.x,
-        p.y,
-        25,
-        getPowerConfig(p.type)
-          .color
-      );
-
-      score += 50;
-      levelScore += 50;
-
-      powerUps.splice(
-        i,
-        1
-      );
-
-      return;
-    }
-  }
-}
-
-function activatePower(type) {
-  const now = millis();
-
-  if (type === "SHIELD") {
-    shieldUntil =
-      now + 9000;
+    angles = [
+      sdShip.angle - radians(22),
+      sdShip.angle - radians(11),
+      sdShip.angle,
+      sdShip.angle + radians(11),
+      sdShip.angle + radians(22)
+    ];
   }
 
-  if (type === "MULTI") {
-    multiUntil =
-      now + 9000;
-  }
+  for (let off of copies) {
 
-  if (type === "RAPID") {
-    rapidUntil =
-      now + 9000;
-  }
+    let sx =
+      sdShip.x +
+      cos(sdShip.angle + HALF_PI) *
+      off;
 
-  if (type === "CRYO") {
-    cryoUntil =
-      now + 8500;
-  }
+    let sy =
+      sdShip.y +
+      sin(sdShip.angle + HALF_PI) *
+      off;
 
-  if (type === "CELESTIAL") {
-    celestialUntil =
-      now + 7000;
+    for (let a of angles) {
 
-    shieldUntil =
-      max(
-        shieldUntil,
-        now + 4500
-      );
-  }
+      sdBullets.push(
+        new SDBullet(
+          sx +
+          cos(a) * 28,
 
-  if (type === "NOVA") {
-    for (
-      let i = aliens.length - 1;
-      i >= 0;
-      i--
-    ) {
-      createExplosion(
-        aliens[i].x,
-        aliens[i].y,
-        20,
-        "#ffffff"
-      );
+          sy +
+          sin(a) * 28,
 
-      score += 15;
-      levelScore += 15;
+          a,
 
-      aliens.splice(i, 1);
-    }
-
-    if (boss) {
-      boss.hp -=
-        boss.maxHp * 0.12;
-    }
-
-    screenShake(
-      18,
-      350
-    );
-  }
-
-  powerSound(type);
-}
-
-// ================================================================
-// SHIELD
-// ================================================================
-
-function drawShield(
-  x,
-  y
-) {
-  noFill();
-
-  stroke(
-    0,
-    215,
-    255,
-    190
-  );
-
-  strokeWeight(4);
-
-  circle(
-    x,
-    y,
-    82 +
-      sin(frameCount * 0.1) *
-        6
-  );
-}
-
-// ================================================================
-// BOSS
-// ================================================================
-
-class DragonBoss {
-  constructor() {
-    this.x = width / 2;
-    this.y = -120;
-
-    this.targetY =
-      max(
-        145,
-        height * 0.2
-      );
-
-    this.radius = 78;
-
-    this.maxHp =
-      850 +
-      currentLevel * 180;
-
-    this.hp =
-      this.maxHp;
-
-    this.phase = 1;
-
-    this.move = 0;
-
-    this.lastAttack = millis();
-  }
-
-  update() {
-    const ratio =
-      this.hp /
-      this.maxHp;
-
-    this.phase =
-      ratio > 0.65
-        ? 1
-        : ratio > 0.32
-        ? 2
-        : 3;
-
-    if (
-      this.y <
-      this.targetY
-    ) {
-      this.y += 1.3;
-      return;
-    }
-
-    this.move +=
-      this.phase === 3
-        ? 0.025
-        : 0.015;
-
-    this.x =
-      width / 2 +
-      sin(this.move) *
-        width *
-        0.28;
-
-    const attackDelay =
-      this.phase === 1
-        ? 2200
-        : this.phase === 2
-        ? 1600
-        : 1100;
-
-    if (
-      millis() -
-        this.lastAttack >
-      attackDelay
-    ) {
-      this.attack();
-
-      this.lastAttack =
-        millis();
-    }
-  }
-
-  attack() {
-    const angle =
-      atan2(
-        ship.y - this.y,
-        ship.x - this.x
-      );
-
-    let spread;
-
-    if (this.phase === 1) {
-      spread = [0];
-    } else if (
-      this.phase === 2
-    ) {
-      spread = [-16, 0, 16];
-    } else {
-      spread = [
-        -28,
-        -14,
-        0,
-        14,
-        28
-      ];
-    }
-
-    for (const degrees of spread) {
-      enemyShots.push(
-        new BossShot(
-          this.x,
-          this.y + 38,
-          angle +
-            radians(degrees),
-          this.phase
+          sdShipDamageMultiplier()
         )
       );
     }
+  }
 
-    playTone(
-      130,
-      45,
-      0.22,
-      "sawtooth",
-      0.045
+  sdTone(
+    800,
+    1000,
+    0.06,
+    "square",
+    0.018
+  );
+}
+
+
+// ================================================================
+// BULLET UPDATE
+// ================================================================
+
+function sdUpdateBullets() {
+
+  for (
+    let i = sdBullets.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    sdBullets[i].update();
+
+    if (
+      !sdBullets[i].dead()
+    ) {
+      sdBullets[i].display();
+    } else {
+      sdBullets.splice(i, 1);
+    }
+  }
+}
+
+
+// ================================================================
+// ALIEN
+// ================================================================
+
+class SDAAlien {
+
+  constructor() {
+
+    this.type =
+      random([
+        "SCOUT",
+        "INTERCEPTOR",
+        "HUNTER",
+        "HEAVY",
+        "ELITE"
+      ]);
+
+    if (
+      sdCurrentLevel <= 3
+    ) {
+
+      this.type =
+        random([
+          "SCOUT",
+          "INTERCEPTOR"
+        ]);
+    }
+
+    let side =
+      floor(random(4));
+
+    if (side === 0) {
+      this.x = random(width);
+      this.y = -60;
+    }
+
+    else if (side === 1) {
+      this.x = width + 60;
+      this.y = random(height * 0.15, height * 0.8);
+    }
+
+    else if (side === 2) {
+      this.x = random(width);
+      this.y = -60;
+    }
+
+    else {
+      this.x = -60;
+      this.y = random(height * 0.15, height * 0.8);
+    }
+
+    this.radius = 22;
+
+    this.hp = 1;
+
+    if (this.type === "HEAVY") {
+      this.radius = 31;
+      this.hp = 4;
+    }
+
+    if (this.type === "ELITE") {
+      this.radius = 27;
+      this.hp = 3;
+    }
+
+    this.speed =
+      random(1.4, 2.2) *
+      sdDifficulty(
+        sdCurrentLevel
+      );
+
+    if (this.type === "INTERCEPTOR")
+      this.speed *= 1.35;
+
+    if (this.type === "HEAVY")
+      this.speed *= 0.65;
+
+    this.phase =
+      random(TWO_PI);
+
+    this.rot =
+      random(TWO_PI);
+
+    this.rotSpeed =
+      random(-0.04, 0.04);
+
+    this.lastShot =
+      millis() +
+      random(1000, 3500);
+  }
+
+
+  update() {
+
+    let dx =
+      sdShip.x -
+      this.x;
+
+    let dy =
+      sdShip.y -
+      this.y;
+
+    let angle =
+      atan2(dy, dx);
+
+    if (
+      sdShipPower() === "GRAVITY PULSE"
+    ) {
+      this.speed *= 0.994;
+    }
+
+    if (
+      sdShipPower() === "TIME FREEZE"
+    ) {
+      this.speed *= 0.985;
+    }
+
+    if (
+      millis() <
+      sdPowerEnds.CRYO
+    ) {
+      this.speed *= 0.985;
+    }
+
+    if (
+      this.type === "INTERCEPTOR"
+    ) {
+
+      angle +=
+        sin(
+          frameCount * 0.04 +
+          this.phase
+        ) *
+        0.35;
+    }
+
+    if (
+      this.type === "HEAVY"
+    ) {
+      angle +=
+        sin(frameCount * 0.015) *
+        0.12;
+    }
+
+    this.x +=
+      cos(angle) *
+      this.speed;
+
+    this.y +=
+      sin(angle) *
+      this.speed;
+
+    this.rot +=
+      this.rotSpeed;
+
+    if (
+      this.type === "HUNTER" ||
+      this.type === "ELITE"
+    ) {
+
+      if (
+        millis() -
+        this.lastShot >
+        2600 -
+        sdCurrentLevel * 25
+      ) {
+
+        this.fire();
+
+        this.lastShot =
+          millis();
+      }
+    }
+  }
+
+
+  fire() {
+
+    let angle =
+      atan2(
+        sdShip.y - this.y,
+        sdShip.x - this.x
+      );
+
+    sdEnemyShots.push(
+      new SDEnemyShot(
+        this.x,
+        this.y,
+        angle,
+        this.type === "ELITE"
+          ? 4.3
+          : 3.1
+      )
     );
   }
 
-  draw() {
+
+  display() {
+
+    let edge =
+      "#66eaff";
+
+    let body =
+      "#173f68";
+
+    if (
+      this.type === "INTERCEPTOR"
+    ) {
+      edge = "#ff4dd2";
+      body = "#4d154e";
+    }
+
+    if (
+      this.type === "HUNTER"
+    ) {
+      edge = "#ffb13b";
+      body = "#553014";
+    }
+
+    if (
+      this.type === "HEAVY"
+    ) {
+      edge = "#ff4b4b";
+      body = "#4f1515";
+    }
+
+    if (
+      this.type === "ELITE"
+    ) {
+      edge = "#b66cff";
+      body = "#30154d";
+    }
+
     push();
 
     translate(
@@ -2688,147 +2380,239 @@ class DragonBoss {
       this.y
     );
 
-    const edge =
-      this.phase === 3
-        ? "#ff1744"
-        : "#ff6a00";
+    rotate(this.rot);
 
     stroke(edge);
-    strokeWeight(4);
 
-    fill(
-      this.phase === 3
-        ? "#650019"
-        : "#54170e"
-    );
+    strokeWeight(2.5);
 
-    // Wings
-    beginShape();
-
-    vertex(-25, -10);
-    vertex(-100, -50);
-    vertex(-67, 0);
-    vertex(-105, 40);
-    vertex(-30, 25);
-
-    endShape(CLOSE);
+    fill(body);
 
     beginShape();
 
-    vertex(25, -10);
-    vertex(100, -50);
-    vertex(67, 0);
-    vertex(105, 40);
-    vertex(30, 25);
+    if (
+      this.type === "SCOUT"
+    ) {
 
-    endShape(CLOSE);
+      vertex(0, -22);
+      vertex(-24, 14);
+      vertex(0, 8);
+      vertex(24, 14);
 
-    ellipse(
-      0,
-      12,
-      94,
-      120
-    );
+    }
 
-    beginShape();
+    else if (
+      this.type === "INTERCEPTOR"
+    ) {
 
-    vertex(0, -76);
-    vertex(-38, -40);
-    vertex(-30, 10);
-    vertex(0, 32);
-    vertex(30, 10);
-    vertex(38, -40);
+      vertex(0, -28);
+      vertex(-32, 18);
+      vertex(-7, 10);
+      vertex(0, 24);
+      vertex(7, 10);
+      vertex(32, 18);
+
+    }
+
+    else if (
+      this.type === "HUNTER"
+    ) {
+
+      vertex(0, -25);
+      vertex(-28, -4);
+      vertex(-18, 22);
+      vertex(0, 14);
+      vertex(18, 22);
+      vertex(28, -4);
+
+    }
+
+    else {
+
+      vertex(0, -30);
+      vertex(-30, -10);
+      vertex(-27, 22);
+      vertex(0, 14);
+      vertex(27, 22);
+      vertex(30, -10);
+    }
 
     endShape(CLOSE);
 
     noStroke();
 
     fill(
-      this.phase === 3
-        ? "#ff1744"
-        : "#ffe600"
+      this.type === "ELITE"
+        ? "#ffddff"
+        : "#ffffff"
     );
 
     ellipse(
-      -15,
-      -34,
-      11,
-      8
-    );
-
-    ellipse(
-      15,
-      -34,
-      11,
-      8
+      0,
+      -3,
+      9,
+      13
     );
 
     pop();
   }
+
+
+  dead() {
+
+    return (
+      this.x < -150 ||
+      this.x > width + 150 ||
+      this.y < -150 ||
+      this.y > height + 150
+    );
+  }
 }
 
-class BossShot {
+
+// ================================================================
+// ALIEN SPAWN
+// ================================================================
+
+function sdSpawnAliens() {
+
+  if (
+    sdBossActive
+  ) return;
+
+  let delay =
+    max(
+      430,
+      1100 -
+      sdCurrentLevel * 34
+    );
+
+  if (
+    millis() -
+    sdLastAlien >
+    delay
+  ) {
+
+    let count = 1;
+
+    if (
+      sdCurrentLevel >= 7 &&
+      random() < 0.18
+    ) {
+      count = 2;
+    }
+
+    if (
+      sdCurrentLevel >= 14 &&
+      random() < 0.12
+    ) {
+      count = 3;
+    }
+
+    for (
+      let i = 0;
+      i < count;
+      i++
+    ) {
+
+      sdAliens.push(
+        new SDAAlien()
+      );
+    }
+
+    sdLastAlien =
+      millis();
+  }
+}
+
+
+// ================================================================
+// ALIEN UPDATE
+// ================================================================
+
+function sdUpdateAliens() {
+
+  for (
+    let i = sdAliens.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    sdAliens[i].update();
+
+    if (
+      !sdAliens[i].dead()
+    ) {
+
+      sdAliens[i].display();
+
+    } else {
+
+      sdAliens.splice(i, 1);
+    }
+  }
+}
+
+
+// ================================================================
+// ENEMY SHOT
+// ================================================================
+
+class SDEnemyShot {
+
   constructor(
     x,
     y,
     angle,
-    phase
+    speed
   ) {
+
     this.x = x;
     this.y = y;
+
     this.angle = angle;
+    this.speed = speed;
 
-    this.phase = phase;
+    this.radius = 8;
 
-    this.speed =
-      phase === 3
-        ? 4.3
-        : phase === 2
-        ? 3.7
-        : 3.1;
-
-    this.radius = 15;
-    this.life = 280;
+    this.life = 220;
   }
 
   update() {
-    const slow =
-      selectedShip === 3 ||
-      millis() < cryoUntil
-        ? 0.55
-        : 1;
 
     this.x +=
       cos(this.angle) *
-      this.speed *
-      slow;
+      this.speed;
 
     this.y +=
       sin(this.angle) *
-      this.speed *
-      slow;
+      this.speed;
 
     this.life--;
   }
 
-  draw() {
-    noFill();
+  display() {
 
-    stroke(255, 30, 60);
-    strokeWeight(
-      this.phase === 3
-        ? 6
-        : 4
+    stroke(
+      255,
+      50,
+      80
     );
 
-    circle(
+    strokeWeight(4);
+
+    line(
       this.x,
       this.y,
-      this.radius * 2
+      this.x -
+      cos(this.angle) * 12,
+      this.y -
+      sin(this.angle) * 12
     );
   }
 
   dead() {
+
     return (
       this.life <= 0 ||
       this.x < -100 ||
@@ -2839,124 +2623,1017 @@ class BossShot {
   }
 }
 
-function startBossIfNeeded() {
-  if (
-    !isBossLevel() ||
-    boss
-  ) {
-    return;
-  }
 
-  const elapsed =
-    millis() -
-    levelStartTime;
-
-  if (
-    elapsed >
-    levelDuration * 0.45
-  ) {
-    boss =
-      new DragonBoss();
-
-    aliens = [];
-    powerUps = [];
-    enemyShots = [];
-
-    startBossMusic();
-
-    screenShake(
-      12,
-      400
-    );
-
-    playTone(
-      50,
-      95,
-      1.0,
-      "sawtooth",
-      0.065
-    );
-  }
-}
-
-function updateBoss() {
-  if (!boss) return;
-
-  boss.update();
+function sdUpdateEnemyShots() {
 
   for (
-    let i = bullets.length - 1;
+    let i = sdEnemyShots.length - 1;
     i >= 0;
     i--
   ) {
-    const bullet =
-      bullets[i];
+
+    sdEnemyShots[i].update();
+
+    if (
+      !sdEnemyShots[i].dead()
+    ) {
+
+      sdEnemyShots[i].display();
+
+    } else {
+
+      sdEnemyShots.splice(i, 1);
+    }
+  }
+}
+
+
+// ================================================================
+// BULLET / ALIEN
+// ================================================================
+
+function sdCollideBulletsAliens() {
+
+  for (
+    let i = sdAliens.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    let alien =
+      sdAliens[i];
+
+    for (
+      let j = sdBullets.length - 1;
+      j >= 0;
+      j--
+    ) {
+
+      let bullet =
+        sdBullets[j];
+
+      if (
+        dist(
+          alien.x,
+          alien.y,
+          bullet.x,
+          bullet.y
+        ) <
+        alien.radius +
+        bullet.radius
+      ) {
+
+        alien.hp -=
+          bullet.power;
+
+        sdBullets.splice(
+          j,
+          1
+        );
+
+        sdCreateExplosion(
+          bullet.x,
+          bullet.y,
+          5,
+          SD_SHIPS[
+            sdSelectedShip
+          ].edge
+        );
+
+        if (
+          alien.hp <= 0
+        ) {
+
+          let points =
+            alien.type === "HEAVY"
+              ? 70
+              : alien.type === "ELITE"
+                ? 100
+                : alien.type === "HUNTER"
+                  ? 45
+                  : 30;
+
+          if (
+            sdShipPower() === "BURN SHOT"
+          ) {
+            points += 10;
+          }
+
+          sdScore += points;
+          sdLevelScore += points;
+
+          sdCreateExplosion(
+            alien.x,
+            alien.y,
+            alien.type === "HEAVY"
+              ? 38
+              : 25,
+            SD_SHIPS[
+              sdSelectedShip
+            ].edge
+          );
+
+          sdStartShake(
+            alien.type === "HEAVY"
+              ? 8
+              : 4
+          );
+
+          sdExplosionSound();
+
+          sdAliens.splice(
+            i,
+            1
+          );
+        }
+
+        break;
+      }
+    }
+  }
+}
+
+
+// ================================================================
+// SHIP / ALIENS
+// ================================================================
+
+function sdCollideShipAliens() {
+
+  if (
+    millis() <
+    sdShip.invincibleUntil
+  ) return;
+
+  for (
+    let i = sdAliens.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    let a =
+      sdAliens[i];
 
     if (
       dist(
-        bullet.x,
-        bullet.y,
-        boss.x,
-        boss.y
+        sdShip.x,
+        sdShip.y,
+        a.x,
+        a.y
       ) <
-      boss.radius +
-        bullet.radius
+      sdShip.radius +
+      a.radius * 0.7
     ) {
-      let damage =
-        10 +
-        bullet.damage * 8;
 
       if (
-        selectedShip === 5
+        sdHasShield()
       ) {
-        damage *= 1.5;
+
+        sdCreateExplosion(
+          a.x,
+          a.y,
+          24,
+          "#00ccff"
+        );
+
+        sdAliens.splice(
+          i,
+          1
+        );
+
+        sdStartShake(5);
+
+        return;
       }
 
-      boss.hp -= damage;
+      if (
+        sdShipPower() ===
+        "PHASE DODGE" &&
+        random() < 0.65
+      ) {
 
-      bullets.splice(
+        sdShip.invincibleUntil =
+          millis() + 300;
+
+        return;
+      }
+
+      sdAliens.splice(
         i,
         1
       );
 
-      createExplosion(
-        bullet.x,
-        bullet.y,
-        3,
-        "#ff9900"
+      sdDamagePlayer();
+
+      return;
+    }
+  }
+}
+
+
+// ================================================================
+// SHIP / ENEMY SHOTS
+// ================================================================
+
+function sdCollideShipShots() {
+
+  if (
+    millis() <
+    sdShip.invincibleUntil
+  ) return;
+
+  for (
+    let i = sdEnemyShots.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    let s =
+      sdEnemyShots[i];
+
+    if (
+      dist(
+        sdShip.x,
+        sdShip.y,
+        s.x,
+        s.y
+      ) <
+      sdShip.radius +
+      s.radius
+    ) {
+
+      if (
+        sdHasShield()
+      ) {
+
+        sdEnemyShots.splice(
+          i,
+          1
+        );
+
+        sdStartShake(4);
+
+        return;
+      }
+
+      if (
+        sdShipPower() ===
+        "PHASE DODGE" &&
+        random() < 0.7
+      ) {
+
+        sdEnemyShots.splice(
+          i,
+          1
+        );
+
+        return;
+      }
+
+      sdEnemyShots.splice(
+        i,
+        1
+      );
+
+      sdDamagePlayer();
+
+      return;
+    }
+  }
+}
+
+
+// ================================================================
+// DAMAGE
+// ================================================================
+
+function sdDamagePlayer() {
+
+  sdLives--;
+
+  sdShip.invincibleUntil =
+    millis() + 1800;
+
+  sdStartShake(12);
+
+  sdTone(
+    180,
+    55,
+    0.28,
+    "sawtooth",
+    0.05
+  );
+
+  if (
+    sdLives <= 0
+  ) {
+
+    sdState = "GAMEOVER";
+
+    sdCreateExplosion(
+      sdShip.x,
+      sdShip.y,
+      65
+    );
+  }
+}
+
+
+// ================================================================
+// POWER UPS
+// ================================================================
+
+class SDPowerUp {
+
+  constructor() {
+
+    this.type =
+      random(
+        SD_POWER_TYPES
+      );
+
+    this.x =
+      random(
+        55,
+        width - 55
+      );
+
+    this.y =
+      random(
+        130,
+        height -
+        sdSafeBottom -
+        50
+      );
+
+    this.radius = 23;
+
+    this.life = 850;
+
+    this.rot = 0;
+  }
+
+  update() {
+
+    this.rot += 0.04;
+
+    this.life--;
+  }
+
+  display() {
+
+    let cfg =
+      sdPowerConfig(
+        this.type
+      );
+
+    push();
+
+    translate(
+      this.x,
+      this.y
+    );
+
+    rotate(this.rot);
+
+    stroke(cfg.color);
+
+    strokeWeight(3);
+
+    fill(
+      red(cfg.color),
+      green(cfg.color),
+      blue(cfg.color),
+      45
+    );
+
+    circle(
+      0,
+      0,
+      50
+    );
+
+    noStroke();
+
+    fill(255);
+
+    textAlign(
+      CENTER,
+      CENTER
+    );
+
+    textStyle(BOLD);
+
+    textSize(10);
+
+    text(
+      cfg.label,
+      0,
+      0
+    );
+
+    pop();
+  }
+}
+
+
+function sdPowerConfig(type) {
+
+  let data = {
+
+    MULTI: {
+      color: "#ffe600",
+      label: "M"
+    },
+
+    SHIELD: {
+      color: "#00bfff",
+      label: "S"
+    },
+
+    TWIN: {
+      color: "#b66cff",
+      label: "2X"
+    },
+
+    TRINITY: {
+      color: "#ff4db8",
+      label: "3X"
+    },
+
+    NOVA: {
+      color: "#ffffff",
+      label: "N"
+    },
+
+    PHANTOM: {
+      color: "#d66cff",
+      label: "PH"
+    },
+
+    BERSERKER: {
+      color: "#ff1744",
+      label: "BR"
+    },
+
+    CRYO: {
+      color: "#9eefff",
+      label: "CR"
+    },
+
+    CELESTIAL: {
+      color: "#fff176",
+      label: "CX"
+    }
+
+  };
+
+  return data[type];
+}
+
+
+function sdSpawnPowerUps() {
+
+  if (
+    millis() -
+    sdLastPower <
+    max(
+      7000,
+      9500 -
+      sdCurrentLevel * 90
+    )
+  ) {
+    return;
+  }
+
+  if (
+    sdPowerUps.length < 1
+  ) {
+
+    sdPowerUps.push(
+      new SDPowerUp()
+    );
+  }
+
+  sdLastPower =
+    millis();
+}
+
+
+function sdUpdatePowerUps() {
+
+  for (
+    let i = sdPowerUps.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    sdPowerUps[i].update();
+    sdPowerUps[i].display();
+
+    if (
+      sdPowerUps[i].life <= 0
+    ) {
+
+      sdPowerUps.splice(
+        i,
+        1
       );
     }
   }
 
-  if (boss.hp <= 0) {
-    defeatBoss();
+  for (
+    let i = sdPowerUps.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    let p =
+      sdPowerUps[i];
+
+    if (
+      dist(
+        sdShip.x,
+        sdShip.y,
+        p.x,
+        p.y
+      ) <
+      sdShip.radius +
+      p.radius
+    ) {
+
+      sdActivatePower(
+        p.type
+      );
+
+      sdCreateExplosion(
+        p.x,
+        p.y,
+        25,
+        sdPowerConfig(
+          p.type
+        ).color
+      );
+
+      sdScore += 50;
+      sdLevelScore += 50;
+
+      sdPowerUps.splice(
+        i,
+        1
+      );
+
+      break;
+    }
   }
 }
 
-function drawBoss() {
-  if (!boss) return;
 
-  boss.draw();
+function sdActivatePower(type) {
 
-  const w = min(
-    330,
-    width * 0.72
+  let duration = {
+    MULTI: 9000,
+    SHIELD: 9000,
+    TWIN: 9000,
+    TRINITY: 8500,
+    PHANTOM: 8000,
+    BERSERKER: 7500,
+    CRYO: 8500,
+    CELESTIAL: 7000
+  }[type] || 7000;
+
+  sdPowerEnds[type] =
+    millis() + duration;
+
+  if (
+    type === "NOVA"
+  ) {
+
+    for (
+      let i = sdAliens.length - 1;
+      i >= 0;
+      i--
+    ) {
+
+      sdCreateExplosion(
+        sdAliens[i].x,
+        sdAliens[i].y,
+        20
+      );
+
+      sdAliens.splice(
+        i,
+        1
+      );
+
+      sdScore += 20;
+      sdLevelScore += 20;
+    }
+
+    if (
+      sdBossActive &&
+      sdBoss
+    ) {
+
+      sdBoss.hp -=
+        sdBoss.maxHp *
+        0.15;
+    }
+
+    sdStartShake(16);
+  }
+
+  if (
+    type === "TWIN"
+  ) {
+    sdPowerEnds.TRINITY = 0;
+  }
+
+  if (
+    type === "TRINITY"
+  ) {
+    sdPowerEnds.TWIN = 0;
+  }
+
+  sdTone(
+    300,
+    1100,
+    0.35,
+    "sine",
+    0.045
   );
+}
 
-  const x =
+
+// ================================================================
+// BOSS DRAGON
+// ================================================================
+
+class SDBoss {
+
+  constructor() {
+
+    this.x =
+      width / 2;
+
+    this.y = -120;
+
+    this.targetY =
+      max(
+        130,
+        height * 0.18
+      );
+
+    this.radius = 82;
+
+    this.maxHp =
+      900 +
+      sdCurrentLevel * 170;
+
+    this.hp =
+      this.maxHp;
+
+    this.phase = 1;
+
+    this.move = 0;
+
+    this.lastAttack =
+      millis();
+  }
+
+
+  update() {
+
+    if (
+      this.y <
+      this.targetY
+    ) {
+
+      this.y += 1;
+
+      return;
+    }
+
+    let ratio =
+      this.hp /
+      this.maxHp;
+
+    this.phase =
+      ratio > 0.6
+        ? 1
+        : ratio > 0.3
+          ? 2
+          : 3;
+
+    this.move +=
+      this.phase === 3
+        ? 0.021
+        : 0.014;
+
+    this.x =
+      width / 2 +
+      sin(this.move) *
+      width * 0.28;
+
+    let delay =
+      this.phase === 1
+        ? 2300
+        : this.phase === 2
+          ? 1650
+          : 1150;
+
+    if (
+      millis() -
+      this.lastAttack >
+      delay
+    ) {
+
+      this.attack();
+
+      this.lastAttack =
+        millis();
+    }
+  }
+
+
+  attack() {
+
+    let base =
+      atan2(
+        sdShip.y -
+        this.y,
+        sdShip.x -
+        this.x
+      );
+
+    let spread =
+      this.phase === 1
+        ? [0]
+        : this.phase === 2
+          ? [-16, 0, 16]
+          : [-30, -15, 0, 15, 30];
+
+    for (
+      let d of spread
+    ) {
+
+      sdEnemyShots.push(
+        new SDEnemyShot(
+          this.x,
+          this.y + 35,
+          base + radians(d),
+          this.phase === 3
+            ? 4.2
+            : 3.2
+        )
+      );
+    }
+
+    sdTone(
+      100,
+      45,
+      0.3,
+      "sawtooth",
+      0.04
+    );
+  }
+
+
+  display() {
+
+    let edge =
+      this.phase === 3
+        ? "#ff1744"
+        : "#ff7a00";
+
+    let body =
+      this.phase === 3
+        ? "#650019"
+        : "#54170e";
+
+    push();
+
+    translate(
+      this.x,
+      this.y
+    );
+
+    stroke(edge);
+
+    strokeWeight(4);
+
+    fill(body);
+
+    beginShape();
+
+    vertex(-25, -5);
+    vertex(-100, -48);
+    vertex(-68, 5);
+    vertex(-108, 40);
+    vertex(-30, 25);
+
+    endShape(CLOSE);
+
+    beginShape();
+
+    vertex(25, -5);
+    vertex(100, -48);
+    vertex(68, 5);
+    vertex(108, 40);
+    vertex(30, 25);
+
+    endShape(CLOSE);
+
+    ellipse(
+      0,
+      10,
+      92,
+      122
+    );
+
+    beginShape();
+
+    vertex(0, -76);
+    vertex(-38, -38);
+    vertex(-28, 10);
+    vertex(0, 30);
+    vertex(28, 10);
+    vertex(38, -38);
+
+    endShape(CLOSE);
+
+    noStroke();
+
+    fill(
+      this.phase === 3
+        ? "#ff0044"
+        : "#ffff00"
+    );
+
+    ellipse(
+      -14,
+      -34,
+      11,
+      8
+    );
+
+    ellipse(
+      14,
+      -34,
+      11,
+      8
+    );
+
+    pop();
+  }
+}
+
+
+// ================================================================
+// BOSS LOGIC
+// ================================================================
+
+function sdCheckBoss() {
+
+  let isBoss =
+    sdCurrentLevel === 5 ||
+    sdCurrentLevel === 10 ||
+    sdCurrentLevel === 15 ||
+    sdCurrentLevel === 20;
+
+  if (
+    !isBoss ||
+    sdBossActive ||
+    sdBossDefeated
+  ) return;
+
+  let elapsed =
+    millis() -
+    sdLevelStart;
+
+  if (
+    elapsed >
+    sdLevelDuration *
+    0.55
+  ) {
+
+    sdBoss =
+      new SDBoss();
+
+    sdBossActive = true;
+
+    sdAliens = [];
+    sdPowerUps = [];
+
+    sdStartShake(18);
+
+    sdStartBossMusic();
+
+    sdTone(
+      50,
+      120,
+      1.1,
+      "sawtooth",
+      0.055
+    );
+  }
+}
+
+
+function sdUpdateBoss() {
+
+  if (
+    !sdBoss
+  ) return;
+
+  sdBoss.update();
+  sdBoss.display();
+
+  sdDrawBossHealth();
+
+  if (
+    sdBoss.hp <= 0
+  ) {
+
+    let reward =
+      1000 +
+      sdCurrentLevel *
+      100;
+
+    sdScore += reward;
+    sdLevelScore += reward;
+
+    sdCreateExplosion(
+      sdBoss.x,
+      sdBoss.y,
+      120,
+      "#ff5b30"
+    );
+
+    sdStartShake(28);
+
+    sdEnemyShots = [];
+
+    sdBoss = null;
+
+    sdBossActive = false;
+
+    sdBossDefeated = true;
+
+    sdStopBossMusic();
+
+    sdTone(
+      100,
+      900,
+      0.9,
+      "sine",
+      0.06
+    );
+  }
+}
+
+
+function sdDrawBossHealth() {
+
+  if (!sdBoss) return;
+
+  let w =
+    min(
+      340,
+      width * 0.76
+    );
+
+  let x =
     width / 2 -
     w / 2;
 
-  const y = 122;
+  let y = 92;
 
-  const ratio = constrain(
-    boss.hp /
-      boss.maxHp,
-    0,
-    1
+  let ratio =
+    constrain(
+      sdBoss.hp /
+      sdBoss.maxHp,
+      0,
+      1
+    );
+
+  textAlign(
+    CENTER,
+    BOTTOM
   );
 
-  rectMode(CORNER);
+  fill(255, 80, 60);
+
+  textStyle(BOLD);
+
+  textSize(14);
+
+  text(
+    "METEOR DRAGON • PHASE " +
+    sdBoss.phase,
+    width / 2,
+    y - 7
+  );
 
   noStroke();
 
@@ -2964,387 +3641,323 @@ function drawBoss() {
     255,
     255,
     255,
-    45
+    40
   );
 
   rect(
     x,
     y,
     w,
-    11,
-    5
+    12,
+    6
   );
 
   fill(
-    boss.phase === 3
-      ? color(255, 0, 60)
-      : color(255, 70, 30)
+    255,
+    60,
+    50
   );
 
   rect(
     x,
     y,
     w * ratio,
-    11,
-    5
-  );
-
-  fill(255, 90, 70);
-
-  textAlign(CENTER, BOTTOM);
-  textStyle(BOLD);
-  textSize(12);
-
-  text(
-    "METEOR DRAGON • PHASE " +
-      boss.phase,
-    width / 2,
-    y - 8
+    12,
+    6
   );
 }
 
-function defeatBoss() {
-  if (!boss) return;
-
-  createExplosion(
-    boss.x,
-    boss.y,
-    120,
-    "#ff6a00"
-  );
-
-  screenShake(
-    25,
-    800
-  );
-
-  const bonus =
-    1000 +
-    currentLevel * 120;
-
-  score += bonus;
-  levelScore += bonus;
-
-  boss = null;
-
-  enemyShots = [];
-
-  stopBossMusic();
-
-  playTone(
-    100,
-    1000,
-    0.9,
-    "sine",
-    0.07
-  );
-}
 
 // ================================================================
-// BOSS MUSIC
+// BULLET / BOSS
 // ================================================================
 
-function startBossMusic() {
-  stopBossMusic();
+function sdCollideBulletsBoss() {
 
   if (
-    !soundEnabled
+    !sdBossActive ||
+    !sdBoss
+  ) return;
+
+  for (
+    let i = sdBullets.length - 1;
+    i >= 0;
+    i--
   ) {
-    return;
-  }
 
-  initAudio();
+    let b =
+      sdBullets[i];
 
-  if (!audioCtx) {
-    return;
-  }
-
-  bossMusicStep = 0;
-
-  const notes = [
-    110,
-    130,
-    146,
-    98,
-    123,
-    110,
-    164,
-    98
-  ];
-
-  bossMusicTimer =
-    setInterval(
-      function () {
-        if (
-          gameState !==
-            "PLAYING" ||
-          !boss ||
-          !soundEnabled
-        ) {
-          return;
-        }
-
-        const note =
-          notes[
-            bossMusicStep %
-              notes.length
-          ];
-
-        playTone(
-          note,
-          note * 0.82,
-          0.18,
-          bossMusicStep % 2 === 0
-            ? "sawtooth"
-            : "triangle",
-          0.035
-        );
-
-        bossMusicStep++;
-      },
-      280
-    );
-}
-
-function stopBossMusic() {
-  if (
-    bossMusicTimer !== null
-  ) {
-    clearInterval(
-      bossMusicTimer
-    );
-
-    bossMusicTimer = null;
-  }
-}
-
-// ================================================================
-// LEVEL COMPLETION
-// ================================================================
-
-function checkLevelCompletion() {
-  if (
-    gameState !==
-    "PLAYING"
-  ) {
-    return;
-  }
-
-  const elapsed =
-    millis() -
-    levelStartTime;
-
-  const minimumTime =
-    min(
-      12000,
-      levelDuration
-    );
-
-  const scoreDone =
-    levelScore >=
-    levelTargetScore;
-
-  const timeReady =
-    elapsed >=
-    minimumTime;
-
-  const bossDone =
-    !isBossLevel() ||
-    !boss;
-
-  if (
-    scoreDone &&
-    timeReady &&
-    bossDone
-  ) {
-    completeLevel();
-  }
-
-  // Prevent a normal stage from getting stuck forever.
-  if (
-    elapsed >=
-      levelDuration &&
-    scoreDone &&
-    !isBossLevel()
-  ) {
-    completeLevel();
-  }
-}
-
-function completeLevel() {
-  if (
-    gameState !==
-    "PLAYING"
-  ) {
-    return;
-  }
-
-  stopBossMusic();
-
-  if (
-    currentLevel <
-    TOTAL_LEVELS
-  ) {
     if (
-      currentLevel + 1 >
-      unlockedLevel
+      dist(
+        b.x,
+        b.y,
+        sdBoss.x,
+        sdBoss.y
+      ) <
+      sdBoss.radius +
+      b.radius
     ) {
-      unlockedLevel =
-        currentLevel + 1;
 
-      saveGame();
+      sdBoss.hp -=
+        (10 + b.power * 8) *
+        sdShipDamageMultiplier();
+
+      sdBullets.splice(
+        i,
+        1
+      );
+
+      sdCreateExplosion(
+        b.x,
+        b.y,
+        4,
+        "#ff9a40"
+      );
+
+      sdStartShake(2);
     }
   }
-
-  levelCompleteAt =
-    millis();
-
-  createCelebration();
-
-  playLevelUpSound();
-
-  gameState = "LEVELUP";
 }
+
+
+// ================================================================
+// PORTAL
+// ================================================================
+
+class SDPortal {
+
+  constructor() {
+
+    this.x =
+      random(
+        width * 0.25,
+        width * 0.75
+      );
+
+    this.y =
+      random(
+        height * 0.25,
+        height * 0.55
+      );
+
+    this.radius = 50;
+
+    this.life = 800;
+
+    this.rot = 0;
+  }
+
+  update() {
+
+    this.rot += 0.04;
+
+    this.life--;
+  }
+
+  display() {
+
+    push();
+
+    translate(
+      this.x,
+      this.y
+    );
+
+    rotate(this.rot);
+
+    noFill();
+
+    stroke(
+      180,
+      70,
+      255,
+      190
+    );
+
+    strokeWeight(5);
+
+    circle(
+      0,
+      0,
+      this.radius * 2
+    );
+
+    stroke(
+      80,
+      200,
+      255,
+      160
+    );
+
+    strokeWeight(3);
+
+    circle(
+      0,
+      0,
+      this.radius * 1.45
+    );
+
+    pop();
+  }
+}
+
+
+function sdUpdatePortal() {
+
+  if (
+    sdBossActive
+  ) return;
+
+  if (
+    !sdPortal &&
+    sdLevelScore >
+    850 +
+    sdCurrentLevel * 100
+  ) {
+
+    sdPortal =
+      new SDPortal();
+  }
+
+  if (!sdPortal) return;
+
+  sdPortal.update();
+  sdPortal.display();
+
+  if (
+    dist(
+      sdShip.x,
+      sdShip.y,
+      sdPortal.x,
+      sdPortal.y
+    ) <
+    sdPortal.radius
+  ) {
+
+    sdGalaxy =
+      floor(
+        random(1, 4)
+      );
+
+    sdGalaxyEnd =
+      millis() + 15000;
+
+    sdPortal = null;
+
+    sdAliens = [];
+
+    sdTone(
+      900,
+      100,
+      0.6,
+      "sawtooth",
+      0.04
+    );
+  }
+
+  if (
+    sdGalaxy !== 0 &&
+    millis() >
+    sdGalaxyEnd
+  ) {
+
+    sdGalaxy = 0;
+
+    sdAliens = [];
+  }
+}
+
 
 // ================================================================
 // LEVEL COMPLETE
 // ================================================================
 
-function drawLevelComplete() {
-  // IMPORTANT:
-  // Explicit CORNER mode fixes the old black-segment bug.
+function sdCheckLevelComplete() {
 
-  push();
-
-  rectMode(CORNER);
-
-  fill(
-    0,
-    0,
-    12,
-    220
-  );
-
-  rect(
-    0,
-    0,
-    width,
-    height
-  );
-
-  textAlign(
-    CENTER,
-    CENTER
-  );
-
-  fill(255, 220, 40);
-  textStyle(BOLD);
-  textSize(
-    min(
-      35,
-      width * 0.085
-    )
-  );
-
-  text(
-    currentLevel ===
-      TOTAL_LEVELS
-      ? "CAMPAIGN COMPLETE!"
-      : "LEVEL " +
-          currentLevel +
-          " CLEARED!",
-    width / 2,
-    height * 0.34
-  );
-
-  fill(0, 225, 255);
-  textSize(16);
-
-  if (
-    currentLevel <
-    TOTAL_LEVELS
-  ) {
-    text(
-      "NEW LEVEL UNLOCKED",
-      width / 2,
-      height * 0.45
-    );
-
-    fill(255);
-    textSize(20);
-
-    text(
-      "LEVEL " +
-        (currentLevel + 1),
-      width / 2,
-      height * 0.51
-    );
-
-    fill(255, 220, 50);
-    textSize(15);
-
-    text(
-      LEVEL_TITLES[
-        currentLevel
-      ],
-      width / 2,
-      height * 0.57
-    );
-  } else {
-    fill(255);
-    textSize(18);
-
-    text(
-      "You conquered the Multiverse.",
-      width / 2,
-      height * 0.51
-    );
-  }
-
-  fill(255);
-  textStyle(NORMAL);
-  textSize(12);
-
-  text(
-    "Score: " + score,
-    width / 2,
-    height * 0.65
-  );
-
-  pop();
-
-  if (
+  let elapsed =
     millis() -
-      levelCompleteAt >
-    3000
+    sdLevelStart;
+
+  let timeDone =
+    elapsed >=
+    sdLevelDuration;
+
+  let scoreDone =
+    sdLevelScore >=
+    sdTargetScore;
+
+  let bossRequired =
+    sdCurrentLevel === 5 ||
+    sdCurrentLevel === 10 ||
+    sdCurrentLevel === 15 ||
+    sdCurrentLevel === 20;
+
+  let bossDone =
+    !bossRequired ||
+    sdBossDefeated;
+
+  if (
+    timeDone &&
+    scoreDone &&
+    bossDone
   ) {
-    if (
-      currentLevel <
-      TOTAL_LEVELS
-    ) {
-      startLevel(
-        currentLevel + 1
-      );
-    } else {
-      gameState = "HOME";
-    }
+
+    sdCompleteLevel();
   }
 }
 
+
+function sdCompleteLevel() {
+
+  if (
+    sdState !== "PLAYING"
+  ) return;
+
+  sdState = "LEVELUP";
+
+  sdLevelUpStart =
+    millis();
+
+  if (
+    sdCurrentLevel <
+    SD_TOTAL_LEVELS
+  ) {
+
+    sdUnlockedLevel =
+      max(
+        sdUnlockedLevel,
+        sdCurrentLevel + 1
+      );
+
+    sdSave();
+  }
+
+  sdCreateCelebration();
+
+  sdStartShake(10);
+
+  sdStopBossMusic();
+
+  sdPlayVictory();
+}
+
+
 // ================================================================
-// GAME OVER
+// LEVEL UP SCREEN
 // ================================================================
 
-function drawGameOver() {
-  push();
+function sdDrawLevelUp() {
 
-  rectMode(CORNER);
+  // Full canvas overlay — no partial black rectangle.
+
+  noStroke();
 
   fill(
-    0,
-    0,
-    0,
-    215
+    2,
+    6,
+    20,
+    235
   );
 
   rect(
@@ -3359,137 +3972,285 @@ function drawGameOver() {
     CENTER
   );
 
-  fill(255, 70, 90);
+  fill(
+    255,
+    220,
+    50
+  );
+
   textStyle(BOLD);
-  textSize(37);
+
+  textSize(
+    min(34, width * 0.085)
+  );
 
   text(
-    "MISSION LOST",
+    sdCurrentLevel ===
+    SD_TOTAL_LEVELS
+      ? "CAMPAIGN COMPLETE!"
+      : "LEVEL " +
+        sdCurrentLevel +
+        " CLEARED!",
     width / 2,
     height * 0.30
   );
 
   fill(255);
-  textSize(17);
+
+  textSize(19);
 
   text(
-    "LEVEL " +
-      currentLevel,
+    "SCORE  " +
+    sdScore,
     width / 2,
-    height * 0.39
+    height * 0.40
   );
 
-  fill(255, 220, 50);
-  textSize(14);
-
-  text(
-    LEVEL_TITLES[
-      currentLevel - 1
-    ],
-    width / 2,
-    height * 0.44
-  );
-
-  drawActionButton(
-    "RETRY LEVEL " +
-      currentLevel,
-    height * 0.56
-  );
-
-  drawActionButton(
-    "HOME",
-    height * 0.66
-  );
-
-  pop();
-}
-
-// ================================================================
-// PAUSE
-// ================================================================
-
-function pauseGame() {
   if (
-    gameState ===
-    "PLAYING"
+    sdCurrentLevel <
+    SD_TOTAL_LEVELS
   ) {
-    pauseStarted =
-      millis();
 
-    stopBossMusic();
+    fill(0, 225, 255);
 
-    gameState = "PAUSED";
+    textSize(17);
+
+    text(
+      "NEW LEVEL UNLOCKED",
+      width / 2,
+      height * 0.49
+    );
+
+    fill(255);
+
+    textSize(23);
+
+    text(
+      "LEVEL " +
+      (sdCurrentLevel + 1),
+      width / 2,
+      height * 0.55
+    );
+
+    fill(255, 220, 60);
+
+    textSize(16);
+
+    text(
+      SD_LEVEL_TITLES[
+        sdCurrentLevel
+      ],
+      width / 2,
+      height * 0.61
+    );
+
+  } else {
+
+    fill(255);
+
+    textSize(18);
+
+    text(
+      "You conquered the Multiverse.",
+      width / 2,
+      height * 0.53
+    );
   }
-}
 
-function resumeGame() {
   if (
-    gameState !==
-    "PAUSED"
-  ) {
-    return;
-  }
-
-  const pausedFor =
     millis() -
-    pauseStarted;
+    sdLevelUpStart >
+    3200
+  ) {
 
-  levelStartTime +=
-    pausedFor;
+    if (
+      sdCurrentLevel <
+      SD_TOTAL_LEVELS
+    ) {
 
-  lastEnemySpawn +=
-    pausedFor;
+      sdStartLevel(
+        sdCurrentLevel + 1
+      );
 
-  lastPowerSpawn +=
-    pausedFor;
+    } else {
 
-  lastShot +=
-    pausedFor;
-
-  ship.invincibleUntil +=
-    pausedFor;
-
-  shieldUntil +=
-    pausedFor;
-
-  rapidUntil +=
-    pausedFor;
-
-  multiUntil +=
-    pausedFor;
-
-  cryoUntil +=
-    pausedFor;
-
-  celestialUntil +=
-    pausedFor;
-
-  if (boss) {
-    boss.lastAttack +=
-      pausedFor;
-  }
-
-  gameState = "PLAYING";
-
-  if (boss) {
-    startBossMusic();
+      sdState = "HOME";
+    }
   }
 }
 
+
 // ================================================================
-// PAUSE OVERLAY
+// GAME OVER
 // ================================================================
 
-function drawPauseOverlay() {
-  push();
+function sdDrawGameOver() {
 
-  rectMode(CORNER);
+  noStroke();
 
   fill(
     0,
     0,
     0,
-    210
+    225
+  );
+
+  rect(
+    0,
+    0,
+    width,
+    height
+  );
+
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
+  fill(255, 70, 80);
+
+  textStyle(BOLD);
+
+  textSize(38);
+
+  text(
+    "MISSION LOST",
+    width / 2,
+    height * 0.28
+  );
+
+  fill(255);
+
+  textSize(18);
+
+  text(
+    "LEVEL " +
+    sdCurrentLevel,
+    width / 2,
+    height * 0.38
+  );
+
+  fill(255, 220, 50);
+
+  textSize(15);
+
+  text(
+    SD_LEVEL_TITLES[
+      sdCurrentLevel - 1
+    ],
+    width / 2,
+    height * 0.43
+  );
+
+  sdActionButton(
+    "↻  RETRY LEVEL",
+    height * 0.55,
+    280
+  );
+
+  sdActionButton(
+    "⌂  HOME",
+    height * 0.66,
+    240
+  );
+}
+
+
+// ================================================================
+// PAUSE
+// ================================================================
+
+function sdPauseGame() {
+
+  if (
+    sdState === "PLAYING"
+  ) {
+
+    sdState = "PAUSED";
+
+    sdPauseStarted =
+      millis();
+  }
+}
+
+
+function sdResumeGame() {
+
+  if (
+    sdState !== "PAUSED"
+  ) return;
+
+  let paused =
+    millis() -
+    sdPauseStarted;
+
+  sdLevelStart += paused;
+
+  sdLastAlien += paused;
+  sdLastPower += paused;
+  sdLastShot += paused;
+
+  sdPowerReadyAt += paused;
+
+  for (
+    let key in sdPowerEnds
+  ) {
+    sdPowerEnds[key] += paused;
+  }
+
+  if (
+    sdGalaxy !== 0
+  ) {
+    sdGalaxyEnd += paused;
+  }
+
+  if (
+    sdBoss
+  ) {
+    sdBoss.lastAttack += paused;
+  }
+
+  sdState = "PLAYING";
+}
+
+
+function sdDrawFrozen() {
+
+  if (sdShip)
+    sdShip.display();
+
+  for (
+    let a of sdAliens
+  ) a.display();
+
+  for (
+    let b of sdBullets
+  ) b.display();
+
+  for (
+    let p of sdPowerUps
+  ) p.display();
+
+  for (
+    let s of sdEnemyShots
+  ) s.display();
+
+  if (sdBoss)
+    sdBoss.display();
+
+  sdDrawHUD();
+}
+
+
+function sdDrawPause() {
+
+  noStroke();
+
+  fill(
+    0,
+    0,
+    0,
+    205
   );
 
   rect(
@@ -3505,286 +4266,141 @@ function drawPauseOverlay() {
   );
 
   fill(255);
+
   textStyle(BOLD);
+
   textSize(38);
 
   text(
     "PAUSED",
     width / 2,
-    height * 0.34
+    height * 0.30
   );
 
   fill(0, 220, 255);
-  textSize(14);
 
-  text(
-    "LEVEL " +
-      currentLevel +
-      " • " +
-      LEVEL_TITLES[
-        currentLevel - 1
-      ],
-    width / 2,
-    height * 0.41
-  );
-
-  drawActionButton(
-    "RESUME",
-    height * 0.54
-  );
-
-  drawActionButton(
-    "HOME",
-    height * 0.64
-  );
-
-  pop();
-}
-
-function drawActionButton(
-  label,
-  y
-) {
-  const w = min(
-    280,
-    width * 0.74
-  );
-
-  rectMode(CENTER);
-
-  stroke(0, 210, 255);
-  strokeWeight(2);
-
-  fill(5, 25, 45);
-
-  rect(
-    width / 2,
-    y,
-    w,
-    50,
-    13
-  );
-
-  noStroke();
-
-  fill(255);
-
-  textAlign(
-    CENTER,
-    CENTER
-  );
-
-  textStyle(BOLD);
   textSize(15);
 
   text(
-    label,
+    "LEVEL " +
+    sdCurrentLevel +
+    " • " +
+    SD_LEVEL_TITLES[
+      sdCurrentLevel - 1
+    ],
     width / 2,
-    y
+    height * 0.38
+  );
+
+  sdActionButton(
+    "▶  RESUME",
+    height * 0.53,
+    270
+  );
+
+  sdActionButton(
+    "⌂  HOME",
+    height * 0.64,
+    240
   );
 }
 
-// ================================================================
-// FROZEN WORLD
-// ================================================================
-
-function drawFrozenWorld() {
-  push();
-
-  drawWorldObjects();
-
-  pop();
-}
-
-function drawWorldObjects() {
-  drawBullets();
-  drawAliens();
-  drawEnemyShots();
-  drawPowerUps();
-
-  if (boss) {
-    drawBoss();
-  }
-
-  ship.draw();
-
-  drawParticles();
-}
-
-// ================================================================
-// GAME LOOP
-// ================================================================
-
-function runGame() {
-  detectGameplayControls();
-  movePlayer();
-
-  updateBullets();
-  updateAliens();
-  updateEnemyShots();
-  updatePowerUps();
-
-  enemyAttackUpdate();
-
-  startBossIfNeeded();
-
-  if (boss) {
-    updateBoss();
-  }
-
-  bulletAlienCollisions();
-  playerAlienCollision();
-  enemyShotCollision();
-  powerCollision();
-
-  spawnAliens();
-  spawnPowerUps();
-
-  updateParticles();
-
-  checkLevelCompletion();
-
-  // Screen shake only affects game world.
-  push();
-
-  if (
-    millis() <
-    shakeUntil
-  ) {
-    translate(
-      random(
-        -shakePower,
-        shakePower
-      ),
-      random(
-        -shakePower,
-        shakePower
-      )
-    );
-  }
-
-  drawWorldObjects();
-
-  pop();
-
-  drawHUD();
-
-  drawControls();
-}
 
 // ================================================================
 // HUD
 // ================================================================
 
-function drawHUD() {
-  push();
+function sdDrawHUD() {
 
   textStyle(BOLD);
 
-  // Score
+  textAlign(
+    LEFT,
+    TOP
+  );
+
   fill(255);
-  textAlign(LEFT, TOP);
+
   textSize(15);
 
   text(
-    "SCORE " + score,
+    "SCORE  " +
+    sdScore,
     14,
     12
   );
 
-  // Lives
-  textAlign(RIGHT, TOP);
-
-  fill(255);
-  textSize(15);
+  textAlign(
+    RIGHT,
+    TOP
+  );
 
   text(
-    "LIVES " + lives,
+    "♥ " +
+    sdLives,
     width - 14,
     12
   );
 
-  // Level
   textAlign(
     CENTER,
     TOP
   );
 
   fill(0, 225, 255);
+
   textSize(15);
 
   text(
     "LEVEL " +
-      currentLevel,
+    sdCurrentLevel,
     width / 2,
-    11
+    12
   );
 
-  fill(255, 220, 50);
+  fill(255, 220, 60);
+
   textSize(11);
 
   text(
-    LEVEL_TITLES[
-      currentLevel - 1
+    SD_LEVEL_TITLES[
+      sdCurrentLevel - 1
     ],
     width / 2,
-    32
+    33
   );
 
-  // Progress bars in CENTER.
-  const w = min(
-    260,
-    width * 0.62
-  );
+  let w =
+    min(
+      300,
+      width * 0.72
+    );
 
-  const x =
+  let x =
     width / 2 -
     w / 2;
 
-  const y = 55;
+  let y = 58;
 
-  const elapsed =
+  let elapsed =
     millis() -
-    levelStartTime;
+    sdLevelStart;
 
-  const timeRatio =
+  let timeRatio =
     constrain(
       elapsed /
-        levelDuration,
+      sdLevelDuration,
       0,
       1
     );
 
-  const scoreRatio =
+  let scoreRatio =
     constrain(
-      levelScore /
-        levelTargetScore,
+      sdLevelScore /
+      sdTargetScore,
       0,
       1
     );
-
-  // Survival
-  textAlign(LEFT, CENTER);
-
-  fill(190);
-  textStyle(NORMAL);
-  textSize(9);
-
-  text(
-    "SURVIVAL",
-    x,
-    y + 4
-  );
-
-  const barX =
-    x + 58;
-
-  const barW =
-    w - 58;
-
-  rectMode(CORNER);
-
-  noStroke();
 
   fill(
     255,
@@ -3794,31 +4410,21 @@ function drawHUD() {
   );
 
   rect(
-    barX,
+    x,
     y,
-    barW,
-    7,
-    4
+    w,
+    9,
+    5
   );
 
   fill(0, 220, 255);
 
   rect(
-    barX,
-    y,
-    barW * timeRatio,
-    7,
-    4
-  );
-
-  // Mission
-  fill(190);
-  textSize(9);
-
-  text(
-    "MISSION",
     x,
-    y + 18
+    y,
+    w * timeRatio,
+    9,
+    5
   );
 
   fill(
@@ -3829,276 +4435,337 @@ function drawHUD() {
   );
 
   rect(
-    barX,
-    y + 14,
-    barW,
-    7,
-    4
+    x,
+    y + 22,
+    w,
+    9,
+    5
   );
-
-  fill(255, 215, 40);
-
-  rect(
-    barX,
-    y + 14,
-    barW * scoreRatio,
-    7,
-    4
-  );
-
-  // Target information
-  fill(170);
-  textAlign(
-    CENTER,
-    CENTER
-  );
-
-  textSize(9);
-
-  text(
-    levelScore +
-      " / " +
-      levelTargetScore,
-    width / 2,
-    y + 34
-  );
-
-  // Controls at top.
-  drawTopControl(
-    pauseButton.x,
-    pauseButton.y,
-    "II"
-  );
-
-  drawTopControl(
-    homeButton.x,
-    homeButton.y,
-    "H"
-  );
-
-  pop();
-}
-
-function drawTopControl(
-  x,
-  y,
-  label
-) {
-  push();
-
-  circleModeSafe();
-
-  stroke(
-    0,
-    210,
-    255,
-    170
-  );
-
-  strokeWeight(2);
 
   fill(
-    5,
-    25,
-    45,
-    225
+    255,
+    220,
+    40
   );
 
-  circle(
+  rect(
     x,
-    y,
-    42
+    y + 22,
+    w * scoreRatio,
+    9,
+    5
   );
 
-  noStroke();
+  fill(210);
 
-  fill(255);
-
-  textAlign(
-    CENTER,
-    CENTER
-  );
-
-  textStyle(BOLD);
-  textSize(14);
+  textSize(11);
 
   text(
-    label,
-    x,
-    y
+    "SURVIVAL   " +
+    floor(
+      min(
+        elapsed / 1000,
+        sdLevelDuration / 1000
+      )
+    ) +
+    " / " +
+    floor(
+      sdLevelDuration / 1000
+    ) +
+    " sec",
+    width / 2,
+    y + 36
   );
 
-  pop();
+  fill(210);
+
+  text(
+    "SCORE   " +
+    sdLevelScore +
+    " / " +
+    sdTargetScore,
+    width / 2,
+    y + 52
+  );
+
+  sdTopButton(
+    sdPauseButton.x,
+    sdPauseButton.y,
+    "Ⅱ"
+  );
+
+  sdTopButton(
+    sdHomeButton.x,
+    sdHomeButton.y,
+    "⌂"
+  );
+
+  if (
+    sdBossActive
+  ) {
+    // Boss health is drawn separately.
+  }
 }
 
-function circleModeSafe() {
-  // Kept intentionally empty.
-  // Circle drawing uses p5's normal center mode.
-}
 
 // ================================================================
-// GAMEPLAY CONTROLS
+// CONTROLS
 // ================================================================
 
-function resetControls() {
-  const moveX =
-    controlsSwapped
-      ? width - 90
-      : 90;
+function sdResetControls() {
 
-  const fireX =
-    controlsSwapped
-      ? 90
-      : width - 90;
+  let moveX =
+    sdControlsSwapped
+      ? width - 95
+      : 95;
 
-  joystick.baseX =
+  let fireX =
+    sdControlsSwapped
+      ? 95
+      : width - 95;
+
+  sdJoystick.baseX =
     moveX;
 
-  joystick.baseY =
-    height - 100;
+  sdJoystick.baseY =
+    height -
+    sdSafeBottom;
 
-  joystick.knobX =
+  sdJoystick.knobX =
     moveX;
 
-  joystick.knobY =
-    height - 100;
+  sdJoystick.knobY =
+    sdJoystick.baseY;
 
-  joystick.active = false;
-
-  fireButton.x =
+  sdFire.x =
     fireX;
 
-  fireButton.y =
-    height - 100;
+  sdFire.y =
+    height -
+    sdSafeBottom;
 
-  pauseButton.x = 38;
-  pauseButton.y = 92;
+  sdPowerButton.x =
+    width / 2;
 
-  homeButton.x =
+  sdPowerButton.y =
+    height -
+    sdSafeBottom;
+
+  sdHomeButton.x =
     width - 38;
 
-  homeButton.y = 92;
+  sdHomeButton.y =
+    52;
+
+  sdPauseButton.x =
+    38;
+
+  sdPauseButton.y =
+    52;
+
+  sdJoystick.active =
+    false;
 }
 
-function detectGameplayControls() {
-  if (
-    gameState !==
-    "PLAYING"
+
+function sdHandleMovement() {
+
+  let movement =
+    null;
+
+  let firing =
+    false;
+
+  for (
+    let t of touches
   ) {
-    return;
-  }
 
-  let moveTouch = null;
-  let firing = false;
-
-  for (const t of touches) {
     if (
       dist(
         t.x,
         t.y,
-        fireButton.x,
-        fireButton.y
+        sdFire.x,
+        sdFire.y
       ) <
-      fireButton.radius + 20
+      sdFire.radius + 20
     ) {
+
       firing = true;
+
       continue;
     }
 
-    const movementSide =
-      controlsSwapped
+    let movementSide =
+      sdControlsSwapped
         ? t.x > width * 0.45
         : t.x < width * 0.55;
 
     if (
       movementSide &&
-      t.y > height * 0.40
+      t.y >
+      height * 0.40
     ) {
-      moveTouch = t;
+
+      movement = t;
     }
   }
 
   if (firing) {
-    shoot();
+    sdShoot();
   }
 
-  if (moveTouch) {
+  if (movement) {
+
     if (
-      !joystick.active
+      !sdJoystick.active
     ) {
-      joystick.active = true;
 
-      joystick.baseX =
-        moveTouch.x;
+      sdJoystick.active = true;
 
-      joystick.baseY =
-        moveTouch.y;
+      sdJoystick.baseX =
+        movement.x;
+
+      sdJoystick.baseY =
+        movement.y;
     }
 
     let dx =
-      moveTouch.x -
-      joystick.baseX;
+      movement.x -
+      sdJoystick.baseX;
 
     let dy =
-      moveTouch.y -
-      joystick.baseY;
+      movement.y -
+      sdJoystick.baseY;
 
-    const d =
+    let distance =
       sqrt(
         dx * dx +
         dy * dy
       );
 
     if (
-      d >
-      joystick.radius
+      distance >
+      sdJoystick.radius
     ) {
-      const a =
+
+      let angle =
         atan2(
           dy,
           dx
         );
 
       dx =
-        cos(a) *
-        joystick.radius;
+        cos(angle) *
+        sdJoystick.radius;
 
       dy =
-        sin(a) *
-        joystick.radius;
+        sin(angle) *
+        sdJoystick.radius;
     }
 
-    joystick.knobX =
-      joystick.baseX +
-      dx;
+    sdJoystick.knobX =
+      sdJoystick.baseX + dx;
 
-    joystick.knobY =
-      joystick.baseY +
-      dy;
+    sdJoystick.knobY =
+      sdJoystick.baseY + dy;
+
   } else {
-    resetJoystick();
+
+    sdResetJoystick();
   }
+
+  sdMoveShip();
 }
 
-function resetJoystick() {
-  joystick.active = false;
 
-  const x =
-    controlsSwapped
-      ? width - 90
-      : 90;
+function sdMoveShip() {
 
-  joystick.baseX = x;
-  joystick.baseY =
-    height - 100;
+  if (
+    !sdJoystick.active
+  ) return;
 
-  joystick.knobX = x;
-  joystick.knobY =
-    height - 100;
+  let dx =
+    sdJoystick.knobX -
+    sdJoystick.baseX;
+
+  let dy =
+    sdJoystick.knobY -
+    sdJoystick.baseY;
+
+  let mag =
+    sqrt(
+      dx * dx +
+      dy * dy
+    );
+
+  if (
+    mag < 4
+  ) return;
+
+  let angle =
+    atan2(
+      dy,
+      dx
+    );
+
+  sdShip.angle =
+    angle;
+
+  let strength =
+    constrain(
+      mag /
+      sdJoystick.radius,
+      0,
+      1
+    );
+
+  let speed =
+    sdShipMoveSpeed();
+
+  sdShip.x +=
+    cos(angle) *
+    speed *
+    strength;
+
+  sdShip.y +=
+    sin(angle) *
+    speed *
+    strength;
 }
 
-function drawControls() {
-  push();
+
+function sdResetJoystick() {
+
+  sdJoystick.active =
+    false;
+
+  let x =
+    sdControlsSwapped
+      ? width - 95
+      : 95;
+
+  sdJoystick.baseX =
+    x;
+
+  sdJoystick.baseY =
+    height -
+    sdSafeBottom;
+
+  sdJoystick.knobX =
+    x;
+
+  sdJoystick.knobY =
+    sdJoystick.baseY;
+}
+
+
+function sdDrawControls() {
+
+  let y =
+    height -
+    sdSafeBottom;
+
+  // Joystick
 
   stroke(
     0,
@@ -4117,9 +4784,9 @@ function drawControls() {
   );
 
   circle(
-    joystick.baseX,
-    joystick.baseY,
-    joystick.radius * 2
+    sdJoystick.baseX,
+    y,
+    sdJoystick.radius * 2
   );
 
   fill(
@@ -4130,10 +4797,12 @@ function drawControls() {
   );
 
   circle(
-    joystick.knobX,
-    joystick.knobY,
-    52
+    sdJoystick.knobX,
+    sdJoystick.knobY,
+    50
   );
+
+  // Fire
 
   stroke(
     255,
@@ -4149,9 +4818,9 @@ function drawControls() {
   );
 
   circle(
-    fireButton.x,
-    fireButton.y,
-    fireButton.radius * 2
+    sdFire.x,
+    y,
+    sdFire.radius * 2
   );
 
   noStroke();
@@ -4164,75 +4833,270 @@ function drawControls() {
   );
 
   textStyle(BOLD);
+
   textSize(15);
 
   text(
     "FIRE",
-    fireButton.x,
-    fireButton.y
+    sdFire.x,
+    y
   );
 
-  pop();
+  // Special power
+
+  if (
+    sdPowerReadyAt <= millis()
+  ) {
+
+    stroke(
+      255,
+      220,
+      50,
+      180
+    );
+
+    fill(
+      255,
+      190,
+      20,
+      50
+    );
+
+    circle(
+      sdPowerButton.x,
+      y,
+      sdPowerButton.radius * 2
+    );
+
+    noStroke();
+
+    fill(255);
+
+    textSize(10);
+
+    text(
+      "POWER",
+      sdPowerButton.x,
+      y
+    );
+  }
 }
 
+
 // ================================================================
-// SCREEN SHAKE
+// TOP BUTTON
 // ================================================================
 
-function screenShake(
-  power,
-  duration
+function sdTopButton(
+  x,
+  y,
+  label
 ) {
-  shakePower =
-    max(
-      shakePower,
-      power
+
+  stroke(
+    0,
+    210,
+    255,
+    180
+  );
+
+  strokeWeight(2);
+
+  fill(
+    5,
+    25,
+    45,
+    230
+  );
+
+  circle(
+    x,
+    y,
+    44
+  );
+
+  noStroke();
+
+  fill(255);
+
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
+  textStyle(BOLD);
+
+  textSize(18);
+
+  text(
+    label,
+    x,
+    y
+  );
+}
+
+
+// ================================================================
+// HOME BUTTON
+// ================================================================
+
+function sdHomeBottomButton() {
+
+  /*
+    IMPORTANT:
+    This button is now positioned using the mobile-safe
+    bottom zone instead of raw height - 55.
+  */
+
+  let y =
+    height -
+    sdSafeBottom +
+    20;
+
+  let w =
+    min(
+      190,
+      width * 0.55
     );
 
-  shakeUntil =
-    max(
-      shakeUntil,
-      millis() + duration
-    );
+  rectMode(CENTER);
+
+  stroke(
+    0,
+    210,
+    255
+  );
+
+  strokeWeight(2);
+
+  fill(
+    5,
+    20,
+    35
+  );
+
+  rect(
+    width / 2,
+    y,
+    w,
+    48,
+    13
+  );
+
+  noStroke();
+
+  fill(255);
+
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
+  textStyle(BOLD);
+
+  textSize(15);
+
+  text(
+    "←  HOME",
+    width / 2,
+    y
+  );
 }
+
+
+// ================================================================
+// ACTION BUTTON
+// ================================================================
+
+function sdActionButton(
+  label,
+  y,
+  w
+) {
+
+  rectMode(CENTER);
+
+  stroke(
+    0,
+    210,
+    255
+  );
+
+  strokeWeight(2);
+
+  fill(
+    5,
+    25,
+    45
+  );
+
+  rect(
+    width / 2,
+    y,
+    min(w, width * 0.80),
+    52,
+    13
+  );
+
+  noStroke();
+
+  fill(255);
+
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
+  textStyle(BOLD);
+
+  textSize(15);
+
+  text(
+    label,
+    width / 2,
+    y
+  );
+}
+
 
 // ================================================================
 // PARTICLES
 // ================================================================
 
-class Particle {
+class SDParticle {
+
   constructor(
     x,
     y,
-    particleColor = null
+    tint
   ) {
+
     this.x = x;
     this.y = y;
 
-    const angle =
+    let a =
       random(TWO_PI);
 
-    const speed =
+    let speed =
       random(1, 7);
 
     this.vx =
-      cos(angle) *
-      speed;
+      cos(a) * speed;
 
     this.vy =
-      sin(angle) *
-      speed;
+      sin(a) * speed;
 
     this.life = 255;
 
     this.size =
       random(2, 7);
 
-    this.color =
-      particleColor;
+    this.tint =
+      tint || "#ff8a30";
   }
 
   update() {
+
     this.x += this.vx;
     this.y += this.vy;
 
@@ -4242,27 +5106,19 @@ class Particle {
     this.life -= 7;
   }
 
-  draw() {
+  display() {
+
+    let c =
+      color(this.tint);
+
     noStroke();
 
-    if (this.color) {
-      const c =
-        color(this.color);
-
-      fill(
-        red(c),
-        green(c),
-        blue(c),
-        this.life
-      );
-    } else {
-      fill(
-        255,
-        140,
-        40,
-        this.life
-      );
-    }
+    fill(
+      red(c),
+      green(c),
+      blue(c),
+      this.life
+    );
 
     circle(
       this.x,
@@ -4272,57 +5128,66 @@ class Particle {
   }
 }
 
-function createExplosion(
+
+function sdCreateExplosion(
   x,
   y,
-  amount,
-  particleColor = null
+  count,
+  tint
 ) {
+
   for (
     let i = 0;
-    i < amount;
+    i < count;
     i++
   ) {
-    particles.push(
-      new Particle(
+
+    sdParticles.push(
+      new SDParticle(
         x,
         y,
-        particleColor
+        tint
       )
     );
   }
 }
 
-function updateParticles() {
+
+function sdUpdateParticles() {
+
   for (
-    let i = particles.length - 1;
+    let i =
+      sdParticles.length - 1;
     i >= 0;
     i--
   ) {
-    particles[i].update();
+
+    sdParticles[i].update();
+    sdParticles[i].display();
 
     if (
-      particles[i].life <= 0
+      sdParticles[i].life <= 0
     ) {
-      particles.splice(i, 1);
+
+      sdParticles.splice(
+        i,
+        1
+      );
     }
   }
 }
 
-function drawParticles() {
-  for (const p of particles) {
-    p.draw();
-  }
-}
 
-function createCelebration() {
+function sdCreateCelebration() {
+
   for (
     let i = 0;
     i < 100;
     i++
   ) {
-    particles.push(
-      new Particle(
+
+    sdParticles.push(
+      new SDParticle(
         random(width),
         random(
           height * 0.25,
@@ -4339,127 +5204,101 @@ function createCelebration() {
   }
 }
 
+
 // ================================================================
 // AUDIO
 // ================================================================
 
-function initAudio() {
-  if (!audioCtx) {
-    const AudioContextClass =
+function sdInitAudio() {
+
+  if (!sdAudio) {
+
+    let AC =
       window.AudioContext ||
       window.webkitAudioContext;
 
-    if (
-      AudioContextClass
-    ) {
-      audioCtx =
-        new AudioContextClass();
+    if (AC) {
+      sdAudio =
+        new AC();
     }
   }
 
   if (
-    audioCtx &&
-    audioCtx.state ===
-      "suspended"
+    sdAudio &&
+    sdAudio.state ===
+    "suspended"
   ) {
-    audioCtx.resume();
+
+    sdAudio.resume();
   }
 }
 
-function playTone(
-  startFrequency,
-  endFrequency,
+
+function sdTone(
+  start,
+  end,
   duration,
-  oscillatorType = "sine",
-  volume = 0.04
+  type,
+  volume
 ) {
+
   if (
-    !soundEnabled ||
-    !audioCtx
-  ) {
-    return;
-  }
+    !sdSound ||
+    !sdAudio
+  ) return;
 
   try {
-    const oscillator =
-      audioCtx.createOscillator();
 
-    const gain =
-      audioCtx.createGain();
+    let osc =
+      sdAudio.createOscillator();
 
-    oscillator.type =
-      oscillatorType;
+    let gain =
+      sdAudio.createGain();
 
-    oscillator.frequency.setValueAtTime(
-      max(
-        1,
-        startFrequency
-      ),
-      audioCtx.currentTime
+    osc.type =
+      type || "sine";
+
+    osc.frequency.setValueAtTime(
+      max(1, start),
+      sdAudio.currentTime
     );
 
-    oscillator.frequency.exponentialRampToValueAtTime(
-      max(
-        1,
-        endFrequency
-      ),
-      audioCtx.currentTime +
-        duration
+    osc.frequency.exponentialRampToValueAtTime(
+      max(1, end),
+      sdAudio.currentTime +
+      duration
     );
 
     gain.gain.setValueAtTime(
-      volume,
-      audioCtx.currentTime
+      volume || 0.03,
+      sdAudio.currentTime
     );
 
     gain.gain.exponentialRampToValueAtTime(
       0.001,
-      audioCtx.currentTime +
-        duration
+      sdAudio.currentTime +
+      duration
     );
 
-    oscillator.connect(gain);
+    osc.connect(gain);
     gain.connect(
-      audioCtx.destination
+      sdAudio.destination
     );
 
-    oscillator.start();
+    osc.start();
 
-    oscillator.stop(
-      audioCtx.currentTime +
-        duration
+    osc.stop(
+      sdAudio.currentTime +
+      duration
     );
-  } catch (err) {
-    // Audio errors must never stop gameplay.
-  }
+
+  } catch (e) {}
 }
 
-function powerSound(type) {
-  const sounds = {
-    SHIELD: [180, 850, "sine"],
-    MULTI: [400, 1100, "square"],
-    RAPID: [600, 1500, "triangle"],
-    CRYO: [1200, 240, "sine"],
-    NOVA: [70, 1200, "sawtooth"],
-    CELESTIAL: [300, 1800, "sine"]
-  };
 
-  const sound =
-    sounds[type];
+function sdExplosionSound() {
 
-  if (!sound) return;
-
-  playTone(
-    sound[0],
-    sound[1],
-    0.4,
-    sound[2],
-    0.045
-  );
-}
-
-function explosionSound() {
-  playTone(
+  sdTone(
     150,
     45,
     0.16,
@@ -4468,60 +5307,174 @@ function explosionSound() {
   );
 }
 
-function playLevelUpSound() {
-  playTone(
-    420,
-    620,
+
+function sdPlayVictory() {
+
+  sdTone(
+    400,
+    600,
     0.18,
     "sine",
     0.045
   );
 
   setTimeout(
-    function () {
-      playTone(
-        620,
-        900,
+    function() {
+
+      sdTone(
+        600,
+        850,
         0.18,
         "sine",
         0.045
       );
+
     },
     180
   );
 
   setTimeout(
-    function () {
-      playTone(
-        900,
-        1350,
-        0.28,
+    function() {
+
+      sdTone(
+        850,
+        1300,
+        0.3,
         "sine",
         0.05
       );
+
     },
     360
   );
 }
 
+
 // ================================================================
-// TAP ROUTER
+// PROCEDURAL BOSS MUSIC
+// ================================================================
+
+function sdStartBossMusic() {
+
+  if (
+    sdBossMusicOn
+  ) return;
+
+  sdBossMusicOn = true;
+
+  if (
+    !sdSound ||
+    !sdAudio
+  ) return;
+
+  let notes = [
+    110,
+    130.8,
+    146.8,
+    98,
+    123.5,
+    110
+  ];
+
+  let index = 0;
+
+  sdBossMusicTimer =
+    setInterval(
+      function() {
+
+        if (
+          !sdBossMusicOn ||
+          sdState !== "PLAYING" ||
+          !sdBossActive
+        ) {
+
+          return;
+        }
+
+        let n =
+          notes[
+            index %
+            notes.length
+          ];
+
+        sdTone(
+          n,
+          n * 0.97,
+          0.28,
+          "triangle",
+          0.025
+        );
+
+        sdTone(
+          n * 2,
+          n * 1.8,
+          0.12,
+          "sawtooth",
+          0.009
+        );
+
+        index++;
+
+      },
+      360
+    );
+}
+
+
+function sdStopBossMusic() {
+
+  sdBossMusicOn = false;
+
+  if (
+    sdBossMusicTimer
+  ) {
+
+    clearInterval(
+      sdBossMusicTimer
+    );
+
+    sdBossMusicTimer = null;
+  }
+}
+
+
+// ================================================================
+// POWER RESET
+// ================================================================
+
+function sdResetPowers() {
+
+  for (
+    let key in sdPowerEnds
+  ) {
+
+    sdPowerEnds[key] = 0;
+  }
+}
+
+
+// ================================================================
+// TOUCH
 // ================================================================
 
 function touchStarted() {
-  initAudio();
 
-  const x =
-    touches.length > 0
+  sdInitAudio();
+
+  let x =
+    touches.length
       ? touches[0].x
       : mouseX;
 
-  const y =
-    touches.length > 0
+  let y =
+    touches.length
       ? touches[0].y
       : mouseY;
 
-  handleTap(
+  sdTouchStartX = x;
+  sdTouchStartY = y;
+
+  sdHandleTap(
     x,
     y
   );
@@ -4529,153 +5482,245 @@ function touchStarted() {
   return false;
 }
 
-function mousePressed() {
-  initAudio();
 
-  handleTap(
-    mouseX,
-    mouseY
-  );
+function touchMoved() {
+
+  if (
+    sdState === "ARCHIVE"
+  ) {
+
+    if (
+      touches.length
+    ) {
+
+      let y =
+        touches[0].y;
+
+      if (
+        sdArchiveDragging
+      ) {
+
+        let delta =
+          sdArchiveLastY -
+          y;
+
+        sdArchiveTarget +=
+          delta * 1.3;
+      }
+
+      sdArchiveDragging =
+        true;
+
+      sdArchiveLastY =
+        y;
+    }
+
+    return false;
+  }
 
   return false;
 }
 
-function handleTap(
-  x,
-  y
-) {
-  // HOME
+
+function touchEnded() {
+
   if (
-    gameState ===
-    "HOME"
+    sdState === "ARCHIVE"
   ) {
+
+    sdArchiveDragging =
+      false;
+
+    return false;
+  }
+
+  return false;
+}
+
+
+// ================================================================
+// TAP ROUTER
+// ================================================================
+
+function sdHandleTap(x, y) {
+
+  // HOME
+
+  if (
+    sdState === "HOME"
+  ) {
+
     if (
-      hitY(
+      sdNearY(
         y,
-        height * 0.35
+        height * 0.34
       )
     ) {
-      gameState = "LEVELS";
+
+      sdState =
+        "LEVELS";
+
       return;
     }
 
     if (
-      hitY(
+      sdNearY(
         y,
         height * 0.45
       )
     ) {
-      archiveScroll = 0;
-      archiveTargetScroll = 0;
-      gameState = "ARCHIVE";
+
+      sdState =
+        "ARCHIVE";
+
+      sdArchiveScroll = 0;
+      sdArchiveTarget = 0;
+
       return;
     }
 
     if (
-      hitY(
+      sdNearY(
         y,
-        height * 0.55
+        height * 0.56
       )
     ) {
-      gameState = "ABOUT";
+
+      sdState =
+        "ABOUT";
+
       return;
     }
 
     if (
-      hitY(
+      sdNearY(
         y,
-        height * 0.65
+        height * 0.67
       )
     ) {
-      gameState = "SETTINGS";
+
+      sdState =
+        "SETTINGS";
+
       return;
     }
 
     if (
-      hitY(
+      sdNearY(
         y,
-        height * 0.75
+        height * 0.78
       )
     ) {
-      selectedRating = 0;
-      gameState = "RATING";
+
+      sdRating = 0;
+
+      sdState =
+        "RATING";
+
       return;
     }
-
-    return;
   }
 
-  // LEVELS
+
+  // HOME BUTTON ON MENUS
+
   if (
-    gameState ===
-    "LEVELS"
+    sdState === "LEVELS" ||
+    sdState === "ARCHIVE" ||
+    sdState === "ABOUT" ||
+    sdState === "SETTINGS"
   ) {
+
+    let homeY =
+      height -
+      sdSafeBottom +
+      20;
+
     if (
-      y >
-        height - 90
+      abs(y - homeY) < 32
     ) {
-      gameState = "HOME";
+
+      sdState =
+        "HOME";
+
       return;
     }
+  }
 
-    const cols = 4;
-    const gap = 10;
 
-    const size = min(
-      65,
-      (width - 48) / cols
-    );
+  // LEVELS
 
-    const totalWidth =
+  if (
+    sdState === "LEVELS"
+  ) {
+
+    let cols = 4;
+
+    let gap = 10;
+
+    let size =
+      min(
+        67,
+        (width - 50) /
+        cols
+      );
+
+    let startY = 170;
+
+    let total =
       cols * size +
-      (cols - 1) * gap;
+      (cols - 1) *
+      gap;
 
-    const startX =
+    let startX =
       width / 2 -
-      totalWidth / 2 +
+      total / 2 +
       size / 2;
-
-    const startY = 165;
 
     for (
       let i = 1;
-      i <= TOTAL_LEVELS;
+      i <= 20;
       i++
     ) {
-      const col =
+
+      let col =
         (i - 1) % cols;
 
-      const row =
+      let row =
         floor(
           (i - 1) / cols
         );
 
-      const bx =
+      let bx =
         startX +
         col *
-          (size + gap);
+        (size + gap);
 
-      const by =
+      let by =
         startY +
         row *
-          (size + 17);
+        (size + 17);
 
       if (
         abs(x - bx) <
-          size / 2 &&
+        size / 2 &&
         abs(y - by) <
-          size / 2
+        size / 2
       ) {
+
         if (
           i <=
-          unlockedLevel
+          sdUnlockedLevel
         ) {
-          startLevel(i);
+
+          sdStartLevel(i);
+
         } else {
-          playTone(
-            140,
+
+          sdTone(
+            150,
             80,
-            0.12,
+            0.15,
             "square",
             0.025
           );
@@ -4684,84 +5729,66 @@ function handleTap(
         return;
       }
     }
-
-    return;
   }
 
+
   // ARCHIVE
+
   if (
-    gameState ===
-    "ARCHIVE"
+    sdState === "ARCHIVE"
   ) {
-    if (
-      y >
-        height - 90
-    ) {
-      gameState = "HOME";
-      return;
-    }
 
-    // Do not select while dragging.
-    if (
-      archiveMoved
-    ) {
-      return;
-    }
-
-    const cardW = min(
-      330,
-      width * 0.84
-    );
-
-    const cardH =
-      archiveCardHeight();
-
-    const contentY =
-      y +
-      archiveScroll -
-      100;
-
-    const index =
-      floor(
-        (contentY - 75) /
-          cardH
+    let cardW =
+      min(
+        350,
+        width * 0.88
       );
 
-    if (
-      index >= 0 &&
-      index < SHIPS.length
+    let cardH = 142;
+
+    let gap = 16;
+
+    let top = 105;
+
+    for (
+      let i = 0;
+      i < SD_SHIPS.length;
+      i++
     ) {
-      const cardCenterY =
-        100 -
-        archiveScroll +
-        75 +
-        index * cardH;
+
+      let cy =
+        top +
+        i *
+        (cardH + gap) -
+        sdArchiveScroll;
 
       if (
         abs(
-          y -
-            cardCenterY
-        ) <
-        (cardH - 10) / 2 &&
-        abs(
           x -
-            width / 2
+          width / 2
         ) <
-        cardW / 2
+        cardW / 2 &&
+        abs(
+          y -
+          cy
+        ) <
+        cardH / 2
       ) {
+
         if (
-          unlockedLevel >=
-          SHIPS[index].unlock
+          sdUnlockedLevel >=
+          SD_SHIPS[i].unlock
         ) {
-          selectedShip =
-            index;
 
-          saveGame();
+          sdSelectedShip =
+            i;
 
-          playTone(
+          sdSave();
+
+          sdTone(
             300,
             900,
-            0.22,
+            0.25,
             "sine",
             0.035
           );
@@ -4770,58 +5797,28 @@ function handleTap(
         return;
       }
     }
-
-    return;
   }
 
-  // ABOUT
-  if (
-    gameState ===
-    "ABOUT"
-  ) {
-    if (
-      y >
-        height - 90
-    ) {
-      gameState = "HOME";
-      return;
-    }
-
-    return;
-  }
 
   // SETTINGS
+
   if (
-    gameState ===
-    "SETTINGS"
+    sdState === "SETTINGS"
   ) {
-    if (
-      y >
-        height - 90
-    ) {
-      gameState = "HOME";
-      return;
-    }
 
     if (
       abs(
         y -
-          height * 0.36
+        height * 0.34
       ) < 45
     ) {
-      controlsSwapped =
-        !controlsSwapped;
 
-      resetControls();
-      saveGame();
+      sdControlsSwapped =
+        !sdControlsSwapped;
 
-      playTone(
-        300,
-        700,
-        0.18,
-        "sine",
-        0.035
-      );
+      sdResetControls();
+
+      sdSave();
 
       return;
     }
@@ -4829,66 +5826,73 @@ function handleTap(
     if (
       abs(
         y -
-          height * 0.52
+        height * 0.50
       ) < 45
     ) {
-      soundEnabled =
-        !soundEnabled;
 
-      saveGame();
+      sdSound =
+        !sdSound;
 
-      if (
-        soundEnabled
-      ) {
-        initAudio();
+      sdSave();
 
-        playTone(
+      if (sdSound) {
+
+        sdTone(
           400,
           800,
           0.2,
           "sine",
           0.04
         );
-      } else {
-        stopBossMusic();
       }
 
       return;
     }
-
-    return;
   }
 
+
   // RATING
+
   if (
-    gameState ===
-    "RATING"
+    sdState === "RATING"
   ) {
-    const gap = min(
-      48,
-      width * 0.12
-    );
+
+    let gap =
+      min(55, width * 0.13);
+
+    let total =
+      gap * 4;
 
     for (
       let i = 1;
       i <= 5;
       i++
     ) {
-      const sx =
-        width / 2 +
-        (i - 3) * gap;
+
+      let sx =
+        width / 2 -
+        total / 2 +
+        (i - 1) * gap;
 
       if (
         dist(
           x,
           y,
           sx,
-          height * 0.48
-        ) <
-        28
+          height * 0.46
+        ) < 30
       ) {
-        selectedRating =
-          i;
+
+        if (
+          sdRating === i
+        ) {
+
+          sdRating = 0;
+
+        } else {
+
+          sdRating = i;
+        }
 
         return;
       }
@@ -4897,27 +5901,20 @@ function handleTap(
     if (
       abs(
         y -
-          height * 0.67
+        height * 0.66
       ) < 30
     ) {
-      if (
-        selectedRating >
-        0
-      ) {
-        saveRating(
-          selectedRating
-        );
 
-        gameState = "HOME";
+      sdTone(
+        500,
+        900,
+        0.2,
+        "sine",
+        0.035
+      );
 
-        playTone(
-          500,
-          1000,
-          0.25,
-          "sine",
-          0.04
-        );
-      }
+      sdState =
+        "HOME";
 
       return;
     }
@@ -4925,47 +5922,34 @@ function handleTap(
     if (
       abs(
         y -
-          height * 0.76
+        height * 0.76
       ) < 30
     ) {
-      gameState = "HOME";
-      return;
-    }
 
-    return;
-  }
-
-  // PLAYING
-  if (
-    gameState ===
-    "PLAYING"
-  ) {
-    if (
-      dist(
-        x,
-        y,
-        pauseButton.x,
-        pauseButton.y
-      ) < 32
-    ) {
-      pauseGame();
-      return;
-    }
-
-    if (
-      dist(
-        x,
-        y,
-        homeButton.x,
-        homeButton.y
-      ) < 32
-    ) {
-      stopBossMusic();
-
-      gameState =
+      sdState =
         "HOME";
 
-      resetJoystick();
+      return;
+    }
+  }
+
+
+  // PLAYING TOP CONTROLS
+
+  if (
+    sdState === "PLAYING"
+  ) {
+
+    if (
+      dist(
+        x,
+        y,
+        sdPauseButton.x,
+        sdPauseButton.y
+      ) < 32
+    ) {
+
+      sdPauseGame();
 
       return;
     }
@@ -4974,64 +5958,103 @@ function handleTap(
       dist(
         x,
         y,
-        fireButton.x,
-        fireButton.y
-      ) <
-      fireButton.radius +
-        20
+        sdHomeButton.x,
+        sdHomeButton.y
+      ) < 32
     ) {
-      shoot();
+
+      sdStopBossMusic();
+
+      sdState =
+        "HOME";
+
+      sdResetJoystick();
+
       return;
     }
 
-    return;
+    if (
+      dist(
+        x,
+        y,
+        sdFire.x,
+        sdFire.y
+      ) <
+      sdFire.radius + 20
+    ) {
+
+      sdShoot();
+
+      return;
+    }
+
+    if (
+      dist(
+        x,
+        y,
+        sdPowerButton.x,
+        sdPowerButton.y
+      ) <
+      sdPowerButton.radius + 15
+    ) {
+
+      sdUseShipSpecial();
+
+      return;
+    }
   }
+
 
   // PAUSED
+
   if (
-    gameState ===
-    "PAUSED"
+    sdState === "PAUSED"
   ) {
+
     if (
       abs(
         y -
-          height * 0.54
-      ) < 30
+        height * 0.53
+      ) < 32
     ) {
-      resumeGame();
+
+      sdResumeGame();
+
       return;
     }
 
     if (
       abs(
         y -
-          height * 0.64
-      ) < 30
+        height * 0.64
+      ) < 32
     ) {
-      stopBossMusic();
 
-      gameState =
+      sdStopBossMusic();
+
+      sdState =
         "HOME";
 
       return;
     }
-
-    return;
   }
 
+
   // GAME OVER
+
   if (
-    gameState ===
-    "GAMEOVER"
+    sdState === "GAMEOVER"
   ) {
+
     if (
       abs(
         y -
-          height * 0.56
-      ) < 30
+        height * 0.55
+      ) < 32
     ) {
-      startLevel(
-        currentLevel
+
+      sdStartLevel(
+        sdCurrentLevel
       );
 
       return;
@@ -5040,10 +6063,11 @@ function handleTap(
     if (
       abs(
         y -
-          height * 0.66
-      ) < 30
+        height * 0.66
+      ) < 32
     ) {
-      gameState =
+
+      sdState =
         "HOME";
 
       return;
@@ -5051,236 +6075,207 @@ function handleTap(
   }
 }
 
-function hitY(
-  y,
-  target
-) {
-  return (
-    abs(
-      y - target
-    ) < 30
+
+// ================================================================
+// SPECIAL SHIP ABILITIES
+// ================================================================
+
+function sdUseShipSpecial() {
+
+  if (
+    sdPowerReadyAt >
+    millis()
+  ) return;
+
+  let p =
+    sdShipPower();
+
+  if (
+    p === "BURN SHOT"
+  ) {
+
+    sdPowerEnds.BERSERKER =
+      millis() + 5000;
+  }
+
+  else if (
+    p === "GRAVITY PULSE"
+  ) {
+
+    for (
+      let a of sdAliens
+    ) {
+
+      a.speed *= 0.3;
+    }
+
+    sdPowerEnds.CRYO =
+      millis() + 4500;
+  }
+
+  else if (
+    p === "TIME FREEZE"
+  ) {
+
+    sdPowerEnds.CRYO =
+      millis() + 6500;
+  }
+
+  else if (
+    p === "PHASE DODGE"
+  ) {
+
+    sdShip.invincibleUntil =
+      millis() + 4500;
+  }
+
+  else if (
+    p === "DRAGON RAGE"
+  ) {
+
+    sdPowerEnds.BERSERKER =
+      millis() + 6500;
+  }
+
+  else if (
+    p === "QUANTUM DASH"
+  ) {
+
+    sdShip.invincibleUntil =
+      millis() + 2200;
+
+    sdPowerEnds.BERSERKER =
+      millis() + 5000;
+  }
+
+  else if (
+    p === "HOLY SHIELD"
+  ) {
+
+    sdPowerEnds.SHIELD =
+      millis() + 7000;
+  }
+
+  else if (
+    p === "TITAN CORE"
+  ) {
+
+    sdPowerEnds.BERSERKER =
+      millis() + 6500;
+  }
+
+  else if (
+    p === "REALITY BREAK"
+  ) {
+
+    sdPowerEnds.CELESTIAL =
+      millis() + 6500;
+
+    sdPowerEnds.SHIELD =
+      millis() + 6500;
+
+    for (
+      let i =
+        sdAliens.length - 1;
+      i >= 0;
+      i--
+    ) {
+
+      sdCreateExplosion(
+        sdAliens[i].x,
+        sdAliens[i].y,
+        18
+      );
+
+      sdAliens.splice(
+        i,
+        1
+      );
+
+      sdScore += 35;
+      sdLevelScore += 35;
+    }
+
+    if (
+      sdBoss
+    ) {
+
+      sdBoss.hp -=
+        sdBoss.maxHp *
+        0.12;
+    }
+
+    sdStartShake(20);
+  }
+
+  else {
+
+    sdPowerEnds.MULTI =
+      millis() + 6000;
+  }
+
+  sdPowerReadyAt =
+    millis() + 15000;
+
+  sdTone(
+    250,
+    1200,
+    0.4,
+    "sine",
+    0.05
   );
 }
 
+
 // ================================================================
-// ARCHIVE TOUCH SCROLL
+// UTILITY
 // ================================================================
 
-function touchMoved() {
-  if (
-    gameState !==
-    "ARCHIVE"
-  ) {
-    return false;
-  }
+function sdNearY(
+  y,
+  target
+) {
 
-  if (
-    touches.length === 0
-  ) {
-    return false;
-  }
+  return (
+    abs(
+      y -
+      target
+    ) < 32
+  );
+}
 
-  const currentY =
-    touches[0].y;
 
-  if (
-    !archiveDragging
-  ) {
-    archiveDragging =
-      true;
+// ================================================================
+// MOUSE
+// ================================================================
 
-    archiveStartY =
-      currentY;
+function mousePressed() {
 
-    archiveStartScroll =
-      archiveScroll;
+  sdInitAudio();
 
-    archiveMoved = false;
-  }
-
-  const delta =
-    archiveStartY -
-    currentY;
-
-  if (
-    abs(delta) > 8
-  ) {
-    archiveMoved =
-      true;
-  }
-
-  archiveTargetScroll =
-    constrain(
-      archiveStartScroll +
-        delta,
-      0,
-      archiveMaxScroll()
-    );
-
-  archiveScroll =
-    lerp(
-      archiveScroll,
-      archiveTargetScroll,
-      0.35
-    );
+  sdHandleTap(
+    mouseX,
+    mouseY
+  );
 
   return false;
 }
 
-function touchEnded() {
-  if (
-    gameState ===
-    "ARCHIVE"
-  ) {
-    archiveDragging =
-      false;
-
-    archiveScroll =
-      constrain(
-        archiveScroll,
-        0,
-        archiveMaxScroll()
-      );
-
-    archiveTargetScroll =
-      archiveScroll;
-
-    setTimeout(
-      function () {
-        archiveMoved =
-          false;
-      },
-      50
-    );
-  }
-
-  return false;
-}
-
-// Mouse archive dragging.
-function mouseDragged() {
-  if (
-    gameState !==
-    "ARCHIVE"
-  ) {
-    return false;
-  }
-
-  if (
-    !archiveDragging
-  ) {
-    archiveDragging =
-      true;
-
-    archiveStartY =
-      mouseY;
-
-    archiveStartScroll =
-      archiveScroll;
-
-    archiveMoved = false;
-  }
-
-  const delta =
-    archiveStartY -
-    mouseY;
-
-  if (
-    abs(delta) > 8
-  ) {
-    archiveMoved =
-      true;
-  }
-
-  archiveTargetScroll =
-    constrain(
-      archiveStartScroll +
-        delta,
-      0,
-      archiveMaxScroll()
-    );
-
-  archiveScroll =
-    archiveTargetScroll;
-
-  return false;
-}
-
-function mouseReleased() {
-  if (
-    gameState ===
-    "ARCHIVE"
-  ) {
-    archiveDragging =
-      false;
-
-    setTimeout(
-      function () {
-        archiveMoved =
-          false;
-      },
-      50
-    );
-  }
-
-  return false;
-}
-
-// ================================================================
-// RATING SAVE
-// ================================================================
-
-function saveRating(rating) {
-  try {
-    localStorage.setItem(
-      "spaceDodgerRating",
-      String(rating)
-    );
-  } catch (err) {
-    // Ignore storage errors.
-  }
-}
 
 // ================================================================
 // RESIZE
 // ================================================================
 
 function windowResized() {
+
   resizeCanvas(
     windowWidth,
     windowHeight
   );
 
-  createStars();
-  resetControls();
+  sdUpdateSafeArea();
 
-  archiveScroll =
-    constrain(
-      archiveScroll,
-      0,
-      archiveMaxScroll()
-    );
+  sdCreateStars();
 
-  archiveTargetScroll =
-    archiveScroll;
-
-  if (ship) {
-    ship.x =
-      constrain(
-        ship.x,
-        20,
-        width - 20
-      );
-
-    ship.y =
-      constrain(
-        ship.y,
-        120,
-        height - 130
-      );
-  }
+  sdResetControls();
 }
-
-// ================================================================
-// END OF SPACE DODGER v4
-// ================================================================
