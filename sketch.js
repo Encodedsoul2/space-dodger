@@ -1,21 +1,26 @@
 // ================================================================
-// SPACE DODGER — GALACTIC CAMPAIGN
-// STABLE MOBILE EDITION
-// p5.js | 20 LEVELS | BOSS | POWERS | SHIPS | PORTALS
+// 🚀 SPACE DODGER — GALACTIC CAMPAIGN v4
+// COMPLETE SINGLE sketch.js
+// p5.js v2 compatible
+// Mobile First
 // ================================================================
 
-let ship;
-let bullets = [];
-let meteors = [];
-let particles = [];
-let powerUps = [];
-let enemyWaves = [];
-let stars = [];
-
-let portal = null;
-let boss = null;
+// ================================================================
+// GLOBAL STATE
+// ================================================================
 
 let gameState = "HOME";
+
+let ship;
+
+let bullets = [];
+let aliens = [];
+let enemyShots = [];
+let particles = [];
+let powerUps = [];
+let stars = [];
+
+let boss = null;
 
 let currentLevel = 1;
 let unlockedLevel = 1;
@@ -29,37 +34,42 @@ let levelStartTime = 0;
 let levelDuration = 45000;
 let levelTargetScore = 500;
 
-let currentTitle = "SPACE ROOKIE";
+let lastEnemySpawn = 0;
+let lastPowerSpawn = 0;
+let lastShot = 0;
 
-let lastMeteorTime = 0;
-let lastPowerTime = 0;
-let lastShotTime = 0;
+let levelCompleteAt = 0;
+
+let shakeUntil = 0;
+let shakePower = 0;
 
 let soundEnabled = true;
 let controlsSwapped = false;
 
 let audioCtx = null;
 
-let bossActive = false;
-let defeatedBossThisRun = false;
+// Rating
+let ratingOpen = false;
+let selectedRating = 0;
 
-let currentGalaxy = 0;
-let galaxyEndTime = 0;
-let nextPortalScore = 900;
+// Archive scrolling
+let archiveScroll = 0;
+let archiveTargetScroll = 0;
+let archiveDragging = false;
+let archiveStartY = 0;
+let archiveStartScroll = 0;
+let archiveMoved = false;
 
-let novaWave = null;
+// Pause
+let pauseStarted = 0;
 
-let pauseStartTime = 0;
+// Boss music
+let bossMusicTimer = null;
+let bossMusicStep = 0;
 
-let multiShotEnd = 0;
-let shieldEnd = 0;
-let titanEnd = 0;
-let twinEnd = 0;
-let trinityEnd = 0;
-let phantomEnd = 0;
-let berserkerEnd = 0;
-let cryoEnd = 0;
-let celestialEnd = 0;
+// ================================================================
+// CAMPAIGN
+// ================================================================
 
 const TOTAL_LEVELS = 20;
 
@@ -67,7 +77,7 @@ const LEVEL_TITLES = [
   "SPACE ROOKIE",
   "STAR CADET",
   "ORBIT SCOUT",
-  "METEOR HUNTER",
+  "ALIEN HUNTER",
   "DRAGON CHALLENGER",
   "COSMIC RANGER",
   "NEBULA KNIGHT",
@@ -86,2556 +96,2591 @@ const LEVEL_TITLES = [
   "SPACE LEGEND"
 ];
 
-const SHIP_ARCHIVE = [
-  {name:"NOVA SCOUT",unlock:1,body:"#10204a",edge:"#00eaff",core:"#ffffff"},
-  {name:"SOLAR FANG",unlock:3,body:"#5b2410",edge:"#ff8a00",core:"#ffe066"},
-  {name:"NEBULA WING",unlock:5,body:"#32105b",edge:"#c66cff",core:"#ffffff"},
-  {name:"CRYO HAWK",unlock:7,body:"#103c60",edge:"#7ee8ff",core:"#dfffff"},
-  {name:"VOID SPEAR",unlock:9,body:"#251033",edge:"#ff4ddd",core:"#ffffff"},
-  {name:"DRAGON BANE",unlock:10,body:"#5c0715",edge:"#ff1744",core:"#ffe600"},
-  {name:"QUANTUM EDGE",unlock:12,body:"#063f45",edge:"#00ffd5",core:"#ffffff"},
-  {name:"STAR PALADIN",unlock:15,body:"#55490a",edge:"#fff176",core:"#ffffff"},
-  {name:"GALACTIC TITAN",unlock:18,body:"#431c58",edge:"#ff78ff",core:"#ffffaa"},
-  {name:"MULTIVERSE KING",unlock:20,body:"#5a3f00",edge:"#ffd700",core:"#ffffff"}
+function getLevelDuration(level) {
+  return 40000 + (level - 1) * 5000;
+}
+
+function getLevelTarget(level) {
+  return 350 + (level - 1) * 145 + floor(pow(level, 1.35) * 20);
+}
+
+function getEnemyDelay(level) {
+  return max(350, 1050 - (level - 1) * 34);
+}
+
+function getDifficulty(level) {
+  return 1 + (level - 1) * 0.06;
+}
+
+function isBossLevel() {
+  return (
+    currentLevel === 5 ||
+    currentLevel === 10 ||
+    currentLevel === 15 ||
+    currentLevel === 20
+  );
+}
+
+// ================================================================
+// SHIP ARCHIVE
+// ================================================================
+
+const SHIPS = [
+  {
+    name: "NOVA SCOUT",
+    unlock: 1,
+    body: "#10204a",
+    edge: "#00eaff",
+    core: "#ffffff",
+    power: "BALANCED",
+    desc: "Balanced firepower"
+  },
+
+  {
+    name: "SOLAR FANG",
+    unlock: 3,
+    body: "#5b2410",
+    edge: "#ff8a00",
+    core: "#ffe066",
+    power: "BURN SHOT",
+    desc: "Extra damage"
+  },
+
+  {
+    name: "NEBULA WING",
+    unlock: 5,
+    body: "#32105b",
+    edge: "#c66cff",
+    core: "#ffffff",
+    power: "RAPID FIRE",
+    desc: "Faster lasers"
+  },
+
+  {
+    name: "CRYO HAWK",
+    unlock: 7,
+    body: "#103c60",
+    edge: "#7ee8ff",
+    core: "#dfffff",
+    power: "CRYO FIELD",
+    desc: "Slows aliens"
+  },
+
+  {
+    name: "VOID SPEAR",
+    unlock: 9,
+    body: "#251033",
+    edge: "#ff4ddd",
+    core: "#ffffff",
+    power: "PIERCING",
+    desc: "Shots pierce enemies"
+  },
+
+  {
+    name: "DRAGON BANE",
+    unlock: 10,
+    body: "#5c0715",
+    edge: "#ff1744",
+    core: "#ffe600",
+    power: "DRAGON HUNTER",
+    desc: "Boss damage +50%"
+  },
+
+  {
+    name: "QUANTUM EDGE",
+    unlock: 12,
+    body: "#063f45",
+    edge: "#00ffd5",
+    core: "#ffffff",
+    power: "QUANTUM",
+    desc: "Double-hit chance"
+  },
+
+  {
+    name: "STAR PALADIN",
+    unlock: 15,
+    body: "#55490a",
+    edge: "#fff176",
+    core: "#ffffff",
+    power: "AUTO SHIELD",
+    desc: "Periodic protection"
+  },
+
+  {
+    name: "GALACTIC TITAN",
+    unlock: 18,
+    body: "#431c58",
+    edge: "#ff78ff",
+    core: "#ffffaa",
+    power: "TITAN CANNON",
+    desc: "Heavy laser"
+  },
+
+  {
+    name: "MULTIVERSE KING",
+    unlock: 20,
+    body: "#5a3f00",
+    edge: "#ffd700",
+    core: "#ffffff",
+    power: "CELESTIAL",
+    desc: "Five-way laser"
+  }
 ];
 
-const POWER_TYPES = [
-  "MULTI",
-  "SHIELD",
-  "TITAN",
-  "TWIN",
-  "TRINITY",
-  "NOVA",
-  "PHANTOM",
-  "BERSERKER",
-  "CRYO",
-  "CELESTIAL"
-];
+// ================================================================
+// POWER TIMERS
+// ================================================================
 
-const POWER_DURATION = {
-  MULTI:9000,
-  SHIELD:9000,
-  TITAN:8500,
-  TWIN:9000,
-  TRINITY:8500,
-  PHANTOM:8000,
-  BERSERKER:7500,
-  CRYO:8500,
-  CELESTIAL:7000
+let shieldUntil = 0;
+let rapidUntil = 0;
+let multiUntil = 0;
+let cryoUntil = 0;
+let celestialUntil = 0;
+
+let autoShieldReady = 0;
+
+function resetPowerTimers() {
+  shieldUntil = 0;
+  rapidUntil = 0;
+  multiUntil = 0;
+  cryoUntil = 0;
+  celestialUntil = 0;
+  autoShieldReady = 0;
+}
+
+// ================================================================
+// TOUCH CONTROLS
+// ================================================================
+
+const joystick = {
+  baseX: 90,
+  baseY: 0,
+  knobX: 90,
+  knobY: 0,
+  radius: 58,
+  active: false
 };
 
-let joystick = {
-  active:false,
-  baseX:90,
-  baseY:500,
-  knobX:90,
-  knobY:500,
-  radius:58
+const fireButton = {
+  x: 0,
+  y: 0,
+  radius: 52
 };
 
-let fireButton = {
-  x:300,
-  y:500,
-  radius:50
+const pauseButton = {
+  x: 38,
+  y: 90,
+  radius: 22
 };
 
-let pauseButton = {
-  x:38,
-  y:92
+const homeButton = {
+  x: 0,
+  y: 90,
+  radius: 22
 };
-
-let homeButton = {
-  x:0,
-  y:92
-};
-
 
 // ================================================================
 // SETUP
 // ================================================================
 
-function setup(){
-
-  createCanvas(windowWidth,windowHeight);
+function setup() {
+  createCanvas(windowWidth, windowHeight);
 
   textFont("Arial");
 
-  loadProgress();
-
+  loadSave();
   createStars();
-
-  ship = new Ship();
-
   resetControls();
+
+  ship = new PlayerShip();
+
+  lastEnemySpawn = millis();
+  lastPowerSpawn = millis();
 }
 
-
 // ================================================================
-// SAVE / LOAD
+// SAVE
 // ================================================================
 
-function saveProgress(){
-
-  try{
-
+function saveGame() {
+  try {
     localStorage.setItem(
-      "spaceDodgerSave",
+      "spaceDodgerSaveV4",
       JSON.stringify({
-        unlockedLevel:unlockedLevel,
-        selectedShip:selectedShip,
-        soundEnabled:soundEnabled,
-        controlsSwapped:controlsSwapped
+        unlockedLevel: unlockedLevel,
+        selectedShip: selectedShip,
+        soundEnabled: soundEnabled,
+        controlsSwapped: controlsSwapped
       })
     );
-
-  }catch(e){}
-
+  } catch (err) {
+    // Storage may be unavailable in some preview environments.
+  }
 }
 
+function loadSave() {
+  try {
+    const raw = localStorage.getItem("spaceDodgerSaveV4");
 
-function loadProgress(){
+    if (!raw) return;
 
-  try{
+    const data = JSON.parse(raw);
 
-    let raw =
-      localStorage.getItem("spaceDodgerSave");
-
-    if(!raw) return;
-
-    let d = JSON.parse(raw);
-
-    unlockedLevel =
-      constrain(
-        Number(d.unlockedLevel)||1,
+    if (Number.isFinite(data.unlockedLevel)) {
+      unlockedLevel = constrain(
+        floor(data.unlockedLevel),
         1,
         TOTAL_LEVELS
       );
+    }
 
-    selectedShip =
-      constrain(
-        Number(d.selectedShip)||0,
+    if (Number.isFinite(data.selectedShip)) {
+      selectedShip = constrain(
+        floor(data.selectedShip),
         0,
-        SHIP_ARCHIVE.length-1
+        SHIPS.length - 1
       );
+    }
 
-    soundEnabled =
-      d.soundEnabled !== false;
-
-    controlsSwapped =
-      d.controlsSwapped === true;
-
-  }catch(e){}
-
+    soundEnabled = data.soundEnabled !== false;
+    controlsSwapped = data.controlsSwapped === true;
+  } catch (err) {
+    // Ignore invalid save data.
+  }
 }
 
-
 // ================================================================
-// DRAW
+// MAIN DRAW
 // ================================================================
 
-function draw(){
-
+function draw() {
   drawBackground();
+  updateStars();
   drawStars();
 
-  if(gameState==="HOME"){
+  if (gameState === "HOME") {
     drawHome();
     return;
   }
 
-  if(gameState==="LEVELS"){
-    drawLevelSelection();
+  if (gameState === "LEVELS") {
+    drawLevels();
     return;
   }
 
-  if(gameState==="ARCHIVE"){
+  if (gameState === "ARCHIVE") {
     drawArchive();
     return;
   }
 
-  if(gameState==="ABOUT"){
+  if (gameState === "ABOUT") {
     drawAbout();
     return;
   }
 
-  if(gameState==="SETTINGS"){
+  if (gameState === "SETTINGS") {
     drawSettings();
     return;
   }
 
-  if(gameState==="PLAYING"){
+  if (gameState === "RATING") {
+    drawRating();
+    return;
+  }
+
+  if (gameState === "PLAYING") {
     runGame();
     return;
   }
 
-  if(gameState==="PAUSED"){
-    drawFrozenGame();
+  if (gameState === "PAUSED") {
+    drawFrozenWorld();
+    drawHUD();
     drawPauseOverlay();
     return;
   }
 
-  if(gameState==="GAMEOVER"){
-    drawFrozenGame();
+  if (gameState === "GAMEOVER") {
+    drawFrozenWorld();
+    drawHUD();
     drawGameOver();
     return;
   }
 
-  if(gameState==="LEVELUP"){
+  if (gameState === "LEVELUP") {
     updateParticles();
     drawLevelComplete();
   }
 }
 
-
 // ================================================================
 // BACKGROUND
 // ================================================================
 
-function drawBackground(){
-
-  if(bossActive){
-
-    let pulse =
-      sin(frameCount*.04)*6;
-
-    background(
-      15+pulse,
-      1,
-      8
-    );
-
+function drawBackground() {
+  if (boss) {
+    const pulse = sin(frameCount * 0.05) * 5;
+    background(18 + pulse, 2, 9);
     return;
   }
 
-  if(currentGalaxy===1)
-    background(27,3,17);
-
-  else if(currentGalaxy===2)
-    background(2,10,33);
-
-  else if(currentGalaxy===3)
-    background(0,24,16);
-
-  else
-    background(2,5,18);
+  if (currentLevel >= 15) {
+    background(4, 3, 20);
+  } else if (currentLevel >= 10) {
+    background(2, 10, 24);
+  } else if (currentLevel >= 5) {
+    background(12, 4, 20);
+  } else {
+    background(2, 6, 18);
+  }
 }
-
 
 // ================================================================
 // STARS
 // ================================================================
 
-function createStars(){
+function createStars() {
+  stars = [];
 
-  stars=[];
-
-  for(let i=0;i<150;i++){
-
+  for (let i = 0; i < 150; i++) {
     stars.push({
-      x:random(width),
-      y:random(height),
-      s:random(1,3),
-      speed:random(.2,1.1),
-      phase:random(TWO_PI)
+      x: random(width),
+      y: random(height),
+      size: random(1, 3),
+      speed: random(0.2, 1.1),
+      alpha: random(100, 230)
     });
-
   }
-
 }
 
+function updateStars() {
+  for (const star of stars) {
+    star.y += star.speed;
 
-function drawStars(){
+    if (star.y > height) {
+      star.y = -2;
+      star.x = random(width);
+    }
+  }
+}
 
+function drawStars() {
   noStroke();
 
-  for(let s of stars){
-
-    s.phase += .025;
-    s.y += s.speed;
-
-    if(s.y>height){
-      s.y=0;
-      s.x=random(width);
-    }
-
-    let alpha =
-      130 + sin(s.phase)*90;
-
-    if(bossActive)
-      fill(255,70,60,alpha);
-
-    else if(currentGalaxy===1)
-      fill(255,80,130,alpha);
-
-    else if(currentGalaxy===2)
-      fill(80,190,255,alpha);
-
-    else if(currentGalaxy===3)
-      fill(80,255,170,alpha);
-
-    else
-      fill(255,255,255,alpha);
-
-    circle(
-      s.x,
-      s.y,
-      s.s
-    );
-
+  for (const star of stars) {
+    fill(255, 255, 255, star.alpha);
+    circle(star.x, star.y, star.size);
   }
-
 }
-
 
 // ================================================================
 // HOME
 // ================================================================
 
-function drawHome(){
-
+function drawHome() {
   push();
 
-  textAlign(CENTER,CENTER);
+  textAlign(CENTER, CENTER);
 
-  drawingContext.shadowBlur=30;
-  drawingContext.shadowColor="#00ddff";
-
-  fill(0,230,255);
-
+  fill(0, 225, 255);
   textStyle(BOLD);
+  textSize(min(44, width * 0.115));
 
-  textSize(min(48,width*.12));
+  text("SPACE DODGER", width / 2, height * 0.16);
 
-  text(
-    "SPACE DODGER",
-    width/2,
-    height*.17
-  );
-
-  drawingContext.shadowBlur=0;
-
-  fill(255,220,60);
-
+  fill(255, 220, 50);
   textSize(14);
+  text("GALACTIC CAMPAIGN", width / 2, height * 0.22);
 
-  text(
-    "GALACTIC CAMPAIGN",
-    width/2,
-    height*.23
-  );
+  drawMenuButton("PLAY", height * 0.35);
+  drawMenuButton("ARCHIVE", height * 0.45);
+  drawMenuButton("ABOUT", height * 0.55);
+  drawMenuButton("SETTINGS", height * 0.65);
+  drawMenuButton("RATE US", height * 0.75);
 
-  drawMenuButton("▶  PLAY",height*.37);
-  drawMenuButton("🚀  ARCHIVE",height*.47);
-  drawMenuButton("ℹ  ABOUT",height*.57);
-  drawMenuButton("⚙  SETTINGS",height*.67);
-  drawMenuButton("★  RATE US",height*.77);
-
-  fill(160);
-
+  fill(180);
   textStyle(NORMAL);
-
-  textSize(11);
+  textSize(12);
 
   text(
-    "Highest Level Unlocked: "+
-    unlockedLevel+
-    " / "+
-    TOTAL_LEVELS,
-    width/2,
-    height*.89
+    "Highest Level Unlocked: " +
+      unlockedLevel +
+      " / " +
+      TOTAL_LEVELS,
+    width / 2,
+    height * 0.88
   );
 
   pop();
-
 }
 
-
-function drawMenuButton(label,y){
-
-  let w=min(300,width*.78);
+function drawMenuButton(label, y) {
+  const w = min(310, width * 0.78);
 
   push();
 
   rectMode(CENTER);
 
-  stroke(0,210,255,170);
+  stroke(0, 205, 255, 180);
   strokeWeight(2);
+  fill(5, 22, 42, 235);
 
-  fill(5,20,40,220);
-
-  rect(
-    width/2,
-    y,
-    w,
-    52,
-    14
-  );
+  rect(width / 2, y, w, 52, 13);
 
   noStroke();
-
   fill(255);
 
-  textAlign(CENTER,CENTER);
+  textAlign(CENTER, CENTER);
   textStyle(BOLD);
   textSize(16);
 
-  text(
-    label,
-    width/2,
-    y
-  );
+  text(label, width / 2, y);
 
   pop();
-
 }
 
-
 // ================================================================
-// LEVELS
+// LEVEL SELECT
 // ================================================================
 
-function drawLevelSelection(){
-
+function drawLevels() {
   push();
 
-  textAlign(CENTER,CENTER);
+  textAlign(CENTER, CENTER);
 
-  fill(0,225,255);
+  fill(0, 225, 255);
   textStyle(BOLD);
   textSize(27);
 
-  text(
-    "SELECT LEVEL",
-    width/2,
-    55
-  );
+  text("SELECT LEVEL", width / 2, 50);
 
-  fill(255,220,60);
+  fill(255, 220, 50);
   textSize(12);
 
   text(
-    "RANK",
-    width/2,
-    86
+    "CURRENT RANK",
+    width / 2,
+    82
   );
 
   fill(255);
   textSize(17);
 
   text(
-    "★ "+
-    LEVEL_TITLES[unlockedLevel-1]+
-    " ★",
-    width/2,
-    110
+    LEVEL_TITLES[unlockedLevel - 1],
+    width / 2,
+    105
   );
 
-  let cols=4;
-  let gap=10;
+  const cols = 4;
+  const gap = 10;
 
-  let size=min(
-    68,
-    (width-50)/cols
+  const size = min(
+    65,
+    (width - 48) / cols
   );
 
-  let totalWidth =
-    cols*size+
-    (cols-1)*gap;
+  const totalWidth =
+    cols * size +
+    (cols - 1) * gap;
 
-  let startX =
-    width/2-totalWidth/2+
-    size/2;
+  const startX =
+    width / 2 -
+    totalWidth / 2 +
+    size / 2;
 
-  let startY=165;
+  const startY = 165;
 
-  for(let i=1;i<=TOTAL_LEVELS;i++){
+  for (let i = 1; i <= TOTAL_LEVELS; i++) {
+    const col = (i - 1) % cols;
+    const row = floor((i - 1) / cols);
 
-    let col=(i-1)%cols;
-    let row=floor((i-1)/cols);
+    const x =
+      startX +
+      col * (size + gap);
 
-    let x =
-      startX+
-      col*(size+gap);
+    const y =
+      startY +
+      row * (size + 17);
 
-    let y =
-      startY+
-      row*(size+17);
-
-    let open =
-      i<=unlockedLevel;
+    const unlocked = i <= unlockedLevel;
 
     rectMode(CENTER);
 
     stroke(
-      open
-        ? color(0,220,255)
+      unlocked
+        ? color(0, 215, 255)
         : color(70)
     );
 
+    strokeWeight(2);
+
     fill(
-      open
-        ? color(5,35,55)
-        : color(20,20,25)
+      unlocked
+        ? color(5, 32, 52)
+        : color(20, 20, 25)
     );
 
-    rect(
-      x,y,
-      size,size,
-      12
-    );
+    rect(x, y, size, size, 11);
 
     noStroke();
 
-    fill(open?255:90);
+    fill(unlocked ? 255 : 90);
 
     textStyle(BOLD);
     textSize(18);
 
     text(
-      open?i:"🔒",
-      x,y-4
+      unlocked ? String(i) : "LOCK",
+      x,
+      y - 4
     );
 
-    if(open){
-
-      fill(120,220,255);
-
-      textSize(7);
-
+    if (unlocked) {
+      fill(140, 220, 255);
+      textSize(8);
       text(
-        [5,10,15,20].includes(i)
-          ?"BOSS"
-          :"LEVEL",
+        isSpecialLevel(i) ? "BOSS" : "MISSION",
         x,
-        y+20
+        y + 20
       );
-
     }
-
   }
 
   drawBackButton();
 
   pop();
-
 }
 
+function isSpecialLevel(level) {
+  return (
+    level === 5 ||
+    level === 10 ||
+    level === 15 ||
+    level === 20
+  );
+}
 
 // ================================================================
 // ARCHIVE
 // ================================================================
 
-function drawArchive(){
+function archiveCardHeight() {
+  return 142;
+}
+
+function archiveContentHeight() {
+  return (
+    145 +
+    SHIPS.length * archiveCardHeight()
+  );
+}
+
+function archiveMaxScroll() {
+  const visible =
+    height - 175;
+
+  return max(
+    0,
+    archiveContentHeight() - visible
+  );
+}
+
+function drawArchive() {
+  push();
+
+  textAlign(CENTER, CENTER);
+
+  fill(0, 225, 255);
+  textStyle(BOLD);
+  textSize(25);
+
+  text(
+    "SHIP ARCHIVE",
+    width / 2,
+    40
+  );
+
+  fill(175);
+  textStyle(NORMAL);
+  textSize(12);
+
+  text(
+    "Drag up/down to explore • Tap a ship to select",
+    width / 2,
+    70
+  );
+
+  // Clip archive content.
+  drawingContext.save();
+  drawingContext.beginPath();
+  drawingContext.rect(
+    0,
+    92,
+    width,
+    height - 150
+  );
+  drawingContext.clip();
 
   push();
 
-  textAlign(CENTER,CENTER);
-
-  fill(0,230,255);
-
-  textStyle(BOLD);
-  textSize(26);
-
-  text(
-    "SPACE DODGER ARCHIVE",
-    width/2,
-    48
+  translate(
+    0,
+    100 - archiveScroll
   );
 
-  fill(170);
-  textStyle(NORMAL);
-  textSize(10);
-
-  text(
-    "Unlock ships by reaching campaign levels",
-    width/2,
-    78
+  const cardW = min(
+    330,
+    width * 0.84
   );
 
-  let cardW=min(160,width*.43);
-  let cardH=105;
-  let gapX=14;
-  let gapY=12;
+  const cardH = archiveCardHeight();
 
-  for(let i=0;i<SHIP_ARCHIVE.length;i++){
+  for (let i = 0; i < SHIPS.length; i++) {
+    drawShipCard(
+      i,
+      width / 2,
+      75 + i * cardH,
+      cardW,
+      cardH - 10
+    );
+  }
 
-    let col=i%2;
-    let row=floor(i/2);
+  pop();
 
-    let x =
-      width/2+
-      (
-        col===0
-          ?-(cardW/2+gapX/2)
-          :(cardW/2+gapX/2)
-      );
+  drawingContext.restore();
 
-    let y =
-      130+
-      row*(cardH+gapY);
+  // Scroll bar.
+  const trackX = width - 12;
+  const trackY = 100;
+  const trackH = height - 165;
 
-    let d=SHIP_ARCHIVE[i];
+  noStroke();
+  fill(255, 255, 255, 35);
 
-    let unlocked =
-      unlockedLevel>=d.unlock;
+  rect(
+    trackX,
+    trackY,
+    5,
+    trackH,
+    3
+  );
 
-    let selected =
-      selectedShip===i;
-
-    rectMode(CENTER);
-
-    stroke(
-      selected
-        ? color(255,220,40)
-        : unlocked
-          ? color(d.edge)
-          : color(70)
+  if (archiveMaxScroll() > 0) {
+    const thumbH = max(
+      45,
+      trackH *
+        ((height - 165) /
+          archiveContentHeight())
     );
 
-    strokeWeight(selected?3:2);
+    const thumbY =
+      trackY +
+      (archiveScroll /
+        archiveMaxScroll()) *
+        (trackH - thumbH);
 
-    fill(5,15,30);
+    fill(0, 220, 255, 170);
 
     rect(
-      x,y,
-      cardW,cardH,
-      12
+      trackX,
+      thumbY,
+      5,
+      thumbH,
+      3
     );
-
-    if(unlocked){
-
-      drawMiniShip(x,y-18,i);
-
-      noStroke();
-
-      fill(255);
-      textSize(9);
-
-      text(
-        d.name,
-        x,y+25
-      );
-
-      fill(
-        selected
-          ? color(255,220,40)
-          : color(120,220,255)
-      );
-
-      textSize(8);
-
-      text(
-        selected
-          ?"SELECTED"
-          :"TAP TO SELECT",
-        x,y+42
-      );
-
-    }else{
-
-      noStroke();
-
-      fill(100);
-      textSize(22);
-
-      text("🔒",x,y-12);
-
-      textSize(8);
-
-      text(
-        "UNLOCK AT LEVEL "+d.unlock,
-        x,y+24
-      );
-
-    }
-
   }
 
   drawBackButton();
 
   pop();
-
 }
 
+function drawShipCard(
+  index,
+  x,
+  y,
+  w,
+  h
+) {
+  const data = SHIPS[index];
 
-function drawMiniShip(x,y,index){
+  const unlocked =
+    unlockedLevel >= data.unlock;
 
-  let d=SHIP_ARCHIVE[index];
+  const selected =
+    selectedShip === index;
+
+  rectMode(CENTER);
+
+  stroke(
+    selected
+      ? color(255, 220, 40)
+      : unlocked
+      ? color(data.edge)
+      : color(65)
+  );
+
+  strokeWeight(selected ? 3 : 2);
+
+  fill(5, 17, 31);
+
+  rect(x, y, w, h, 15);
+
+  if (unlocked) {
+    drawArchiveShip(
+      x - w * 0.26,
+      y,
+      index,
+      0.9
+    );
+
+    noStroke();
+
+    textAlign(LEFT, CENTER);
+
+    fill(255);
+    textStyle(BOLD);
+    textSize(15);
+
+    text(
+      data.name,
+      x - w * 0.02,
+      y - 28
+    );
+
+    fill(0, 230, 255);
+    textSize(12);
+
+    text(
+      data.power,
+      x - w * 0.02,
+      y
+    );
+
+    fill(175);
+    textStyle(NORMAL);
+    textSize(11);
+
+    text(
+      data.desc,
+      x - w * 0.02,
+      y + 22
+    );
+
+    fill(
+      selected
+        ? color(255, 220, 50)
+        : color(120, 220, 255)
+    );
+
+    textStyle(BOLD);
+    textSize(10);
+
+    text(
+      selected
+        ? "SELECTED"
+        : "TAP TO SELECT",
+      x - w * 0.02,
+      y + 43
+    );
+  } else {
+    noStroke();
+
+    fill(100);
+
+    textAlign(CENTER, CENTER);
+    textStyle(BOLD);
+    textSize(13);
+
+    text(
+      "LOCKED",
+      x,
+      y - 8
+    );
+
+    fill(150);
+    textStyle(NORMAL);
+    textSize(10);
+
+    text(
+      "UNLOCK AT LEVEL " + data.unlock,
+      x,
+      y + 18
+    );
+  }
+}
+
+function drawArchiveShip(
+  x,
+  y,
+  index,
+  scaleValue
+) {
+  const data = SHIPS[index];
 
   push();
 
-  translate(x,y);
-  scale(.65);
+  translate(x, y);
+  scale(scaleValue);
 
-  drawingContext.shadowBlur=16;
-  drawingContext.shadowColor=d.edge;
+  stroke(data.edge);
+  strokeWeight(3);
 
-  stroke(d.edge);
-  strokeWeight(2);
-
-  fill(d.body);
+  fill(data.body);
 
   beginShape();
 
-  vertex(0,-28);
-  vertex(-20,17);
-  vertex(0,9);
-  vertex(20,17);
+  vertex(0, -40);
+  vertex(-15, -8);
+  vertex(-37, 22);
+  vertex(-10, 14);
+  vertex(0, 22);
+  vertex(10, 14);
+  vertex(37, 22);
+  vertex(15, -8);
 
   endShape(CLOSE);
 
   noStroke();
 
-  fill(d.core);
+  fill(data.core);
 
-  ellipse(0,-4,8,14);
+  ellipse(
+    0,
+    -5,
+    11,
+    17
+  );
 
-  drawingContext.shadowBlur=0;
+  fill(data.edge);
+
+  triangle(
+    -5,
+    20,
+    5,
+    20,
+    0,
+    34
+  );
 
   pop();
-
 }
-
 
 // ================================================================
 // ABOUT
 // ================================================================
 
-function drawAbout(){
-
+function drawAbout() {
   push();
 
-  textAlign(CENTER,CENTER);
+  textAlign(CENTER, CENTER);
 
-  fill(0,225,255);
+  fill(0, 225, 255);
   textStyle(BOLD);
   textSize(30);
 
-  text(
-    "ABOUT",
-    width/2,
-    height*.22
-  );
+  text("ABOUT", width / 2, height * 0.19);
 
-  fill(255);
+  fill(190);
   textStyle(NORMAL);
   textSize(16);
 
   text(
-    "SPACE DODGER",
-    width/2,
-    height*.38
+    "Developed by",
+    width / 2,
+    height * 0.37
   );
 
-  fill(255,220,60);
+  fill(255, 220, 50);
   textStyle(BOLD);
+  textSize(19);
 
   text(
-    "GALACTIC CAMPAIGN",
-    width/2,
-    height*.44
+    "Aazad S Rana",
+    width / 2,
+    height * 0.44
   );
 
-  fill(180);
+  fill(255);
   textStyle(NORMAL);
+  textSize(15);
+
+  text(
+    "A mobile space adventure",
+    width / 2,
+    height * 0.52
+  );
+
+  fill(130, 210, 255);
   textSize(13);
 
   text(
-    "20-Level Mobile Space Adventure",
-    width/2,
-    height*.51
-  );
-
-  fill(0,225,255);
-
-  text(
-    "Developed by Mohan & Puchki",
-    width/2,
-    height*.58
+    "20 levels • Alien battles • Dragon bosses",
+    width / 2,
+    height * 0.58
   );
 
   drawBackButton();
 
   pop();
-
 }
-
 
 // ================================================================
 // SETTINGS
 // ================================================================
 
-function drawSettings(){
-
+function drawSettings() {
   push();
 
-  textAlign(CENTER,CENTER);
+  textAlign(CENTER, CENTER);
 
-  fill(0,225,255);
+  fill(0, 225, 255);
   textStyle(BOLD);
   textSize(29);
 
-  text(
-    "SETTINGS",
-    width/2,
-    height*.18
-  );
+  text("SETTINGS", width / 2, height * 0.18);
 
   drawSettingBox(
     "CONTROL LAYOUT",
     controlsSwapped
-      ?"FIRE LEFT • MOVE RIGHT"
-      :"MOVE LEFT • FIRE RIGHT",
-    height*.37
+      ? "FIRE LEFT • MOVE RIGHT"
+      : "MOVE LEFT • FIRE RIGHT",
+    height * 0.36
   );
 
   drawSettingBox(
     "SOUND EFFECTS",
-    soundEnabled
-      ?"🔊 ON"
-      :"🔇 OFF",
-    height*.53
+    soundEnabled ? "ON" : "OFF",
+    height * 0.52
   );
 
-  fill(140);
+  fill(160);
   textStyle(NORMAL);
-  textSize(11);
+  textSize(12);
 
   text(
     "Tap an option to change it",
-    width/2,
-    height*.64
+    width / 2,
+    height * 0.64
   );
 
   drawBackButton();
 
   pop();
-
 }
 
-
-function drawSettingBox(title,value,y){
-
-  let w=min(320,width*.82);
+function drawSettingBox(
+  title,
+  value,
+  y
+) {
+  const w = min(
+    330,
+    width * 0.84
+  );
 
   rectMode(CENTER);
 
-  stroke(0,210,255);
-  fill(5,25,45);
+  stroke(0, 210, 255);
+  strokeWeight(2);
+
+  fill(5, 25, 45);
 
   rect(
-    width/2,
+    width / 2,
     y,
-    w,80,
+    w,
+    82,
     15
   );
 
   noStroke();
 
-  fill(150);
-  textSize(10);
+  fill(170);
+  textStyle(NORMAL);
+  textSize(12);
 
-  text(title,width/2,y-18);
+  text(title, width / 2, y - 18);
 
   fill(255);
   textStyle(BOLD);
-  textSize(13);
+  textSize(16);
 
-  text(value,width/2,y+12);
-
+  text(value, width / 2, y + 13);
 }
 
+// ================================================================
+// RATING
+// ================================================================
+
+function drawRating() {
+  push();
+
+  fill(0, 0, 0, 205);
+
+  rectMode(CORNER);
+  rect(0, 0, width, height);
+
+  textAlign(CENTER, CENTER);
+
+  fill(0, 225, 255);
+  textStyle(BOLD);
+  textSize(29);
+
+  text(
+    "RATE SPACE DODGER",
+    width / 2,
+    height * 0.28
+  );
+
+  fill(190);
+  textStyle(NORMAL);
+  textSize(14);
+
+  text(
+    "How was your experience?",
+    width / 2,
+    height * 0.36
+  );
+
+  const gap = min(
+    48,
+    width * 0.12
+  );
+
+  for (let i = 1; i <= 5; i++) {
+    const x =
+      width / 2 +
+      (i - 3) * gap;
+
+    fill(
+      i <= selectedRating
+        ? color(255, 215, 40)
+        : color(70)
+    );
+
+    noStroke();
+
+    textSize(42);
+
+    text("★", x, height * 0.48);
+  }
+
+  fill(255);
+  textStyle(BOLD);
+  textSize(15);
+
+  text(
+    selectedRating > 0
+      ? selectedRating + " / 5"
+      : "SELECT A RATING",
+    width / 2,
+    height * 0.57
+  );
+
+  drawActionButton(
+    "SUBMIT RATING",
+    height * 0.67
+  );
+
+  drawActionButton(
+    "CANCEL",
+    height * 0.76
+  );
+
+  pop();
+}
 
 // ================================================================
-// BACK
+// BACK BUTTON
 // ================================================================
 
-function drawBackButton(){
-
+function drawBackButton() {
   push();
 
   rectMode(CENTER);
 
-  stroke(0,200,255);
+  stroke(0, 200, 255);
+  strokeWeight(2);
 
-  fill(5,20,35);
+  fill(5, 20, 35);
 
   rect(
-    width/2,
-    height-50,
-    150,42,
+    width / 2,
+    height - 52,
+    150,
+    42,
     12
   );
 
   noStroke();
 
   fill(255);
-
+  textAlign(CENTER, CENTER);
   textStyle(BOLD);
   textSize(14);
 
   text(
-    "← HOME",
-    width/2,
-    height-50
+    "HOME",
+    width / 2,
+    height - 52
   );
 
   pop();
-
 }
 
-
 // ================================================================
-// LEVEL START
+// START LEVEL
 // ================================================================
 
-function startLevel(lvl){
+function startLevel(level) {
+  stopBossMusic();
 
-  currentLevel =
-    constrain(
-      lvl,
-      1,
-      TOTAL_LEVELS
-    );
+  currentLevel = constrain(
+    floor(level),
+    1,
+    TOTAL_LEVELS
+  );
 
-  currentTitle =
-    LEVEL_TITLES[currentLevel-1];
-
-  score=0;
-  levelScore=0;
-  lives=3;
+  score = 0;
+  levelScore = 0;
+  lives = 3;
 
   levelDuration =
-    45000+
-    (currentLevel-1)*6000;
+    getLevelDuration(currentLevel);
 
   levelTargetScore =
-    450+
-    (currentLevel-1)*180+
-    floor(pow(currentLevel,1.45)*28);
+    getLevelTarget(currentLevel);
 
-  levelStartTime=millis();
+  levelStartTime = millis();
 
-  bullets=[];
-  meteors=[];
-  particles=[];
-  powerUps=[];
-  enemyWaves=[];
+  bullets = [];
+  aliens = [];
+  enemyShots = [];
+  particles = [];
+  powerUps = [];
 
-  portal=null;
-  boss=null;
-
-  bossActive=false;
-  defeatedBossThisRun=false;
-
-  currentGalaxy=0;
-
-  nextPortalScore =
-    850+
-    currentLevel*100;
+  boss = null;
 
   resetPowerTimers();
 
-  ship=new Ship();
+  autoShieldReady =
+    millis() + 12000;
+
+  ship = new PlayerShip();
 
   resetControls();
 
-  lastMeteorTime=millis();
-  lastPowerTime=millis();
-  lastShotTime=0;
+  lastEnemySpawn = millis();
+  lastPowerSpawn = millis();
+  lastShot = 0;
 
-  gameState="PLAYING";
+  shakeUntil = 0;
+  shakePower = 0;
+
+  gameState = "PLAYING";
 
   playTone(
-    350,
-    700,
-    .25,
+    320,
+    720,
+    0.35,
     "sine",
-    .05
+    0.045
   );
-
 }
-
 
 // ================================================================
 // PLAYER
 // ================================================================
 
-class Ship{
+class PlayerShip {
+  constructor() {
+    this.x = width / 2;
+    this.y = height * 0.68;
 
-  constructor(){
+    this.angle = -HALF_PI;
 
-    this.x=width/2;
-    this.y=height*.7;
+    this.speed = 5.2;
+    this.radius = 18;
 
-    this.angle=-HALF_PI;
-
-    this.speed=4.8;
-
-    this.radius=17;
-
-    this.invincibleUntil=0;
-
+    this.invincibleUntil = 0;
   }
 
+  update() {
+    if (this.x < -35) this.x = width + 35;
+    if (this.x > width + 35) this.x = -35;
 
-  update(){
-
-    if(this.x<-45)
-      this.x=width+45;
-
-    if(this.x>width+45)
-      this.x=-45;
-
-    if(this.y<-45)
-      this.y=height+45;
-
-    if(this.y>height+45)
-      this.y=-45;
-
+    if (this.y < 115) this.y = 115;
+    if (this.y > height - 125) {
+      this.y = height - 125;
+    }
   }
 
-
-  display(){
-
-    if(
-      millis()<this.invincibleUntil &&
-      floor(millis()/100)%2===0
-    )
+  draw() {
+    if (
+      millis() < this.invincibleUntil &&
+      floor(millis() / 100) % 2 === 0
+    ) {
       return;
-
-    let offsets=[0];
-
-    if(millis()<trinityEnd)
-      offsets=[-24,0,24];
-
-    else if(millis()<twinEnd)
-      offsets=[-19,19];
-
-    for(let off of offsets)
-      this.drawShip(
-        off,
-        offsets.length>1
-      );
-
-    if(
-      millis()<shieldEnd ||
-      millis()<celestialEnd
-    )
-      drawShield(this.x,this.y);
-
-  }
-
-
-  drawShip(offset,mini){
-
-    let d=SHIP_ARCHIVE[selectedShip];
-
-    let form=getTransformation();
-
-    let edge=d.edge;
-    let body=d.body;
-    let core=d.core;
-
-    let scaleValue=mini?.83:1;
-
-    if(form==="TITAN"){
-      edge="#ff8a00";
-      body="#5b1c10";
-      core="#ffe600";
-      scaleValue*=1.4;
     }
 
-    if(form==="BERSERKER"){
-      edge="#ff1744";
-      body="#590719";
-      core="#ffffff";
-      scaleValue*=1.5;
-    }
-
-    if(form==="PHANTOM"){
-      edge="#d66cff";
-      body="#260a45";
-      core="#ffffff";
-      scaleValue*=1.12;
-    }
-
-    if(form==="CRYO"){
-      edge="#8cecff";
-      body="#123b61";
-      core="#ffffff";
-      scaleValue*=1.2;
-    }
-
-    if(form==="CELESTIAL"){
-      edge="#fff176";
-      body="#69550c";
-      core="#ffffff";
-      scaleValue*=1.32;
-    }
-
-    let ox=
-      cos(this.angle+HALF_PI)*offset;
-
-    let oy=
-      sin(this.angle+HALF_PI)*offset;
+    const data = SHIPS[selectedShip];
 
     push();
 
-    translate(
-      this.x+ox,
-      this.y+oy
-    );
+    translate(this.x, this.y);
 
-    rotate(
-      this.angle+HALF_PI
-    );
+    rotate(this.angle + HALF_PI);
+
+    let scaleValue = 1;
+
+    if (selectedShip === 7) {
+      scaleValue = 1.06;
+    }
+
+    if (selectedShip === 8) {
+      scaleValue = 1.15;
+    }
+
+    if (selectedShip === 9) {
+      scaleValue = 1.2;
+    }
 
     scale(scaleValue);
 
-    drawingContext.shadowBlur=24;
-    drawingContext.shadowColor=edge;
-
-    noStroke();
-
-    fill(edge);
-
-    triangle(
-      -4,15,
-      4,15,
-      0,random(25,34)
-    );
-
-    stroke(edge);
+    stroke(data.edge);
     strokeWeight(2.5);
-    fill(body);
 
-    if(form==="BERSERKER"){
+    fill(data.body);
 
-      beginShape();
+    beginShape();
 
-      vertex(0,-36);
-      vertex(-13,-12);
-      vertex(-34,8);
-      vertex(-18,25);
-      vertex(0,15);
-      vertex(18,25);
-      vertex(34,8);
-      vertex(13,-12);
+    vertex(0, -34);
+    vertex(-13, -8);
+    vertex(-32, 21);
+    vertex(-9, 14);
+    vertex(0, 21);
+    vertex(9, 14);
+    vertex(32, 21);
+    vertex(13, -8);
 
-      endShape(CLOSE);
-
-    }else if(form==="PHANTOM"){
-
-      beginShape();
-
-      vertex(0,-34);
-      vertex(-10,-10);
-      vertex(-29,17);
-      vertex(-8,12);
-      vertex(0,21);
-      vertex(8,12);
-      vertex(29,17);
-      vertex(10,-10);
-
-      endShape(CLOSE);
-
-    }else{
-
-      beginShape();
-
-      vertex(0,-30);
-      vertex(-18,17);
-      vertex(0,10);
-      vertex(18,17);
-
-      endShape(CLOSE);
-
-    }
-
-    if(form==="TITAN"){
-
-      triangle(
-        -9,0,
-        -32,20,
-        -10,15
-      );
-
-      triangle(
-        9,0,
-        32,20,
-        10,15
-      );
-
-    }
+    endShape(CLOSE);
 
     noStroke();
 
-    fill(core);
+    fill(data.core);
 
     ellipse(
-      0,-4,
-      10,16
+      0,
+      -4,
+      10,
+      16
     );
 
-    drawingContext.shadowBlur=0;
+    fill(data.edge);
+
+    triangle(
+      -5,
+      20,
+      5,
+      20,
+      0,
+      random(29, 37)
+    );
 
     pop();
 
+    // Auto shield ship.
+    if (
+      selectedShip === 7 &&
+      millis() > autoShieldReady
+    ) {
+      shieldUntil = millis() + 3500;
+      autoShieldReady = millis() + 15000;
+    }
+
+    if (
+      millis() < shieldUntil ||
+      millis() < celestialUntil
+    ) {
+      drawShield(
+        this.x,
+        this.y
+      );
+    }
   }
-
 }
 
-
 // ================================================================
-// TRANSFORMATION
-// ================================================================
-
-function getTransformation(){
-
-  if(millis()<celestialEnd)
-    return "CELESTIAL";
-
-  if(millis()<berserkerEnd)
-    return "BERSERKER";
-
-  if(millis()<titanEnd)
-    return "TITAN";
-
-  if(millis()<phantomEnd)
-    return "PHANTOM";
-
-  if(millis()<cryoEnd)
-    return "CRYO";
-
-  return "NORMAL";
-
-}
-
-
-// ================================================================
-// SHIELD
+// PLAYER MOVEMENT
 // ================================================================
 
-function drawShield(x,y){
+function movePlayer() {
+  if (!joystick.active) return;
 
-  push();
+  const dx =
+    joystick.knobX -
+    joystick.baseX;
 
-  noFill();
+  const dy =
+    joystick.knobY -
+    joystick.baseY;
 
-  drawingContext.shadowBlur=25;
-  drawingContext.shadowColor="#00ccff";
+  const distance =
+    sqrt(dx * dx + dy * dy);
 
-  stroke(0,210,255,190);
-  strokeWeight(4);
+  if (distance < 4) return;
 
-  circle(
-    x,y,
-    82+sin(frameCount*.1)*6
+  const angle = atan2(dy, dx);
+
+  ship.angle = angle;
+
+  const strength = constrain(
+    distance / joystick.radius,
+    0,
+    1
   );
 
-  drawingContext.shadowBlur=0;
+  let speed = ship.speed;
 
-  pop();
+  if (selectedShip === 2) {
+    speed *= 1.05;
+  }
 
-}
+  ship.x +=
+    cos(angle) *
+    speed *
+    strength;
 
-
-// ================================================================
-// MAIN LOOP
-// ================================================================
-
-function runGame(){
-
-  detectControls();
-  moveShip();
+  ship.y +=
+    sin(angle) *
+    speed *
+    strength;
 
   ship.update();
-
-  updateBullets();
-  updateMeteors();
-  updatePowerUps();
-  updateParticles();
-  updateEnemyWaves();
-
-  updatePortal();
-  updateNova();
-
-  if(bossActive)
-    updateBoss();
-
-  bulletMeteorCollisions();
-  shipMeteorCollisions();
-  shipPowerCollisions();
-
-  bulletBossCollisions();
-  enemyWaveCollisions();
-
-  spawnMeteors();
-  spawnPowerUps();
-
-  checkPortal();
-  checkBoss();
-  checkLevelCompletion();
-
-  ship.display();
-
-  drawHUD();
-  drawControls();
-
 }
-
-
-// ================================================================
-// BULLETS
-// ================================================================
-
-class Bullet{
-
-  constructor(x,y,angle,power=1){
-
-    this.x=x;
-    this.y=y;
-    this.angle=angle;
-    this.power=power;
-
-    this.speed=11+power;
-    this.radius=4+power;
-
-    this.life=120;
-
-  }
-
-
-  update(){
-
-    this.x+=
-      cos(this.angle)*
-      this.speed;
-
-    this.y+=
-      sin(this.angle)*
-      this.speed;
-
-    this.life--;
-
-  }
-
-
-  display(){
-
-    let form=getTransformation();
-
-    let c="#00ffff";
-
-    if(form==="TITAN")c="#ffd000";
-    if(form==="BERSERKER")c="#ff1744";
-    if(form==="PHANTOM")c="#d66cff";
-    if(form==="CRYO")c="#a8efff";
-    if(form==="CELESTIAL")c="#fff59d";
-
-    push();
-
-    drawingContext.shadowBlur=18;
-    drawingContext.shadowColor=c;
-
-    stroke(c);
-    strokeWeight(3+this.power);
-
-    line(
-      this.x,
-      this.y,
-      this.x-cos(this.angle)*18,
-      this.y-sin(this.angle)*18
-    );
-
-    drawingContext.shadowBlur=0;
-
-    pop();
-
-  }
-
-
-  dead(){
-
-    return(
-      this.life<=0||
-      this.x<-80||
-      this.x>width+80||
-      this.y<-80||
-      this.y>height+80
-    );
-
-  }
-
-}
-
 
 // ================================================================
 // SHOOT
 // ================================================================
 
-function shoot(){
+function shoot() {
+  if (gameState !== "PLAYING") return;
 
-  if(gameState!=="PLAYING")
-    return;
+  let delay = 155;
+  let damage = 1;
 
-  let form=getTransformation();
-
-  let delay=155;
-  let power=1;
-
-  if(form==="TITAN"){
-    delay=105;
-    power=2;
+  if (selectedShip === 2) {
+    delay = 85;
   }
 
-  if(form==="BERSERKER"){
-    delay=75;
-    power=3;
+  if (selectedShip === 5) {
+    damage = 1.35;
   }
 
-  if(form==="PHANTOM"){
-    delay=115;
-    power=1.5;
+  if (selectedShip === 8) {
+    delay = 120;
+    damage = 2;
   }
 
-  if(form==="CRYO"){
-    delay=125;
-    power=1.7;
+  if (selectedShip === 9) {
+    delay = 100;
+    damage = 2.2;
   }
 
-  if(form==="CELESTIAL"){
-    delay=85;
-    power=2.8;
-  }
-
-  if(
-    millis()-lastShotTime<
+  if (
+    millis() - lastShot <
     delay
-  )
+  ) {
     return;
-
-  lastShotTime=millis();
-
-  let copies=[0];
-
-  if(millis()<trinityEnd)
-    copies=[-24,0,24];
-
-  else if(millis()<twinEnd)
-    copies=[-18,18];
-
-  for(let offset of copies){
-
-    let sx=
-      ship.x+
-      cos(ship.angle+HALF_PI)*
-      offset;
-
-    let sy=
-      ship.y+
-      sin(ship.angle+HALF_PI)*
-      offset;
-
-    let angles=[ship.angle];
-
-    if(millis()<multiShotEnd){
-
-      angles=[
-        ship.angle-radians(14),
-        ship.angle,
-        ship.angle+radians(14)
-      ];
-
-    }
-
-    if(form==="CELESTIAL"){
-
-      angles=[
-        ship.angle-radians(20),
-        ship.angle-radians(10),
-        ship.angle,
-        ship.angle+radians(10),
-        ship.angle+radians(20)
-      ];
-
-    }
-
-    for(let a of angles){
-
-      bullets.push(
-        new Bullet(
-          sx+cos(a)*28,
-          sy+sin(a)*28,
-          a,
-          power
-        )
-      );
-
-    }
-
   }
 
+  lastShot = millis();
+
+  let angles = [
+    ship.angle
+  ];
+
+  if (
+    selectedShip === 9 ||
+    millis() < celestialUntil
+  ) {
+    angles = [
+      ship.angle - radians(20),
+      ship.angle - radians(10),
+      ship.angle,
+      ship.angle + radians(10),
+      ship.angle + radians(20)
+    ];
+  } else if (
+    millis() < multiUntil
+  ) {
+    angles = [
+      ship.angle - radians(14),
+      ship.angle,
+      ship.angle + radians(14)
+    ];
+  }
+
+  for (const angle of angles) {
+    bullets.push(
+      new PlayerBullet(
+        ship.x +
+          cos(angle) * 28,
+        ship.y +
+          sin(angle) * 28,
+        angle,
+        damage
+      )
+    );
+  }
+
+  playTone(
+    selectedShip === 8 ||
+      selectedShip === 9
+      ? 500
+      : 850,
+    170,
+    0.07,
+    "square",
+    0.022
+  );
 }
 
-
 // ================================================================
-// BULLET UPDATE
+// PLAYER BULLET
 // ================================================================
 
-function updateBullets(){
-
-  for(
-    let i=bullets.length-1;
-    i>=0;
-    i--
-  ){
-
-    bullets[i].update();
-    bullets[i].display();
-
-    if(bullets[i].dead())
-      bullets.splice(i,1);
-
+class PlayerBullet {
+  constructor(
+    x,
+    y,
+    angle,
+    damage
+  ) {
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+    this.damage = damage;
+    this.speed = 12;
+    this.life = 100;
+    this.radius = 4;
   }
 
-}
+  update() {
+    this.x +=
+      cos(this.angle) *
+      this.speed;
 
+    this.y +=
+      sin(this.angle) *
+      this.speed;
 
-// ================================================================
-// METEOR
-// ================================================================
+    this.life--;
+  }
 
-class Meteor{
+  draw() {
+    let c = "#00ffff";
 
-  constructor(){
-
-    this.radius=
-      random(
-        18,
-        32+currentLevel*.7
-      );
-
-    let side=floor(random(4));
-
-    if(side===0){
-      this.x=random(width);
-      this.y=-50;
-    }else if(side===1){
-      this.x=width+50;
-      this.y=random(height);
-    }else if(side===2){
-      this.x=random(width);
-      this.y=height+50;
-    }else{
-      this.x=-50;
-      this.y=random(height);
+    if (selectedShip === 1) {
+      c = "#ff9d22";
     }
 
-    let a=
-      atan2(
-        ship.y+random(-180,180)-this.y,
-        ship.x+random(-180,180)-this.x
-      );
+    if (selectedShip === 2) {
+      c = "#c66cff";
+    }
 
-    let speed=
-      random(1.2,2.2)*
-      getDifficultyMultiplier(
-        currentLevel
-      );
+    if (selectedShip === 3) {
+      c = "#8cecff";
+    }
 
-    if(currentGalaxy!==0)
-      speed*=1.12;
+    if (selectedShip === 4) {
+      c = "#ff4ddd";
+    }
 
-    this.vx=cos(a)*speed;
-    this.vy=sin(a)*speed;
+    if (selectedShip === 5) {
+      c = "#ff1744";
+    }
 
-    this.rot=random(TWO_PI);
-    this.rotSpeed=random(-.035,.035);
+    if (selectedShip === 6) {
+      c = "#00ffd5";
+    }
 
-    this.points=[];
+    if (selectedShip === 7) {
+      c = "#fff176";
+    }
 
-    for(let i=0;i<9;i++)
-      this.points.push(
-        this.radius*random(.72,1.18)
-      );
+    if (selectedShip === 8) {
+      c = "#ff78ff";
+    }
 
+    if (selectedShip === 9) {
+      c = "#ffd700";
+    }
+
+    stroke(c);
+    strokeWeight(4);
+
+    line(
+      this.x,
+      this.y,
+      this.x -
+        cos(this.angle) * 18,
+      this.y -
+        sin(this.angle) * 18
+    );
   }
 
+  dead() {
+    return (
+      this.life <= 0 ||
+      this.x < -80 ||
+      this.x > width + 80 ||
+      this.y < -80 ||
+      this.y > height + 80
+    );
+  }
+}
 
-  update(){
+// ================================================================
+// ALIEN
+// ================================================================
 
-    let slow=
-      millis()<cryoEnd?.6:1;
+class AlienShip {
+  constructor() {
+    this.radius = random(
+      17,
+      26 + currentLevel * 0.4
+    );
 
-    this.x+=this.vx*slow;
-    this.y+=this.vy*slow;
+    this.x = random(
+      30,
+      width - 30
+    );
 
-    this.rot+=this.rotSpeed;
+    this.y = -60;
 
+    this.speed =
+      random(1.1, 2.1) *
+      getDifficulty(currentLevel);
+
+    this.hp =
+      1 +
+      floor(currentLevel / 6);
+
+    this.maxHp = this.hp;
+
+    this.phase = random(TWO_PI);
+    this.type = floor(random(3));
+
+    this.points =
+      20 +
+      currentLevel * 2;
   }
 
+  update() {
+    let slow = 1;
 
-  display(){
+    if (
+      selectedShip === 3 ||
+      millis() < cryoUntil
+    ) {
+      slow = 0.52;
+    }
+
+    this.phase += 0.035;
+
+    this.y +=
+      this.speed *
+      slow;
+
+    this.x +=
+      sin(this.phase) *
+      0.8;
+
+    if (
+      this.y > height * 0.48
+    ) {
+      this.y +=
+        this.speed *
+        0.25 *
+        slow;
+    }
+  }
+
+  draw() {
+    let edge;
+    let body;
+
+    if (this.type === 0) {
+      edge = "#ff4d70";
+      body = "#42152a";
+    } else if (this.type === 1) {
+      edge = "#a86cff";
+      body = "#29144b";
+    } else {
+      edge = "#36e6a3";
+      body = "#103b30";
+    }
 
     push();
 
-    translate(this.x,this.y);
-    rotate(this.rot);
+    translate(
+      this.x,
+      this.y
+    );
 
-    let edge="#ff7433";
-    let body="#4c2b24";
-
-    if(currentGalaxy===1){
-      edge="#ff3355";
-      body="#601020";
-    }
-
-    if(currentGalaxy===2){
-      edge="#66ddff";
-      body="#173c62";
-    }
-
-    if(currentGalaxy===3){
-      edge="#55ffaa";
-      body="#14553b";
-    }
-
-    drawingContext.shadowBlur=12;
-    drawingContext.shadowColor=edge;
+    rotate(
+      sin(this.phase) * 0.18
+    );
 
     stroke(edge);
     strokeWeight(2);
+
     fill(body);
 
     beginShape();
 
-    for(let i=0;i<this.points.length;i++){
-
-      let a=
-        map(
-          i,
-          0,
-          this.points.length,
-          0,
-          TWO_PI
-        );
-
-      vertex(
-        cos(a)*this.points[i],
-        sin(a)*this.points[i]
-      );
-
-    }
+    vertex(0, -25);
+    vertex(-25, -7);
+    vertex(-18, 18);
+    vertex(0, 25);
+    vertex(18, 18);
+    vertex(25, -7);
 
     endShape(CLOSE);
 
-    drawingContext.shadowBlur=0;
+    noStroke();
+
+    fill(edge);
+
+    ellipse(
+      -8,
+      -2,
+      7,
+      9
+    );
+
+    ellipse(
+      8,
+      -2,
+      7,
+      9
+    );
+
+    fill(255);
+
+    ellipse(
+      -8,
+      -2,
+      2.5,
+      3
+    );
+
+    ellipse(
+      8,
+      -2,
+      2.5,
+      3
+    );
 
     pop();
-
   }
 
-
-  dead(){
-
-    return(
-      this.x<-220||
-      this.x>width+220||
-      this.y<-220||
-      this.y>height+220
-    );
-
+  dead() {
+    return this.y > height + 90;
   }
-
 }
 
-
 // ================================================================
-// METEOR SPAWN
+// SPAWN ALIENS
 // ================================================================
 
-function spawnMeteors(){
+function spawnAliens() {
+  const delay =
+    boss
+      ? 1800
+      : getEnemyDelay(currentLevel);
 
-  let delay=
-    max(
-      300,
-      1150-(currentLevel-1)*38
-    );
-
-  if(
-    millis()-lastMeteorTime>
+  if (
+    millis() -
+      lastEnemySpawn <
     delay
-  ){
+  ) {
+    return;
+  }
 
-    let count=1;
+  let count = 1;
 
-    if(currentLevel>=6&&random()<.18)
-      count=2;
+  if (
+    currentLevel >= 6 &&
+    random() < 0.2
+  ) {
+    count = 2;
+  }
 
-    if(currentLevel>=13&&random()<.12)
-      count=3;
+  if (
+    currentLevel >= 13 &&
+    random() < 0.15
+  ) {
+    count = 3;
+  }
 
-    if(bossActive)
-      count=1;
+  if (boss) {
+    count = 1;
+  }
 
-    for(let i=0;i<count;i++)
-      meteors.push(
-        new Meteor()
+  for (let i = 0; i < count; i++) {
+    aliens.push(
+      new AlienShip()
+    );
+  }
+
+  lastEnemySpawn = millis();
+}
+
+// ================================================================
+// UPDATE BULLETS
+// ================================================================
+
+function updateBullets() {
+  for (
+    let i = bullets.length - 1;
+    i >= 0;
+    i--
+  ) {
+    bullets[i].update();
+
+    if (bullets[i].dead()) {
+      bullets.splice(i, 1);
+    }
+  }
+}
+
+function drawBullets() {
+  for (const bullet of bullets) {
+    bullet.draw();
+  }
+}
+
+// ================================================================
+// UPDATE ALIENS
+// ================================================================
+
+function updateAliens() {
+  for (
+    let i = aliens.length - 1;
+    i >= 0;
+    i--
+  ) {
+    aliens[i].update();
+
+    if (aliens[i].dead()) {
+      aliens.splice(i, 1);
+    }
+  }
+}
+
+function drawAliens() {
+  for (const alien of aliens) {
+    alien.draw();
+  }
+}
+
+// ================================================================
+// BULLET / ALIEN COLLISION
+// ================================================================
+
+function bulletAlienCollisions() {
+  for (
+    let i = aliens.length - 1;
+    i >= 0;
+    i--
+  ) {
+    const alien = aliens[i];
+
+    for (
+      let j = bullets.length - 1;
+      j >= 0;
+      j--
+    ) {
+      const bullet = bullets[j];
+
+      if (
+        dist(
+          alien.x,
+          alien.y,
+          bullet.x,
+          bullet.y
+        ) <
+        alien.radius +
+          bullet.radius
+      ) {
+        let damage =
+          bullet.damage;
+
+        if (selectedShip === 1) {
+          damage *= 1.25;
+        }
+
+        if (
+          selectedShip === 6 &&
+          random() < 0.4
+        ) {
+          damage *= 2;
+        }
+
+        alien.hp -= damage;
+
+        // Piercing ship.
+        if (
+          selectedShip !== 4
+        ) {
+          bullets.splice(j, 1);
+        }
+
+        if (alien.hp <= 0) {
+          destroyAlien(
+            i
+          );
+        }
+
+        break;
+      }
+    }
+  }
+}
+
+function destroyAlien(index) {
+  if (!aliens[index]) return;
+
+  const alien =
+    aliens[index];
+
+  createExplosion(
+    alien.x,
+    alien.y,
+    28,
+    "#ff6688"
+  );
+
+  score += alien.points;
+  levelScore += alien.points;
+
+  screenShake(9, 180);
+
+  explosionSound();
+
+  aliens.splice(
+    index,
+    1
+  );
+}
+
+// ================================================================
+// SHIP / ALIEN COLLISION
+// ================================================================
+
+function playerAlienCollision() {
+  if (
+    millis() <
+    ship.invincibleUntil
+  ) {
+    return;
+  }
+
+  for (
+    let i = aliens.length - 1;
+    i >= 0;
+    i--
+  ) {
+    const alien = aliens[i];
+
+    if (
+      dist(
+        ship.x,
+        ship.y,
+        alien.x,
+        alien.y
+      ) <
+      ship.radius +
+        alien.radius * 0.8
+    ) {
+      if (
+        millis() < shieldUntil ||
+        millis() < celestialUntil
+      ) {
+        createExplosion(
+          alien.x,
+          alien.y,
+          24,
+          "#00ccff"
+        );
+
+        screenShake(8, 180);
+
+        aliens.splice(i, 1);
+
+        return;
+      }
+
+      aliens.splice(i, 1);
+
+      damagePlayer();
+
+      return;
+    }
+  }
+}
+
+// ================================================================
+// DAMAGE
+// ================================================================
+
+function damagePlayer() {
+  lives--;
+
+  ship.invincibleUntil =
+    millis() + 1800;
+
+  screenShake(
+    15,
+    300
+  );
+
+  playTone(
+    180,
+    50,
+    0.28,
+    "sawtooth",
+    0.055
+  );
+
+  if (lives <= 0) {
+    gameState = "GAMEOVER";
+
+    createExplosion(
+      ship.x,
+      ship.y,
+      60,
+      "#00ddff"
+    );
+  }
+}
+
+// ================================================================
+// ENEMY SHOOTS
+// ================================================================
+
+function enemyAttackUpdate() {
+  for (const alien of aliens) {
+    if (
+      random() <
+      0.0009 *
+        getDifficulty(currentLevel)
+    ) {
+      const angle =
+        atan2(
+          ship.y - alien.y,
+          ship.x - alien.x
+        );
+
+      enemyShots.push(
+        new EnemyShot(
+          alien.x,
+          alien.y,
+          angle
+        )
+      );
+    }
+  }
+}
+
+// ================================================================
+// ENEMY SHOT
+// ================================================================
+
+class EnemyShot {
+  constructor(
+    x,
+    y,
+    angle
+  ) {
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+
+    this.speed = 4;
+    this.radius = 8;
+    this.life = 260;
+  }
+
+  update() {
+    let slow =
+      selectedShip === 3 ||
+      millis() < cryoUntil
+        ? 0.55
+        : 1;
+
+    this.x +=
+      cos(this.angle) *
+      this.speed *
+      slow;
+
+    this.y +=
+      sin(this.angle) *
+      this.speed *
+      slow;
+
+    this.life--;
+  }
+
+  draw() {
+    noFill();
+
+    stroke(255, 60, 100);
+    strokeWeight(4);
+
+    circle(
+      this.x,
+      this.y,
+      this.radius * 2
+    );
+  }
+
+  dead() {
+    return (
+      this.life <= 0 ||
+      this.x < -80 ||
+      this.x > width + 80 ||
+      this.y < -80 ||
+      this.y > height + 80
+    );
+  }
+}
+
+function updateEnemyShots() {
+  for (
+    let i = enemyShots.length - 1;
+    i >= 0;
+    i--
+  ) {
+    enemyShots[i].update();
+
+    if (
+      enemyShots[i].dead()
+    ) {
+      enemyShots.splice(i, 1);
+    }
+  }
+}
+
+function drawEnemyShots() {
+  for (const shot of enemyShots) {
+    shot.draw();
+  }
+}
+
+function enemyShotCollision() {
+  if (
+    millis() <
+    ship.invincibleUntil
+  ) {
+    return;
+  }
+
+  for (
+    let i = enemyShots.length - 1;
+    i >= 0;
+    i--
+  ) {
+    const shot =
+      enemyShots[i];
+
+    if (
+      dist(
+        ship.x,
+        ship.y,
+        shot.x,
+        shot.y
+      ) <
+      ship.radius +
+        shot.radius
+    ) {
+      if (
+        millis() < shieldUntil ||
+        millis() < celestialUntil
+      ) {
+        enemyShots.splice(
+          i,
+          1
+        );
+
+        return;
+      }
+
+      enemyShots.splice(
+        i,
+        1
       );
 
-    lastMeteorTime=millis();
+      damagePlayer();
 
+      return;
+    }
   }
-
 }
-
-
-// ================================================================
-// METEOR UPDATE
-// ================================================================
-
-function updateMeteors(){
-
-  for(
-    let i=meteors.length-1;
-    i>=0;
-    i--
-  ){
-
-    meteors[i].update();
-    meteors[i].display();
-
-    if(meteors[i].dead())
-      meteors.splice(i,1);
-
-  }
-
-}
-
 
 // ================================================================
 // POWER UPS
 // ================================================================
 
-class PowerUp{
+const POWER_TYPES = [
+  "SHIELD",
+  "MULTI",
+  "RAPID",
+  "CRYO",
+  "NOVA",
+  "CELESTIAL"
+];
 
-  constructor(){
+class PowerUp {
+  constructor() {
+    this.type =
+      random(POWER_TYPES);
 
-    this.type=random(POWER_TYPES);
+    this.x = random(
+      60,
+      width - 60
+    );
 
-    this.x=random(60,width-60);
-    this.y=random(130,height-160);
+    this.y = random(
+      150,
+      height - 170
+    );
 
-    this.radius=24;
-    this.life=900;
-    this.rot=0;
+    this.radius = 22;
 
+    this.life = 900;
+
+    this.rotation = 0;
   }
 
-
-  update(){
-
-    this.rot+=.035;
+  update() {
+    this.rotation += 0.04;
     this.life--;
-
   }
 
-
-  display(){
-
-    let cfg=powerColor(this.type);
+  draw() {
+    const config =
+      getPowerConfig(
+        this.type
+      );
 
     push();
 
-    translate(this.x,this.y);
-    rotate(this.rot);
+    translate(
+      this.x,
+      this.y
+    );
 
-    drawingContext.shadowBlur=30;
-    drawingContext.shadowColor=cfg.c;
+    rotate(this.rotation);
 
-    stroke(cfg.c);
+    stroke(config.color);
     strokeWeight(3);
 
-    fill(cfg.fill);
+    fill(
+      red(config.colorValue),
+      green(config.colorValue),
+      blue(config.colorValue),
+      55
+    );
 
     circle(
       0,
       0,
-      this.radius*2+
-      sin(frameCount*.1)*5
+      48
     );
-
-    noFill();
-
-    circle(
-      0,
-      0,
-      this.radius*1.35
-    );
-
-    rotate(-this.rot);
 
     noStroke();
 
     fill(255);
-
-    textAlign(CENTER,CENTER);
+    textAlign(CENTER, CENTER);
     textStyle(BOLD);
-    textSize(9);
+    textSize(10);
 
     text(
-      cfg.label,
-      0,1
+      config.label,
+      0,
+      0
     );
 
-    drawingContext.shadowBlur=0;
-
     pop();
-
   }
-
 }
 
+function getPowerConfig(type) {
+  const map = {
+    SHIELD: {
+      label: "SHIELD",
+      color: "#00cfff"
+    },
 
-function powerColor(type){
+    MULTI: {
+      label: "3X",
+      color: "#ffe600"
+    },
 
-  let data={
+    RAPID: {
+      label: "RAPID",
+      color: "#c66cff"
+    },
 
-    MULTI:["#ffe600","M"],
-    SHIELD:["#00bfff","S"],
-    TITAN:["#ff7a00","T"],
-    TWIN:["#b66cff","2X"],
-    TRINITY:["#ff4db8","3X"],
-    NOVA:["#ffffff","N"],
-    PHANTOM:["#d66cff","PH"],
-    BERSERKER:["#ff1744","BR"],
-    CRYO:["#9eefff","CR"],
-    CELESTIAL:["#fff176","CX"]
+    CRYO: {
+      label: "CRYO",
+      color: "#9eefff"
+    },
 
-  }[type];
+    NOVA: {
+      label: "NOVA",
+      color: "#ffffff"
+    },
 
-  let c=color(data[0]);
-
-  return{
-    c:data[0],
-    label:data[1],
-    fill:color(
-      red(c),
-      green(c),
-      blue(c),
-      50
-    )
+    CELESTIAL: {
+      label: "5X",
+      color: "#ffd700"
+    }
   };
 
+  const data =
+    map[type] || map.SHIELD;
+
+  return {
+    label: data.label,
+    color: data.color,
+    colorValue: color(data.color)
+  };
 }
 
+function spawnPowerUps() {
+  const delay =
+    boss
+      ? 5000
+      : max(
+          6500,
+          9500 -
+            currentLevel * 100
+        );
 
-// ================================================================
-// POWER SPAWN
-// ================================================================
-
-function spawnPowerUps(){
-
-  let delay=
-    bossActive
-      ?4300
-      :max(
-        6500,
-        9000-currentLevel*80
-      );
-
-  if(
-    millis()-lastPowerTime>
+  if (
+    millis() -
+      lastPowerSpawn <
     delay
-  ){
-
-    if(powerUps.length<
-      (bossActive?2:1)
-    ){
-
-      powerUps.push(
-        new PowerUp()
-      );
-
-    }
-
-    lastPowerTime=millis();
-
+  ) {
+    return;
   }
 
+  if (
+    powerUps.length < 2
+  ) {
+    powerUps.push(
+      new PowerUp()
+    );
+  }
+
+  lastPowerSpawn = millis();
 }
 
-
-// ================================================================
-// POWER UPDATE
-// ================================================================
-
-function updatePowerUps(){
-
-  for(
-    let i=powerUps.length-1;
-    i>=0;
+function updatePowerUps() {
+  for (
+    let i = powerUps.length - 1;
+    i >= 0;
     i--
-  ){
-
+  ) {
     powerUps[i].update();
-    powerUps[i].display();
 
-    if(powerUps[i].life<=0)
-      powerUps.splice(i,1);
-
+    if (
+      powerUps[i].life <= 0
+    ) {
+      powerUps.splice(i, 1);
+    }
   }
-
 }
 
+function drawPowerUps() {
+  for (const power of powerUps) {
+    power.draw();
+  }
+}
 
-// ================================================================
-// POWER COLLISION
-// ================================================================
-
-function shipPowerCollisions(){
-
-  for(
-    let i=powerUps.length-1;
-    i>=0;
+function powerCollision() {
+  for (
+    let i = powerUps.length - 1;
+    i >= 0;
     i--
-  ){
+  ) {
+    const p =
+      powerUps[i];
 
-    let p=powerUps[i];
-
-    if(
+    if (
       dist(
         ship.x,
         ship.y,
         p.x,
         p.y
-      )<
-      ship.radius+p.radius
-    ){
-
-      activatePower(p.type);
+      ) <
+      ship.radius +
+        p.radius
+    ) {
+      activatePower(
+        p.type
+      );
 
       createExplosion(
         p.x,
         p.y,
         25,
-        p.type
+        getPowerConfig(p.type)
+          .color
       );
 
-      powerUps.splice(i,1);
+      score += 50;
+      levelScore += 50;
 
-      score+=50;
-      levelScore+=50;
-
-      break;
-
-    }
-
-  }
-
-}
-
-
-// ================================================================
-// ACTIVATE POWER
-// ================================================================
-
-function activatePower(type){
-
-  let duration=
-    (POWER_DURATION[type]||0)*
-    (bossActive?1.6:1);
-
-  let now=millis();
-
-  if(type==="MULTI")
-    multiShotEnd=now+duration;
-
-  else if(type==="SHIELD")
-    shieldEnd=now+duration;
-
-  else if(type==="TITAN")
-    titanEnd=now+duration;
-
-  else if(type==="TWIN"){
-    twinEnd=now+duration;
-    trinityEnd=0;
-  }
-
-  else if(type==="TRINITY"){
-    trinityEnd=now+duration;
-    twinEnd=0;
-  }
-
-  else if(type==="PHANTOM")
-    phantomEnd=now+duration;
-
-  else if(type==="BERSERKER")
-    berserkerEnd=now+duration;
-
-  else if(type==="CRYO")
-    cryoEnd=now+duration;
-
-  else if(type==="CELESTIAL"){
-    celestialEnd=now+duration;
-
-    shieldEnd=
-      max(
-        shieldEnd,
-        now+duration*.65
+      powerUps.splice(
+        i,
+        1
       );
-  }
-
-  else if(type==="NOVA")
-    activateNova();
-
-  powerSound(type);
-
-}
-
-
-// ================================================================
-// NOVA
-// ================================================================
-
-function activateNova(){
-
-  novaWave={
-    radius:10,
-    alpha:255
-  };
-
-  for(
-    let i=meteors.length-1;
-    i>=0;
-    i--
-  ){
-
-    createExplosion(
-      meteors[i].x,
-      meteors[i].y,
-      20
-    );
-
-    meteors.splice(i,1);
-
-    score+=15;
-    levelScore+=15;
-
-  }
-
-  if(bossActive&&boss)
-    boss.hp-=boss.maxHp*.17;
-
-}
-
-
-function updateNova(){
-
-  if(!novaWave)
-    return;
-
-  novaWave.radius+=24;
-  novaWave.alpha-=7;
-
-  push();
-
-  noFill();
-
-  drawingContext.shadowBlur=35;
-  drawingContext.shadowColor="#ffffff";
-
-  stroke(
-    150,
-    240,
-    255,
-    novaWave.alpha
-  );
-
-  strokeWeight(7);
-
-  circle(
-    ship.x,
-    ship.y,
-    novaWave.radius*2
-  );
-
-  drawingContext.shadowBlur=0;
-
-  pop();
-
-  if(novaWave.alpha<=0)
-    novaWave=null;
-
-}
-
-
-// ================================================================
-// COLLISIONS
-// ================================================================
-
-function bulletMeteorCollisions(){
-
-  for(
-    let i=meteors.length-1;
-    i>=0;
-    i--
-  ){
-
-    for(
-      let j=bullets.length-1;
-      j>=0;
-      j--
-    ){
-
-      if(
-        dist(
-          meteors[i].x,
-          meteors[i].y,
-          bullets[j].x,
-          bullets[j].y
-        )<
-        meteors[i].radius+
-        bullets[j].radius
-      ){
-
-        createExplosion(
-          meteors[i].x,
-          meteors[i].y,
-          22
-        );
-
-        let gain=
-          floor(
-            20+
-            bullets[j].power*6
-          );
-
-        score+=gain;
-        levelScore+=gain;
-
-        meteors.splice(i,1);
-        bullets.splice(j,1);
-
-        break;
-
-      }
-
-    }
-
-  }
-
-}
-
-
-function shipMeteorCollisions(){
-
-  if(
-    millis()<
-    ship.invincibleUntil
-  )
-    return;
-
-  for(
-    let i=meteors.length-1;
-    i>=0;
-    i--
-  ){
-
-    let m=meteors[i];
-
-    if(
-      dist(
-        ship.x,
-        ship.y,
-        m.x,
-        m.y
-      )<
-      ship.radius+
-      m.radius*.7
-    ){
-
-      let form=getTransformation();
-
-      if(
-        millis()<shieldEnd||
-        form==="CELESTIAL"
-      ){
-
-        createExplosion(
-          m.x,
-          m.y,
-          20,
-          "SHIELD"
-        );
-
-        meteors.splice(i,1);
-
-        return;
-
-      }
-
-      if(
-        form==="TITAN"||
-        form==="BERSERKER"
-      ){
-
-        createExplosion(
-          m.x,
-          m.y,
-          30
-        );
-
-        meteors.splice(i,1);
-
-        score+=20;
-        levelScore+=20;
-
-        return;
-
-      }
-
-      if(
-        form==="PHANTOM"&&
-        random()<.65
-      ){
-
-        meteors.splice(i,1);
-
-        return;
-
-      }
-
-      meteors.splice(i,1);
-
-      damagePlayer();
 
       return;
-
     }
-
   }
-
 }
 
+function activatePower(type) {
+  const now = millis();
 
-function damagePlayer(){
+  if (type === "SHIELD") {
+    shieldUntil =
+      now + 9000;
+  }
 
-  lives--;
+  if (type === "MULTI") {
+    multiUntil =
+      now + 9000;
+  }
 
-  ship.invincibleUntil=
-    millis()+1800;
+  if (type === "RAPID") {
+    rapidUntil =
+      now + 9000;
+  }
 
-  playTone(
-    190,
-    45,
-    .3,
-    "sawtooth",
-    .06
+  if (type === "CRYO") {
+    cryoUntil =
+      now + 8500;
+  }
+
+  if (type === "CELESTIAL") {
+    celestialUntil =
+      now + 7000;
+
+    shieldUntil =
+      max(
+        shieldUntil,
+        now + 4500
+      );
+  }
+
+  if (type === "NOVA") {
+    for (
+      let i = aliens.length - 1;
+      i >= 0;
+      i--
+    ) {
+      createExplosion(
+        aliens[i].x,
+        aliens[i].y,
+        20,
+        "#ffffff"
+      );
+
+      score += 15;
+      levelScore += 15;
+
+      aliens.splice(i, 1);
+    }
+
+    if (boss) {
+      boss.hp -=
+        boss.maxHp * 0.12;
+    }
+
+    screenShake(
+      18,
+      350
+    );
+  }
+
+  powerSound(type);
+}
+
+// ================================================================
+// SHIELD
+// ================================================================
+
+function drawShield(
+  x,
+  y
+) {
+  noFill();
+
+  stroke(
+    0,
+    215,
+    255,
+    190
   );
 
-  if(lives<=0){
+  strokeWeight(4);
 
-    gameState="GAMEOVER";
-
-    createExplosion(
-      ship.x,
-      ship.y,
-      60
-    );
-
-  }
-
+  circle(
+    x,
+    y,
+    82 +
+      sin(frameCount * 0.1) *
+        6
+  );
 }
-
-
-// ================================================================
-// PORTAL
-// ================================================================
-
-class Portal{
-
-  constructor(){
-
-    this.x=
-      random(
-        width*.25,
-        width*.75
-      );
-
-    this.y=
-      random(
-        height*.25,
-        height*.55
-      );
-
-    this.radius=50;
-    this.life=800;
-    this.rot=0;
-
-  }
-
-
-  update(){
-
-    this.rot+=.04;
-    this.life--;
-
-  }
-
-
-  display(){
-
-    push();
-
-    translate(
-      this.x,
-      this.y
-    );
-
-    rotate(this.rot);
-
-    drawingContext.shadowBlur=35;
-    drawingContext.shadowColor="#b000ff";
-
-    noFill();
-
-    for(let i=0;i<4;i++){
-
-      stroke(
-        100+i*30,
-        40,
-        255,
-        190
-      );
-
-      strokeWeight(5-i);
-
-      arc(
-        0,
-        0,
-        this.radius*2-i*10,
-        this.radius*2-i*10,
-        i,
-        PI+i
-      );
-
-    }
-
-    drawingContext.shadowBlur=0;
-
-    pop();
-
-  }
-
-}
-
-
-function checkPortal(){
-
-  if(
-    bossActive||
-    currentGalaxy!==0
-  )
-    return;
-
-  if(
-    !portal&&
-    levelScore>=nextPortalScore
-  ){
-
-    portal=new Portal();
-
-    nextPortalScore+=
-      900+
-      currentLevel*120;
-
-  }
-
-  if(!portal)
-    return;
-
-  if(
-    dist(
-      ship.x,
-      ship.y,
-      portal.x,
-      portal.y
-    )<
-    portal.radius
-  ){
-
-    currentGalaxy=
-      floor(
-        random(1,4)
-      );
-
-    galaxyEndTime=
-      millis()+15000;
-
-    portal=null;
-
-    meteors=[];
-
-    playTone(
-      900,
-      100,
-      .7,
-      "sawtooth",
-      .05
-    );
-
-  }
-
-}
-
-
-function updatePortal(){
-
-  if(!portal){
-
-    if(
-      currentGalaxy!==0&&
-      millis()>galaxyEndTime
-    ){
-
-      currentGalaxy=0;
-      meteors=[];
-
-    }
-
-    return;
-
-  }
-
-  portal.update();
-  portal.display();
-
-  if(portal.life<=0)
-    portal=null;
-
-}
-
 
 // ================================================================
 // BOSS
 // ================================================================
 
-class MeteorDragon{
+class DragonBoss {
+  constructor() {
+    this.x = width / 2;
+    this.y = -120;
 
-  constructor(level){
-
-    this.level=level;
-
-    this.x=width/2;
-    this.y=-100;
-
-    this.targetY=max(
-      130,
-      height*.18
-    );
-
-    this.radius=75;
-
-    this.maxHp=
-      900+
-      level*170;
-
-    this.hp=this.maxHp;
-
-    this.phase=1;
-    this.move=0;
-    this.lastAttack=millis();
-
-  }
-
-
-  update(){
-
-    let ratio=
-      this.hp/
-      this.maxHp;
-
-    this.phase=
-      ratio>.6
-        ?1
-        :ratio>.3
-          ?2
-          :3;
-
-    if(this.y<this.targetY){
-
-      this.y+=1;
-      return;
-
-    }
-
-    this.move+=
-      this.phase===3
-        ?.018
-        :.012;
-
-    this.x=
-      width/2+
-      sin(this.move)*
-      width*.27;
-
-    let delay=
-      this.phase===1
-        ?2400
-        :this.phase===2
-          ?1800
-          :1250;
-
-    if(
-      millis()-this.lastAttack>
-      delay
-    ){
-
-      this.attack();
-
-      this.lastAttack=millis();
-
-    }
-
-  }
-
-
-  attack(){
-
-    let a=
-      atan2(
-        ship.y-this.y,
-        ship.x-this.x
+    this.targetY =
+      max(
+        145,
+        height * 0.2
       );
 
-    let spread=
-      this.phase===1
-        ?[0]
-        :this.phase===2
-          ?[-15,0,15]
-          :[-28,-14,0,14,28];
+    this.radius = 78;
 
-    for(let d of spread){
+    this.maxHp =
+      850 +
+      currentLevel * 180;
 
-      enemyWaves.push(
-        new EnemyWave(
+    this.hp =
+      this.maxHp;
+
+    this.phase = 1;
+
+    this.move = 0;
+
+    this.lastAttack = millis();
+  }
+
+  update() {
+    const ratio =
+      this.hp /
+      this.maxHp;
+
+    this.phase =
+      ratio > 0.65
+        ? 1
+        : ratio > 0.32
+        ? 2
+        : 3;
+
+    if (
+      this.y <
+      this.targetY
+    ) {
+      this.y += 1.3;
+      return;
+    }
+
+    this.move +=
+      this.phase === 3
+        ? 0.025
+        : 0.015;
+
+    this.x =
+      width / 2 +
+      sin(this.move) *
+        width *
+        0.28;
+
+    const attackDelay =
+      this.phase === 1
+        ? 2200
+        : this.phase === 2
+        ? 1600
+        : 1100;
+
+    if (
+      millis() -
+        this.lastAttack >
+      attackDelay
+    ) {
+      this.attack();
+
+      this.lastAttack =
+        millis();
+    }
+  }
+
+  attack() {
+    const angle =
+      atan2(
+        ship.y - this.y,
+        ship.x - this.x
+      );
+
+    let spread;
+
+    if (this.phase === 1) {
+      spread = [0];
+    } else if (
+      this.phase === 2
+    ) {
+      spread = [-16, 0, 16];
+    } else {
+      spread = [
+        -28,
+        -14,
+        0,
+        14,
+        28
+      ];
+    }
+
+    for (const degrees of spread) {
+      enemyShots.push(
+        new BossShot(
           this.x,
-          this.y+35,
-          a+radians(d),
+          this.y + 38,
+          angle +
+            radians(degrees),
           this.phase
         )
       );
-
     }
 
+    playTone(
+      130,
+      45,
+      0.22,
+      "sawtooth",
+      0.045
+    );
   }
 
-
-  display(){
-
+  draw() {
     push();
 
     translate(
@@ -2643,775 +2688,821 @@ class MeteorDragon{
       this.y
     );
 
-    let edge=
-      this.phase===3
-        ?"#ff0044"
-        :"#ff6a00";
-
-    drawingContext.shadowBlur=35;
-    drawingContext.shadowColor=edge;
+    const edge =
+      this.phase === 3
+        ? "#ff1744"
+        : "#ff6a00";
 
     stroke(edge);
     strokeWeight(4);
 
     fill(
-      this.phase===3
-        ?"#650019"
-        :"#54170e"
+      this.phase === 3
+        ? "#650019"
+        : "#54170e"
     );
 
+    // Wings
     beginShape();
 
-    vertex(-25,-5);
-    vertex(-95,-48);
-    vertex(-67,5);
-    vertex(-105,38);
-    vertex(-30,25);
+    vertex(-25, -10);
+    vertex(-100, -50);
+    vertex(-67, 0);
+    vertex(-105, 40);
+    vertex(-30, 25);
 
     endShape(CLOSE);
 
     beginShape();
 
-    vertex(25,-5);
-    vertex(95,-48);
-    vertex(67,5);
-    vertex(105,38);
-    vertex(30,25);
+    vertex(25, -10);
+    vertex(100, -50);
+    vertex(67, 0);
+    vertex(105, 40);
+    vertex(30, 25);
 
     endShape(CLOSE);
 
     ellipse(
       0,
-      10,
-      90,
+      12,
+      94,
       120
     );
 
     beginShape();
 
-    vertex(0,-75);
-    vertex(-37,-38);
-    vertex(-28,10);
-    vertex(0,30);
-    vertex(28,10);
-    vertex(37,-38);
+    vertex(0, -76);
+    vertex(-38, -40);
+    vertex(-30, 10);
+    vertex(0, 32);
+    vertex(30, 10);
+    vertex(38, -40);
 
     endShape(CLOSE);
 
     noStroke();
 
     fill(
-      this.phase===3
-        ?"#ff0044"
-        :"#ffff00"
+      this.phase === 3
+        ? "#ff1744"
+        : "#ffe600"
     );
 
-    ellipse(-14,-34,10,7);
-    ellipse(14,-34,10,7);
+    ellipse(
+      -15,
+      -34,
+      11,
+      8
+    );
 
-    drawingContext.shadowBlur=0;
+    ellipse(
+      15,
+      -34,
+      11,
+      8
+    );
 
     pop();
-
   }
-
 }
 
+class BossShot {
+  constructor(
+    x,
+    y,
+    angle,
+    phase
+  ) {
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
 
-// ================================================================
-// BOSS CHECK
-// ================================================================
+    this.phase = phase;
 
-function checkBoss(){
+    this.speed =
+      phase === 3
+        ? 4.3
+        : phase === 2
+        ? 3.7
+        : 3.1;
 
-  let bossLevel=
-    currentLevel===5||
-    currentLevel===10||
-    currentLevel===15||
-    currentLevel===20;
-
-  if(
-    !bossLevel||
-    defeatedBossThisRun||
-    bossActive
-  )
-    return;
-
-  if(
-    millis()-levelStartTime>
-    levelDuration*.55
-  ){
-
-    boss=
-      new MeteorDragon(
-        currentLevel
-      );
-
-    bossActive=true;
-
-    meteors=[];
-    powerUps=[];
-
-    lastPowerTime=
-      millis()-3000;
-
+    this.radius = 15;
+    this.life = 280;
   }
 
-}
+  update() {
+    const slow =
+      selectedShip === 3 ||
+      millis() < cryoUntil
+        ? 0.55
+        : 1;
 
-
-// ================================================================
-// BOSS UPDATE
-// ================================================================
-
-function updateBoss(){
-
-  if(!boss)
-    return;
-
-  boss.update();
-  boss.display();
-
-  drawBossHealth();
-
-  if(boss.hp<=0){
-
-    createExplosion(
-      boss.x,
-      boss.y,
-      100
-    );
-
-    let gain=
-      1000+
-      currentLevel*100;
-
-    score+=gain;
-    levelScore+=gain;
-
-    boss=null;
-    bossActive=false;
-    defeatedBossThisRun=true;
-
-    enemyWaves=[];
-
-  }
-
-}
-
-
-function drawBossHealth(){
-
-  let w=min(
-    330,
-    width*.75
-  );
-
-  let ratio=
-    constrain(
-      boss.hp/boss.maxHp,
-      0,
-      1
-    );
-
-  let x=
-    width/2-w/2;
-
-  let y=115;
-
-  push();
-
-  textAlign(CENTER,BOTTOM);
-
-  fill(255,70,50);
-
-  textStyle(BOLD);
-  textSize(13);
-
-  text(
-    "METEOR DRAGON • PHASE "+
-    boss.phase,
-    width/2,
-    y-7
-  );
-
-  noStroke();
-
-  fill(255,255,255,45);
-
-  rect(
-    x,y,
-    w,12,
-    6
-  );
-
-  fill(
-    boss.phase===3
-      ?color(255,0,60)
-      :color(255,70,30)
-  );
-
-  rect(
-    x,y,
-    w*ratio,
-    12,
-    6
-  );
-
-  pop();
-
-}
-
-
-// ================================================================
-// BOSS BULLETS
-// ================================================================
-
-function bulletBossCollisions(){
-
-  if(!bossActive||!boss)
-    return;
-
-  for(
-    let i=bullets.length-1;
-    i>=0;
-    i--
-  ){
-
-    let b=bullets[i];
-
-    if(
-      dist(
-        b.x,
-        b.y,
-        boss.x,
-        boss.y
-      )<
-      boss.radius+
-      b.radius
-    ){
-
-      boss.hp-=
-        10+
-        b.power*8;
-
-      bullets.splice(i,1);
-
-    }
-
-  }
-
-}
-
-
-// ================================================================
-// ENEMY WAVES
-// ================================================================
-
-class EnemyWave{
-
-  constructor(x,y,angle,phase){
-
-    this.x=x;
-    this.y=y;
-    this.angle=angle;
-    this.phase=phase;
-
-    this.speed=
-      phase===3
-        ?4
-        :phase===2
-          ?3.5
-          :3;
-
-    this.radius=15;
-    this.life=260;
-
-  }
-
-
-  update(){
-
-    let slow=
-      millis()<cryoEnd?.55:1;
-
-    this.x+=
-      cos(this.angle)*
-      this.speed*
+    this.x +=
+      cos(this.angle) *
+      this.speed *
       slow;
 
-    this.y+=
-      sin(this.angle)*
-      this.speed*
+    this.y +=
+      sin(this.angle) *
+      this.speed *
       slow;
 
     this.life--;
-
   }
 
-
-  display(){
-
-    push();
-
+  draw() {
     noFill();
 
-    drawingContext.shadowBlur=25;
-    drawingContext.shadowColor="#ff0033";
-
-    stroke(255,30,60);
-
+    stroke(255, 30, 60);
     strokeWeight(
-      this.phase===3
-        ?6
-        :4
+      this.phase === 3
+        ? 6
+        : 4
     );
 
     circle(
       this.x,
       this.y,
-      this.radius*2
+      this.radius * 2
     );
-
-    drawingContext.shadowBlur=0;
-
-    pop();
-
   }
 
-
-  dead(){
-
-    return(
-      this.life<=0||
-      this.x<-100||
-      this.x>width+100||
-      this.y<-100||
-      this.y>height+100
+  dead() {
+    return (
+      this.life <= 0 ||
+      this.x < -100 ||
+      this.x > width + 100 ||
+      this.y < -100 ||
+      this.y > height + 100
     );
-
   }
-
 }
 
-
-function updateEnemyWaves(){
-
-  for(
-    let i=enemyWaves.length-1;
-    i>=0;
-    i--
-  ){
-
-    enemyWaves[i].update();
-    enemyWaves[i].display();
-
-    if(enemyWaves[i].dead())
-      enemyWaves.splice(i,1);
-
+function startBossIfNeeded() {
+  if (
+    !isBossLevel() ||
+    boss
+  ) {
+    return;
   }
 
+  const elapsed =
+    millis() -
+    levelStartTime;
+
+  if (
+    elapsed >
+    levelDuration * 0.45
+  ) {
+    boss =
+      new DragonBoss();
+
+    aliens = [];
+    powerUps = [];
+    enemyShots = [];
+
+    startBossMusic();
+
+    screenShake(
+      12,
+      400
+    );
+
+    playTone(
+      50,
+      95,
+      1.0,
+      "sawtooth",
+      0.065
+    );
+  }
 }
 
+function updateBoss() {
+  if (!boss) return;
 
-function enemyWaveCollisions(){
+  boss.update();
 
-  for(
-    let i=enemyWaves.length-1;
-    i>=0;
+  for (
+    let i = bullets.length - 1;
+    i >= 0;
     i--
-  ){
+  ) {
+    const bullet =
+      bullets[i];
 
-    let w=enemyWaves[i];
-
-    if(
+    if (
       dist(
-        ship.x,
-        ship.y,
-        w.x,
-        w.y
-      )<
-      ship.radius+
-      w.radius
-    ){
+        bullet.x,
+        bullet.y,
+        boss.x,
+        boss.y
+      ) <
+      boss.radius +
+        bullet.radius
+    ) {
+      let damage =
+        10 +
+        bullet.damage * 8;
 
-      let form=
-        getTransformation();
-
-      if(
-        millis()<shieldEnd||
-        form==="CELESTIAL"
-      ){
-
-        enemyWaves.splice(i,1);
-        return;
-
+      if (
+        selectedShip === 5
+      ) {
+        damage *= 1.5;
       }
 
-      if(
-        form==="PHANTOM"&&
-        random()<.7
-      ){
+      boss.hp -= damage;
 
-        enemyWaves.splice(i,1);
-        return;
+      bullets.splice(
+        i,
+        1
+      );
 
-      }
-
-      if(
-        millis()<
-        ship.invincibleUntil
-      )
-        return;
-
-      enemyWaves.splice(i,1);
-
-      damagePlayer();
-
-      return;
-
+      createExplosion(
+        bullet.x,
+        bullet.y,
+        3,
+        "#ff9900"
+      );
     }
-
   }
 
+  if (boss.hp <= 0) {
+    defeatBoss();
+  }
 }
 
+function drawBoss() {
+  if (!boss) return;
+
+  boss.draw();
+
+  const w = min(
+    330,
+    width * 0.72
+  );
+
+  const x =
+    width / 2 -
+    w / 2;
+
+  const y = 122;
+
+  const ratio = constrain(
+    boss.hp /
+      boss.maxHp,
+    0,
+    1
+  );
+
+  rectMode(CORNER);
+
+  noStroke();
+
+  fill(
+    255,
+    255,
+    255,
+    45
+  );
+
+  rect(
+    x,
+    y,
+    w,
+    11,
+    5
+  );
+
+  fill(
+    boss.phase === 3
+      ? color(255, 0, 60)
+      : color(255, 70, 30)
+  );
+
+  rect(
+    x,
+    y,
+    w * ratio,
+    11,
+    5
+  );
+
+  fill(255, 90, 70);
+
+  textAlign(CENTER, BOTTOM);
+  textStyle(BOLD);
+  textSize(12);
+
+  text(
+    "METEOR DRAGON • PHASE " +
+      boss.phase,
+    width / 2,
+    y - 8
+  );
+}
+
+function defeatBoss() {
+  if (!boss) return;
+
+  createExplosion(
+    boss.x,
+    boss.y,
+    120,
+    "#ff6a00"
+  );
+
+  screenShake(
+    25,
+    800
+  );
+
+  const bonus =
+    1000 +
+    currentLevel * 120;
+
+  score += bonus;
+  levelScore += bonus;
+
+  boss = null;
+
+  enemyShots = [];
+
+  stopBossMusic();
+
+  playTone(
+    100,
+    1000,
+    0.9,
+    "sine",
+    0.07
+  );
+}
+
+// ================================================================
+// BOSS MUSIC
+// ================================================================
+
+function startBossMusic() {
+  stopBossMusic();
+
+  if (
+    !soundEnabled
+  ) {
+    return;
+  }
+
+  initAudio();
+
+  if (!audioCtx) {
+    return;
+  }
+
+  bossMusicStep = 0;
+
+  const notes = [
+    110,
+    130,
+    146,
+    98,
+    123,
+    110,
+    164,
+    98
+  ];
+
+  bossMusicTimer =
+    setInterval(
+      function () {
+        if (
+          gameState !==
+            "PLAYING" ||
+          !boss ||
+          !soundEnabled
+        ) {
+          return;
+        }
+
+        const note =
+          notes[
+            bossMusicStep %
+              notes.length
+          ];
+
+        playTone(
+          note,
+          note * 0.82,
+          0.18,
+          bossMusicStep % 2 === 0
+            ? "sawtooth"
+            : "triangle",
+          0.035
+        );
+
+        bossMusicStep++;
+      },
+      280
+    );
+}
+
+function stopBossMusic() {
+  if (
+    bossMusicTimer !== null
+  ) {
+    clearInterval(
+      bossMusicTimer
+    );
+
+    bossMusicTimer = null;
+  }
+}
 
 // ================================================================
 // LEVEL COMPLETION
 // ================================================================
 
-function checkLevelCompletion(){
-
-  let elapsed=
-    millis()-levelStartTime;
-
-  let bossRequired=
-    currentLevel===5||
-    currentLevel===10||
-    currentLevel===15||
-    currentLevel===20;
-
-  let timeDone=
-    elapsed>=levelDuration;
-
-  let scoreDone=
-    levelScore>=levelTargetScore;
-
-  let bossDone=
-    !bossRequired||
-    defeatedBossThisRun;
-
-  if(
-    timeDone&&
-    scoreDone&&
-    bossDone
-  )
-    completeLevel();
-
-}
-
-
-function completeLevel(){
-
-  if(currentLevel<TOTAL_LEVELS){
-
-    if(
-      currentLevel+1>
-      unlockedLevel
-    ){
-
-      unlockedLevel=
-        currentLevel+1;
-
-      saveProgress();
-
-    }
-
+function checkLevelCompletion() {
+  if (
+    gameState !==
+    "PLAYING"
+  ) {
+    return;
   }
 
-  gameState="LEVELUP";
+  const elapsed =
+    millis() -
+    levelStartTime;
+
+  const minimumTime =
+    min(
+      12000,
+      levelDuration
+    );
+
+  const scoreDone =
+    levelScore >=
+    levelTargetScore;
+
+  const timeReady =
+    elapsed >=
+    minimumTime;
+
+  const bossDone =
+    !isBossLevel() ||
+    !boss;
+
+  if (
+    scoreDone &&
+    timeReady &&
+    bossDone
+  ) {
+    completeLevel();
+  }
+
+  // Prevent a normal stage from getting stuck forever.
+  if (
+    elapsed >=
+      levelDuration &&
+    scoreDone &&
+    !isBossLevel()
+  ) {
+    completeLevel();
+  }
+}
+
+function completeLevel() {
+  if (
+    gameState !==
+    "PLAYING"
+  ) {
+    return;
+  }
+
+  stopBossMusic();
+
+  if (
+    currentLevel <
+    TOTAL_LEVELS
+  ) {
+    if (
+      currentLevel + 1 >
+      unlockedLevel
+    ) {
+      unlockedLevel =
+        currentLevel + 1;
+
+      saveGame();
+    }
+  }
+
+  levelCompleteAt =
+    millis();
 
   createCelebration();
 
   playLevelUpSound();
 
+  gameState = "LEVELUP";
 }
-
 
 // ================================================================
 // LEVEL COMPLETE
 // ================================================================
 
-function drawLevelComplete(){
+function drawLevelComplete() {
+  // IMPORTANT:
+  // Explicit CORNER mode fixes the old black-segment bug.
 
   push();
 
-  fill(0,0,15,205);
+  rectMode(CORNER);
 
-  rect(
-    0,0,
-    width,height
+  fill(
+    0,
+    0,
+    12,
+    220
   );
 
-  textAlign(CENTER,CENTER);
+  rect(
+    0,
+    0,
+    width,
+    height
+  );
 
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
+  fill(255, 220, 40);
   textStyle(BOLD);
-
-  drawingContext.shadowBlur=30;
-  drawingContext.shadowColor="#ffe600";
-
-  fill(255,225,40);
-
   textSize(
-    min(36,width*.09)
+    min(
+      35,
+      width * 0.085
+    )
   );
 
   text(
-    currentLevel===TOTAL_LEVELS
-      ?"CAMPAIGN COMPLETE!"
-      :"LEVEL "+
-       currentLevel+
-       " CLEARED!",
-    width/2,
-    height*.35
+    currentLevel ===
+      TOTAL_LEVELS
+      ? "CAMPAIGN COMPLETE!"
+      : "LEVEL " +
+          currentLevel +
+          " CLEARED!",
+    width / 2,
+    height * 0.34
   );
 
-  drawingContext.shadowBlur=0;
+  fill(0, 225, 255);
+  textSize(16);
 
-  if(currentLevel<TOTAL_LEVELS){
-
-    fill(0,225,255);
-    textSize(16);
-
+  if (
+    currentLevel <
+    TOTAL_LEVELS
+  ) {
     text(
       "NEW LEVEL UNLOCKED",
-      width/2,
-      height*.45
+      width / 2,
+      height * 0.45
     );
 
     fill(255);
-    textSize(21);
+    textSize(20);
 
     text(
-      "LEVEL "+
-      (currentLevel+1),
-      width/2,
-      height*.50
+      "LEVEL " +
+        (currentLevel + 1),
+      width / 2,
+      height * 0.51
     );
 
-    fill(255,220,60);
+    fill(255, 220, 50);
     textSize(15);
 
     text(
-      "★ "+
-      LEVEL_TITLES[currentLevel]+
-      " ★",
-      width/2,
-      height*.56
+      LEVEL_TITLES[
+        currentLevel
+      ],
+      width / 2,
+      height * 0.57
     );
-
-  }else{
-
+  } else {
     fill(255);
     textSize(18);
 
     text(
       "You conquered the Multiverse.",
-      width/2,
-      height*.5
+      width / 2,
+      height * 0.51
     );
-
   }
+
+  fill(255);
+  textStyle(NORMAL);
+  textSize(12);
+
+  text(
+    "Score: " + score,
+    width / 2,
+    height * 0.65
+  );
 
   pop();
 
-  if(
-    frameCount%60===0
-  ){
-
-    // Short delay is handled by a timer below.
-
+  if (
+    millis() -
+      levelCompleteAt >
+    3000
+  ) {
+    if (
+      currentLevel <
+      TOTAL_LEVELS
+    ) {
+      startLevel(
+        currentLevel + 1
+      );
+    } else {
+      gameState = "HOME";
+    }
   }
-
-  if(
-    !window._levelCompleteTimer
-  )
-    window._levelCompleteTimer=millis();
-
-  if(
-    millis()-
-    window._levelCompleteTimer>
-    3500
-  ){
-
-    window._levelCompleteTimer=null;
-
-    if(currentLevel<TOTAL_LEVELS)
-      startLevel(currentLevel+1);
-
-    else
-      gameState="HOME";
-
-  }
-
 }
-
 
 // ================================================================
 // GAME OVER
 // ================================================================
 
-function drawGameOver(){
-
+function drawGameOver() {
   push();
 
-  fill(0,0,0,205);
+  rectMode(CORNER);
 
-  rect(
-    0,0,
-    width,height
+  fill(
+    0,
+    0,
+    0,
+    215
   );
 
-  textAlign(CENTER,CENTER);
+  rect(
+    0,
+    0,
+    width,
+    height
+  );
 
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
+  fill(255, 70, 90);
   textStyle(BOLD);
-
-  fill(255,60,80);
-
-  textSize(38);
+  textSize(37);
 
   text(
     "MISSION LOST",
-    width/2,
-    height*.30
+    width / 2,
+    height * 0.30
   );
 
   fill(255);
-  textSize(18);
+  textSize(17);
 
   text(
-    "LEVEL "+
-    currentLevel,
-    width/2,
-    height*.39
+    "LEVEL " +
+      currentLevel,
+    width / 2,
+    height * 0.39
   );
 
-  fill(255,220,50);
+  fill(255, 220, 50);
   textSize(14);
 
   text(
-    currentTitle,
-    width/2,
-    height*.44
+    LEVEL_TITLES[
+      currentLevel - 1
+    ],
+    width / 2,
+    height * 0.44
   );
 
   drawActionButton(
-    "↻ RETRY LEVEL "+
-    currentLevel,
-    height*.56
+    "RETRY LEVEL " +
+      currentLevel,
+    height * 0.56
   );
 
   drawActionButton(
-    "🏠 HOME",
-    height*.66
+    "HOME",
+    height * 0.66
   );
 
   pop();
-
 }
-
 
 // ================================================================
 // PAUSE
 // ================================================================
 
-function pauseGame(){
+function pauseGame() {
+  if (
+    gameState ===
+    "PLAYING"
+  ) {
+    pauseStarted =
+      millis();
 
-  if(gameState==="PLAYING"){
+    stopBossMusic();
 
-    gameState="PAUSED";
-    pauseStartTime=millis();
+    gameState = "PAUSED";
+  }
+}
 
+function resumeGame() {
+  if (
+    gameState !==
+    "PAUSED"
+  ) {
+    return;
   }
 
+  const pausedFor =
+    millis() -
+    pauseStarted;
+
+  levelStartTime +=
+    pausedFor;
+
+  lastEnemySpawn +=
+    pausedFor;
+
+  lastPowerSpawn +=
+    pausedFor;
+
+  lastShot +=
+    pausedFor;
+
+  ship.invincibleUntil +=
+    pausedFor;
+
+  shieldUntil +=
+    pausedFor;
+
+  rapidUntil +=
+    pausedFor;
+
+  multiUntil +=
+    pausedFor;
+
+  cryoUntil +=
+    pausedFor;
+
+  celestialUntil +=
+    pausedFor;
+
+  if (boss) {
+    boss.lastAttack +=
+      pausedFor;
+  }
+
+  gameState = "PLAYING";
+
+  if (boss) {
+    startBossMusic();
+  }
 }
 
+// ================================================================
+// PAUSE OVERLAY
+// ================================================================
 
-function resumeGame(){
-
-  if(gameState!=="PAUSED")
-    return;
-
-  let pausedFor=
-    millis()-pauseStartTime;
-
-  levelStartTime+=pausedFor;
-
-  multiShotEnd+=pausedFor;
-  shieldEnd+=pausedFor;
-  titanEnd+=pausedFor;
-  twinEnd+=pausedFor;
-  trinityEnd+=pausedFor;
-  phantomEnd+=pausedFor;
-  berserkerEnd+=pausedFor;
-  cryoEnd+=pausedFor;
-  celestialEnd+=pausedFor;
-
-  if(currentGalaxy!==0)
-    galaxyEndTime+=pausedFor;
-
-  lastMeteorTime+=pausedFor;
-  lastPowerTime+=pausedFor;
-  lastShotTime+=pausedFor;
-
-  if(boss)
-    boss.lastAttack+=pausedFor;
-
-  gameState="PLAYING";
-
-}
-
-
-function drawFrozenGame(){
-
-  ship.display();
-
-  for(let m of meteors)
-    m.display();
-
-  for(let b of bullets)
-    b.display();
-
-  for(let p of powerUps)
-    p.display();
-
-  for(let w of enemyWaves)
-    w.display();
-
-  if(portal)
-    portal.display();
-
-  if(boss)
-    boss.display();
-
-  drawHUD();
-
-}
-
-
-function drawPauseOverlay(){
-
+function drawPauseOverlay() {
   push();
 
-  fill(0,0,0,195);
+  rectMode(CORNER);
 
-  rect(
-    0,0,
-    width,height
+  fill(
+    0,
+    0,
+    0,
+    210
   );
 
-  textAlign(CENTER,CENTER);
+  rect(
+    0,
+    0,
+    width,
+    height
+  );
+
+  textAlign(
+    CENTER,
+    CENTER
+  );
 
   fill(255);
   textStyle(BOLD);
@@ -3419,59 +3510,58 @@ function drawPauseOverlay(){
 
   text(
     "PAUSED",
-    width/2,
-    height*.34
+    width / 2,
+    height * 0.34
   );
 
-  fill(0,220,255);
+  fill(0, 220, 255);
   textSize(14);
 
   text(
-    "LEVEL "+
-    currentLevel+
-    " • "+
-    currentTitle,
-    width/2,
-    height*.40
+    "LEVEL " +
+      currentLevel +
+      " • " +
+      LEVEL_TITLES[
+        currentLevel - 1
+      ],
+    width / 2,
+    height * 0.41
   );
 
   drawActionButton(
-    "▶ RESUME",
-    height*.54
+    "RESUME",
+    height * 0.54
   );
 
   drawActionButton(
-    "🏠 HOME",
-    height*.64
+    "HOME",
+    height * 0.64
   );
 
   pop();
-
 }
 
-
-// ================================================================
-// BUTTON
-// ================================================================
-
-function drawActionButton(label,y){
-
-  let w=min(
-    270,
-    width*.72
+function drawActionButton(
+  label,
+  y
+) {
+  const w = min(
+    280,
+    width * 0.74
   );
 
   rectMode(CENTER);
 
-  stroke(0,210,255);
+  stroke(0, 210, 255);
   strokeWeight(2);
 
-  fill(5,25,45);
+  fill(5, 25, 45);
 
   rect(
-    width/2,
+    width / 2,
     y,
-    w,50,
+    w,
+    50,
     13
   );
 
@@ -3479,389 +3569,565 @@ function drawActionButton(label,y){
 
   fill(255);
 
-  textAlign(CENTER,CENTER);
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
   textStyle(BOLD);
   textSize(15);
 
   text(
     label,
-    width/2,
+    width / 2,
     y
   );
-
 }
 
+// ================================================================
+// FROZEN WORLD
+// ================================================================
+
+function drawFrozenWorld() {
+  push();
+
+  drawWorldObjects();
+
+  pop();
+}
+
+function drawWorldObjects() {
+  drawBullets();
+  drawAliens();
+  drawEnemyShots();
+  drawPowerUps();
+
+  if (boss) {
+    drawBoss();
+  }
+
+  ship.draw();
+
+  drawParticles();
+}
+
+// ================================================================
+// GAME LOOP
+// ================================================================
+
+function runGame() {
+  detectGameplayControls();
+  movePlayer();
+
+  updateBullets();
+  updateAliens();
+  updateEnemyShots();
+  updatePowerUps();
+
+  enemyAttackUpdate();
+
+  startBossIfNeeded();
+
+  if (boss) {
+    updateBoss();
+  }
+
+  bulletAlienCollisions();
+  playerAlienCollision();
+  enemyShotCollision();
+  powerCollision();
+
+  spawnAliens();
+  spawnPowerUps();
+
+  updateParticles();
+
+  checkLevelCompletion();
+
+  // Screen shake only affects game world.
+  push();
+
+  if (
+    millis() <
+    shakeUntil
+  ) {
+    translate(
+      random(
+        -shakePower,
+        shakePower
+      ),
+      random(
+        -shakePower,
+        shakePower
+      )
+    );
+  }
+
+  drawWorldObjects();
+
+  pop();
+
+  drawHUD();
+
+  drawControls();
+}
 
 // ================================================================
 // HUD
 // ================================================================
 
-function drawHUD(){
-
+function drawHUD() {
   push();
 
   textStyle(BOLD);
 
+  // Score
   fill(255);
-  textSize(14);
-
-  textAlign(LEFT,TOP);
-
-  text(
-    "SCORE "+
-    score,
-    14,12
-  );
-
-  textAlign(RIGHT,TOP);
+  textAlign(LEFT, TOP);
+  textSize(15);
 
   text(
-    "♥ "+
-    lives,
-    width-14,12
+    "SCORE " + score,
+    14,
+    12
   );
 
-  textAlign(CENTER,TOP);
+  // Lives
+  textAlign(RIGHT, TOP);
 
-  fill(0,225,255);
+  fill(255);
+  textSize(15);
 
   text(
-    "LEVEL "+
-    currentLevel,
-    width/2,12
+    "LIVES " + lives,
+    width - 14,
+    12
   );
 
-  fill(255,220,50);
+  // Level
+  textAlign(
+    CENTER,
+    TOP
+  );
 
-  textSize(10);
+  fill(0, 225, 255);
+  textSize(15);
 
   text(
-    currentTitle,
-    width/2,31
+    "LEVEL " +
+      currentLevel,
+    width / 2,
+    11
   );
 
-  let w=min(
-    220,
-    width*.55
+  fill(255, 220, 50);
+  textSize(11);
+
+  text(
+    LEVEL_TITLES[
+      currentLevel - 1
+    ],
+    width / 2,
+    32
   );
 
-  let x=
-    width/2-w/2;
+  // Progress bars in CENTER.
+  const w = min(
+    260,
+    width * 0.62
+  );
 
-  let y=52;
+  const x =
+    width / 2 -
+    w / 2;
 
-  let elapsed=
-    millis()-levelStartTime;
+  const y = 55;
 
-  let timeRatio=
+  const elapsed =
+    millis() -
+    levelStartTime;
+
+  const timeRatio =
     constrain(
-      elapsed/levelDuration,
-      0,1
+      elapsed /
+        levelDuration,
+      0,
+      1
     );
 
-  let scoreRatio=
+  const scoreRatio =
     constrain(
-      levelScore/levelTargetScore,
-      0,1
+      levelScore /
+        levelTargetScore,
+      0,
+      1
     );
+
+  // Survival
+  textAlign(LEFT, CENTER);
+
+  fill(190);
+  textStyle(NORMAL);
+  textSize(9);
+
+  text(
+    "SURVIVAL",
+    x,
+    y + 4
+  );
+
+  const barX =
+    x + 58;
+
+  const barW =
+    w - 58;
+
+  rectMode(CORNER);
 
   noStroke();
 
-  fill(255,255,255,35);
-
-  rect(
-    x,y,w,7,4
+  fill(
+    255,
+    255,
+    255,
+    35
   );
 
-  fill(0,220,255);
-
   rect(
-    x,y,w*timeRatio,7,4
+    barX,
+    y,
+    barW,
+    7,
+    4
   );
 
-  fill(255,255,255,35);
+  fill(0, 220, 255);
 
   rect(
-    x,y+11,w,5,3
+    barX,
+    y,
+    barW * timeRatio,
+    7,
+    4
   );
 
-  fill(255,220,40);
-
-  rect(
-    x,y+11,w*scoreRatio,5,3
-  );
-
-  fill(180);
-
-  textSize(8);
+  // Mission
+  fill(190);
+  textSize(9);
 
   text(
-    "SURVIVAL  •  SCORE",
-    width/2,
-    y+20
+    "MISSION",
+    x,
+    y + 18
   );
 
-  drawTopControlButton(
+  fill(
+    255,
+    255,
+    255,
+    35
+  );
+
+  rect(
+    barX,
+    y + 14,
+    barW,
+    7,
+    4
+  );
+
+  fill(255, 215, 40);
+
+  rect(
+    barX,
+    y + 14,
+    barW * scoreRatio,
+    7,
+    4
+  );
+
+  // Target information
+  fill(170);
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
+  textSize(9);
+
+  text(
+    levelScore +
+      " / " +
+      levelTargetScore,
+    width / 2,
+    y + 34
+  );
+
+  // Controls at top.
+  drawTopControl(
     pauseButton.x,
     pauseButton.y,
-    "Ⅱ"
+    "II"
   );
 
-  drawTopControlButton(
+  drawTopControl(
     homeButton.x,
     homeButton.y,
-    "⌂"
+    "H"
   );
 
   pop();
-
 }
 
-
-function drawTopControlButton(x,y,label){
-
+function drawTopControl(
+  x,
+  y,
+  label
+) {
   push();
 
-  drawingContext.shadowBlur=12;
-  drawingContext.shadowColor="#00ccff";
+  circleModeSafe();
 
-  stroke(0,210,255,180);
+  stroke(
+    0,
+    210,
+    255,
+    170
+  );
+
   strokeWeight(2);
 
-  fill(5,25,45,220);
+  fill(
+    5,
+    25,
+    45,
+    225
+  );
 
   circle(
-    x,y,42
+    x,
+    y,
+    42
   );
 
   noStroke();
 
   fill(255);
 
-  textAlign(CENTER,CENTER);
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
   textStyle(BOLD);
-  textSize(18);
+  textSize(14);
 
   text(
     label,
-    x,y-1
+    x,
+    y
   );
 
-  drawingContext.shadowBlur=0;
-
   pop();
-
 }
 
+function circleModeSafe() {
+  // Kept intentionally empty.
+  // Circle drawing uses p5's normal center mode.
+}
 
 // ================================================================
-// CONTROLS
+// GAMEPLAY CONTROLS
 // ================================================================
 
-function resetControls(){
-
-  let moveX=
+function resetControls() {
+  const moveX =
     controlsSwapped
-      ?width-90
-      :90;
+      ? width - 90
+      : 90;
 
-  let fireX=
+  const fireX =
     controlsSwapped
-      ?90
-      :width-90;
+      ? 90
+      : width - 90;
 
-  joystick.baseX=moveX;
-  joystick.baseY=height-100;
+  joystick.baseX =
+    moveX;
 
-  joystick.knobX=moveX;
-  joystick.knobY=height-100;
+  joystick.baseY =
+    height - 100;
 
-  joystick.active=false;
+  joystick.knobX =
+    moveX;
 
-  fireButton.x=fireX;
-  fireButton.y=height-100;
+  joystick.knobY =
+    height - 100;
 
-  pauseButton.x=38;
-  pauseButton.y=92;
+  joystick.active = false;
 
-  homeButton.x=width-38;
-  homeButton.y=92;
+  fireButton.x =
+    fireX;
 
+  fireButton.y =
+    height - 100;
+
+  pauseButton.x = 38;
+  pauseButton.y = 92;
+
+  homeButton.x =
+    width - 38;
+
+  homeButton.y = 92;
 }
 
+function detectGameplayControls() {
+  if (
+    gameState !==
+    "PLAYING"
+  ) {
+    return;
+  }
 
-function resetJoystickOnly(){
+  let moveTouch = null;
+  let firing = false;
 
-  joystick.active=false;
-
-  let x=
-    controlsSwapped
-      ?width-90
-      :90;
-
-  joystick.baseX=x;
-  joystick.baseY=height-100;
-
-  joystick.knobX=x;
-  joystick.knobY=height-100;
-
-}
-
-
-function detectControls(){
-
-  let moveTouch=null;
-  let firing=false;
-
-  for(let t of touches){
-
-    if(
+  for (const t of touches) {
+    if (
       dist(
-        t.x,t.y,
+        t.x,
+        t.y,
         fireButton.x,
         fireButton.y
-      )<
-      fireButton.radius+30
-    ){
-
-      firing=true;
+      ) <
+      fireButton.radius + 20
+    ) {
+      firing = true;
       continue;
-
     }
 
-    let movementSide=
+    const movementSide =
       controlsSwapped
-        ?t.x>width*.45
-        :t.x<width*.55;
+        ? t.x > width * 0.45
+        : t.x < width * 0.55;
 
-    if(
-      movementSide&&
-      t.y>height*.45
-    )
-      moveTouch=t;
-
+    if (
+      movementSide &&
+      t.y > height * 0.40
+    ) {
+      moveTouch = t;
+    }
   }
 
-  if(firing)
+  if (firing) {
     shoot();
+  }
 
-  if(moveTouch){
+  if (moveTouch) {
+    if (
+      !joystick.active
+    ) {
+      joystick.active = true;
 
-    if(!joystick.active){
+      joystick.baseX =
+        moveTouch.x;
 
-      joystick.active=true;
-      joystick.baseX=moveTouch.x;
-      joystick.baseY=moveTouch.y;
-
+      joystick.baseY =
+        moveTouch.y;
     }
 
-    let dx=
-      moveTouch.x-
+    let dx =
+      moveTouch.x -
       joystick.baseX;
 
-    let dy=
-      moveTouch.y-
+    let dy =
+      moveTouch.y -
       joystick.baseY;
 
-    let d=
-      sqrt(dx*dx+dy*dy);
+    const d =
+      sqrt(
+        dx * dx +
+        dy * dy
+      );
 
-    if(d>joystick.radius){
+    if (
+      d >
+      joystick.radius
+    ) {
+      const a =
+        atan2(
+          dy,
+          dx
+        );
 
-      let a=atan2(dy,dx);
-
-      dx=
-        cos(a)*
+      dx =
+        cos(a) *
         joystick.radius;
 
-      dy=
-        sin(a)*
+      dy =
+        sin(a) *
         joystick.radius;
-
     }
 
-    joystick.knobX=
-      joystick.baseX+dx;
+    joystick.knobX =
+      joystick.baseX +
+      dx;
 
-    joystick.knobY=
-      joystick.baseY+dy;
-
-  }else{
-
-    resetJoystickOnly();
-
+    joystick.knobY =
+      joystick.baseY +
+      dy;
+  } else {
+    resetJoystick();
   }
-
 }
 
+function resetJoystick() {
+  joystick.active = false;
 
-function moveShip(){
+  const x =
+    controlsSwapped
+      ? width - 90
+      : 90;
 
-  if(!joystick.active)
-    return;
+  joystick.baseX = x;
+  joystick.baseY =
+    height - 100;
 
-  let dx=
-    joystick.knobX-
-    joystick.baseX;
-
-  let dy=
-    joystick.knobY-
-    joystick.baseY;
-
-  let mag=
-    sqrt(dx*dx+dy*dy);
-
-  if(mag<4)
-    return;
-
-  let a=
-    atan2(dy,dx);
-
-  ship.angle=a;
-
-  let strength=
-    constrain(
-      mag/joystick.radius,
-      0,1
-    );
-
-  let speed=ship.speed;
-
-  if(getTransformation()==="PHANTOM")
-    speed*=1.3;
-
-  if(getTransformation()==="CELESTIAL")
-    speed*=1.2;
-
-  ship.x+=
-    cos(a)*
-    speed*
-    strength;
-
-  ship.y+=
-    sin(a)*
-    speed*
-    strength;
-
+  joystick.knobX = x;
+  joystick.knobY =
+    height - 100;
 }
 
-
-function drawControls(){
-
+function drawControls() {
   push();
 
-  stroke(0,220,255,120);
+  stroke(
+    0,
+    220,
+    255,
+    120
+  );
+
   strokeWeight(2);
 
-  fill(0,150,255,25);
+  fill(
+    0,
+    150,
+    255,
+    25
+  );
 
   circle(
     joystick.baseX,
     joystick.baseY,
-    joystick.radius*2
+    joystick.radius * 2
   );
 
-  fill(0,220,255,100);
+  fill(
+    0,
+    220,
+    255,
+    100
+  );
 
   circle(
     joystick.knobX,
@@ -3869,24 +4135,34 @@ function drawControls(){
     52
   );
 
-  drawingContext.shadowBlur=18;
-  drawingContext.shadowColor="#ff304f";
+  stroke(
+    255,
+    70,
+    90
+  );
 
-  stroke(255,70,90);
-
-  fill(255,30,60,55);
+  fill(
+    255,
+    30,
+    60,
+    55
+  );
 
   circle(
     fireButton.x,
     fireButton.y,
-    fireButton.radius*2
+    fireButton.radius * 2
   );
 
   noStroke();
 
   fill(255);
 
-  textAlign(CENTER,CENTER);
+  textAlign(
+    CENTER,
+    CENTER
+  );
+
   textStyle(BOLD);
   textSize(15);
 
@@ -3896,57 +4172,82 @@ function drawControls(){
     fireButton.y
   );
 
-  drawingContext.shadowBlur=0;
-
   pop();
-
 }
 
+// ================================================================
+// SCREEN SHAKE
+// ================================================================
+
+function screenShake(
+  power,
+  duration
+) {
+  shakePower =
+    max(
+      shakePower,
+      power
+    );
+
+  shakeUntil =
+    max(
+      shakeUntil,
+      millis() + duration
+    );
+}
 
 // ================================================================
 // PARTICLES
 // ================================================================
 
-class Particle{
+class Particle {
+  constructor(
+    x,
+    y,
+    particleColor = null
+  ) {
+    this.x = x;
+    this.y = y;
 
-  constructor(x,y,tint=null){
+    const angle =
+      random(TWO_PI);
 
-    this.x=x;
-    this.y=y;
+    const speed =
+      random(1, 7);
 
-    let a=random(TWO_PI);
-    let s=random(1,7);
+    this.vx =
+      cos(angle) *
+      speed;
 
-    this.vx=cos(a)*s;
-    this.vy=sin(a)*s;
+    this.vy =
+      sin(angle) *
+      speed;
 
-    this.life=255;
-    this.size=random(2,7);
-    this.tint=tint;
+    this.life = 255;
 
+    this.size =
+      random(2, 7);
+
+    this.color =
+      particleColor;
   }
 
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
 
-  update(){
+    this.vx *= 0.97;
+    this.vy *= 0.97;
 
-    this.x+=this.vx;
-    this.y+=this.vy;
-
-    this.vx*=.97;
-    this.vy*=.97;
-
-    this.life-=7;
-
+    this.life -= 7;
   }
 
-
-  display(){
-
+  draw() {
     noStroke();
 
-    if(this.tint){
-
-      let c=color(this.tint);
+    if (this.color) {
+      const c =
+        color(this.color);
 
       fill(
         red(c),
@@ -3954,16 +4255,13 @@ class Particle{
         blue(c),
         this.life
       );
-
-    }else{
-
+    } else {
       fill(
         255,
-        120,
-        30,
+        140,
+        40,
         this.life
       );
-
     }
 
     circle(
@@ -3971,40 +4269,65 @@ class Particle{
       this.y,
       this.size
     );
-
   }
-
 }
 
-
-function createExplosion(x,y,count,type=null){
-
-  let tint=null;
-
-  if(
-    type&&
-    POWER_TYPES.includes(type)
-  )
-    tint=powerColor(type).c;
-
-  for(let i=0;i<count;i++)
+function createExplosion(
+  x,
+  y,
+  amount,
+  particleColor = null
+) {
+  for (
+    let i = 0;
+    i < amount;
+    i++
+  ) {
     particles.push(
       new Particle(
-        x,y,tint
+        x,
+        y,
+        particleColor
       )
     );
-
+  }
 }
 
+function updateParticles() {
+  for (
+    let i = particles.length - 1;
+    i >= 0;
+    i--
+  ) {
+    particles[i].update();
 
-function createCelebration(){
+    if (
+      particles[i].life <= 0
+    ) {
+      particles.splice(i, 1);
+    }
+  }
+}
 
-  for(let i=0;i<80;i++){
+function drawParticles() {
+  for (const p of particles) {
+    p.draw();
+  }
+}
 
+function createCelebration() {
+  for (
+    let i = 0;
+    i < 100;
+    i++
+  ) {
     particles.push(
       new Particle(
         random(width),
-        random(height*.4,height),
+        random(
+          height * 0.25,
+          height
+        ),
         random([
           "#ffe600",
           "#00ddff",
@@ -4013,231 +4336,200 @@ function createCelebration(){
         ])
       )
     );
-
   }
-
 }
-
-
-function updateParticles(){
-
-  for(
-    let i=particles.length-1;
-    i>=0;
-    i--
-  ){
-
-    particles[i].update();
-    particles[i].display();
-
-    if(particles[i].life<=0)
-      particles.splice(i,1);
-
-  }
-
-}
-
-
-// ================================================================
-// RESET POWERS
-// ================================================================
-
-function resetPowerTimers(){
-
-  multiShotEnd=0;
-  shieldEnd=0;
-  titanEnd=0;
-
-  twinEnd=0;
-  trinityEnd=0;
-
-  phantomEnd=0;
-  berserkerEnd=0;
-  cryoEnd=0;
-  celestialEnd=0;
-
-  novaWave=null;
-
-}
-
 
 // ================================================================
 // AUDIO
 // ================================================================
 
-function initAudio(){
-
-  if(!audioCtx){
-
-    let AC=
-      window.AudioContext||
+function initAudio() {
+  if (!audioCtx) {
+    const AudioContextClass =
+      window.AudioContext ||
       window.webkitAudioContext;
 
-    if(AC)
-      audioCtx=new AC();
-
+    if (
+      AudioContextClass
+    ) {
+      audioCtx =
+        new AudioContextClass();
+    }
   }
 
-  if(
-    audioCtx&&
-    audioCtx.state==="suspended"
-  )
+  if (
+    audioCtx &&
+    audioCtx.state ===
+      "suspended"
+  ) {
     audioCtx.resume();
-
+  }
 }
-
 
 function playTone(
-  startFreq,
-  endFreq,
+  startFrequency,
+  endFrequency,
   duration,
-  type="sine",
-  volume=.04
-){
-
-  if(
-    !soundEnabled||
+  oscillatorType = "sine",
+  volume = 0.04
+) {
+  if (
+    !soundEnabled ||
     !audioCtx
-  )
+  ) {
     return;
+  }
 
-  let osc=
-    audioCtx.createOscillator();
+  try {
+    const oscillator =
+      audioCtx.createOscillator();
 
-  let gain=
-    audioCtx.createGain();
+    const gain =
+      audioCtx.createGain();
 
-  osc.type=type;
+    oscillator.type =
+      oscillatorType;
 
-  osc.frequency.setValueAtTime(
-    max(1,startFreq),
-    audioCtx.currentTime
-  );
+    oscillator.frequency.setValueAtTime(
+      max(
+        1,
+        startFrequency
+      ),
+      audioCtx.currentTime
+    );
 
-  osc.frequency.exponentialRampToValueAtTime(
-    max(1,endFreq),
-    audioCtx.currentTime+duration
-  );
+    oscillator.frequency.exponentialRampToValueAtTime(
+      max(
+        1,
+        endFrequency
+      ),
+      audioCtx.currentTime +
+        duration
+    );
 
-  gain.gain.setValueAtTime(
-    volume,
-    audioCtx.currentTime
-  );
+    gain.gain.setValueAtTime(
+      volume,
+      audioCtx.currentTime
+    );
 
-  gain.gain.exponentialRampToValueAtTime(
-    .001,
-    audioCtx.currentTime+duration
-  );
+    gain.gain.exponentialRampToValueAtTime(
+      0.001,
+      audioCtx.currentTime +
+        duration
+    );
 
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
+    oscillator.connect(gain);
+    gain.connect(
+      audioCtx.destination
+    );
 
-  osc.start();
+    oscillator.start();
 
-  osc.stop(
-    audioCtx.currentTime+
-    duration
-  );
-
+    oscillator.stop(
+      audioCtx.currentTime +
+        duration
+    );
+  } catch (err) {
+    // Audio errors must never stop gameplay.
+  }
 }
 
-
-function powerSound(type){
-
-  let tones={
-
-    MULTI:[500,1300,"square"],
-    SHIELD:[180,800,"sine"],
-    TITAN:[80,500,"sawtooth"],
-    TWIN:[300,850,"sine"],
-    TRINITY:[350,1200,"sine"],
-    NOVA:[70,1200,"sawtooth"],
-    PHANTOM:[220,1100,"triangle"],
-    BERSERKER:[55,620,"sawtooth"],
-    CRYO:[1400,260,"sine"],
-    CELESTIAL:[300,1800,"sine"]
-
+function powerSound(type) {
+  const sounds = {
+    SHIELD: [180, 850, "sine"],
+    MULTI: [400, 1100, "square"],
+    RAPID: [600, 1500, "triangle"],
+    CRYO: [1200, 240, "sine"],
+    NOVA: [70, 1200, "sawtooth"],
+    CELESTIAL: [300, 1800, "sine"]
   };
 
-  let t=tones[type];
+  const sound =
+    sounds[type];
 
-  if(!t)
-    return;
+  if (!sound) return;
 
   playTone(
-    t[0],
-    t[1],
-    .45,
-    t[2],
-    .055
+    sound[0],
+    sound[1],
+    0.4,
+    sound[2],
+    0.045
   );
-
 }
 
-
-function playLevelUpSound(){
-
+function explosionSound() {
   playTone(
-    400,
-    600,
-    .18,
+    150,
+    45,
+    0.16,
+    "sawtooth",
+    0.035
+  );
+}
+
+function playLevelUpSound() {
+  playTone(
+    420,
+    620,
+    0.18,
     "sine",
-    .05
+    0.045
   );
 
   setTimeout(
-    ()=>{
+    function () {
       playTone(
-        600,
-        850,
-        .18,
+        620,
+        900,
+        0.18,
         "sine",
-        .05
+        0.045
       );
     },
-    170
+    180
   );
 
   setTimeout(
-    ()=>{
+    function () {
       playTone(
-        850,
-        1300,
-        .3,
+        900,
+        1350,
+        0.28,
         "sine",
-        .06
+        0.05
       );
     },
-    340
+    360
   );
-
 }
 
-
 // ================================================================
-// INPUT
+// TAP ROUTER
 // ================================================================
 
-function touchStarted(){
-
+function touchStarted() {
   initAudio();
 
+  const x =
+    touches.length > 0
+      ? touches[0].x
+      : mouseX;
+
+  const y =
+    touches.length > 0
+      ? touches[0].y
+      : mouseY;
+
   handleTap(
-    touches.length
-      ?touches[0].x
-      :mouseX,
-    touches.length
-      ?touches[0].y
-      :mouseY
+    x,
+    y
   );
 
   return false;
-
 }
 
-
-function mousePressed(){
-
+function mousePressed() {
   initAudio();
 
   handleTap(
@@ -4246,358 +4538,714 @@ function mousePressed(){
   );
 
   return false;
-
 }
 
-
-function handleTap(x,y){
-
-  if(gameState==="HOME"){
-
-    if(hitMenuY(y,height*.37)){
-      gameState="LEVELS";
+function handleTap(
+  x,
+  y
+) {
+  // HOME
+  if (
+    gameState ===
+    "HOME"
+  ) {
+    if (
+      hitY(
+        y,
+        height * 0.35
+      )
+    ) {
+      gameState = "LEVELS";
       return;
     }
 
-    if(hitMenuY(y,height*.47)){
-      gameState="ARCHIVE";
+    if (
+      hitY(
+        y,
+        height * 0.45
+      )
+    ) {
+      archiveScroll = 0;
+      archiveTargetScroll = 0;
+      gameState = "ARCHIVE";
       return;
     }
 
-    if(hitMenuY(y,height*.57)){
-      gameState="ABOUT";
+    if (
+      hitY(
+        y,
+        height * 0.55
+      )
+    ) {
+      gameState = "ABOUT";
       return;
     }
 
-    if(hitMenuY(y,height*.67)){
-      gameState="SETTINGS";
+    if (
+      hitY(
+        y,
+        height * 0.65
+      )
+    ) {
+      gameState = "SETTINGS";
       return;
     }
 
-    if(hitMenuY(y,height*.77)){
-
-      playTone(
-        500,
-        900,
-        .2,
-        "sine",
-        .04
-      );
-
+    if (
+      hitY(
+        y,
+        height * 0.75
+      )
+    ) {
+      selectedRating = 0;
+      gameState = "RATING";
       return;
-
     }
 
+    return;
   }
 
-
-  if(
-    gameState==="LEVELS"||
-    gameState==="ARCHIVE"||
-    gameState==="ABOUT"||
-    gameState==="SETTINGS"
-  ){
-
-    if(
-      abs(
-        y-(height-50)
-      )<30
-    ){
-
-      gameState="HOME";
+  // LEVELS
+  if (
+    gameState ===
+    "LEVELS"
+  ) {
+    if (
+      y >
+        height - 90
+    ) {
+      gameState = "HOME";
       return;
-
     }
 
-  }
+    const cols = 4;
+    const gap = 10;
 
-
-  if(gameState==="LEVELS"){
-
-    let cols=4;
-    let gap=10;
-
-    let size=min(
-      68,
-      (width-50)/cols
+    const size = min(
+      65,
+      (width - 48) / cols
     );
 
-    let totalWidth=
-      cols*size+
-      (cols-1)*gap;
+    const totalWidth =
+      cols * size +
+      (cols - 1) * gap;
 
-    let startX=
-      width/2-totalWidth/2+
-      size/2;
+    const startX =
+      width / 2 -
+      totalWidth / 2 +
+      size / 2;
 
-    let startY=165;
+    const startY = 165;
 
-    for(let i=1;i<=TOTAL_LEVELS;i++){
-
-      let col=(i-1)%cols;
-      let row=floor((i-1)/cols);
-
-      let bx=
-        startX+
-        col*(size+gap);
-
-      let by=
-        startY+
-        row*(size+17);
-
-      if(
-        abs(x-bx)<size/2&&
-        abs(y-by)<size/2
-      ){
-
-        if(i<=unlockedLevel)
-          startLevel(i);
-
-        else
-          playTone(
-            150,
-            90,
-            .15,
-            "square",
-            .03
-          );
-
-        return;
-
-      }
-
-    }
-
-  }
-
-
-  if(gameState==="ARCHIVE"){
-
-    let cardW=min(
-      160,
-      width*.43
-    );
-
-    let cardH=105;
-    let gapX=14;
-    let gapY=12;
-
-    for(
-      let i=0;
-      i<SHIP_ARCHIVE.length;
+    for (
+      let i = 1;
+      i <= TOTAL_LEVELS;
       i++
-    ){
+    ) {
+      const col =
+        (i - 1) % cols;
 
-      let col=i%2;
-      let row=floor(i/2);
-
-      let bx=
-        width/2+
-        (
-          col===0
-            ?-(cardW/2+gapX/2)
-            :(cardW/2+gapX/2)
+      const row =
+        floor(
+          (i - 1) / cols
         );
 
-      let by=
-        130+
-        row*(cardH+gapY);
+      const bx =
+        startX +
+        col *
+          (size + gap);
 
-      if(
-        abs(x-bx)<cardW/2&&
-        abs(y-by)<cardH/2
-      ){
+      const by =
+        startY +
+        row *
+          (size + 17);
 
-        if(
-          unlockedLevel>=
-          SHIP_ARCHIVE[i].unlock
-        ){
-
-          selectedShip=i;
-
-          saveProgress();
-
+      if (
+        abs(x - bx) <
+          size / 2 &&
+        abs(y - by) <
+          size / 2
+      ) {
+        if (
+          i <=
+          unlockedLevel
+        ) {
+          startLevel(i);
+        } else {
+          playTone(
+            140,
+            80,
+            0.12,
+            "square",
+            0.025
+          );
         }
 
         return;
-
       }
-
     }
 
+    return;
   }
 
+  // ARCHIVE
+  if (
+    gameState ===
+    "ARCHIVE"
+  ) {
+    if (
+      y >
+        height - 90
+    ) {
+      gameState = "HOME";
+      return;
+    }
 
-  if(gameState==="SETTINGS"){
+    // Do not select while dragging.
+    if (
+      archiveMoved
+    ) {
+      return;
+    }
 
-    if(
+    const cardW = min(
+      330,
+      width * 0.84
+    );
+
+    const cardH =
+      archiveCardHeight();
+
+    const contentY =
+      y +
+      archiveScroll -
+      100;
+
+    const index =
+      floor(
+        (contentY - 75) /
+          cardH
+      );
+
+    if (
+      index >= 0 &&
+      index < SHIPS.length
+    ) {
+      const cardCenterY =
+        100 -
+        archiveScroll +
+        75 +
+        index * cardH;
+
+      if (
+        abs(
+          y -
+            cardCenterY
+        ) <
+        (cardH - 10) / 2 &&
+        abs(
+          x -
+            width / 2
+        ) <
+        cardW / 2
+      ) {
+        if (
+          unlockedLevel >=
+          SHIPS[index].unlock
+        ) {
+          selectedShip =
+            index;
+
+          saveGame();
+
+          playTone(
+            300,
+            900,
+            0.22,
+            "sine",
+            0.035
+          );
+        }
+
+        return;
+      }
+    }
+
+    return;
+  }
+
+  // ABOUT
+  if (
+    gameState ===
+    "ABOUT"
+  ) {
+    if (
+      y >
+        height - 90
+    ) {
+      gameState = "HOME";
+      return;
+    }
+
+    return;
+  }
+
+  // SETTINGS
+  if (
+    gameState ===
+    "SETTINGS"
+  ) {
+    if (
+      y >
+        height - 90
+    ) {
+      gameState = "HOME";
+      return;
+    }
+
+    if (
       abs(
-        y-height*.37
-      )<45
-    ){
-
-      controlsSwapped=
+        y -
+          height * 0.36
+      ) < 45
+    ) {
+      controlsSwapped =
         !controlsSwapped;
 
       resetControls();
-      saveProgress();
+      saveGame();
+
+      playTone(
+        300,
+        700,
+        0.18,
+        "sine",
+        0.035
+      );
 
       return;
-
     }
 
-    if(
+    if (
       abs(
-        y-height*.53
-      )<45
-    ){
-
-      soundEnabled=
+        y -
+          height * 0.52
+      ) < 45
+    ) {
+      soundEnabled =
         !soundEnabled;
 
-      saveProgress();
+      saveGame();
 
-      if(soundEnabled)
+      if (
+        soundEnabled
+      ) {
+        initAudio();
+
         playTone(
           400,
           800,
-          .2,
+          0.2,
           "sine",
-          .05
+          0.04
+        );
+      } else {
+        stopBossMusic();
+      }
+
+      return;
+    }
+
+    return;
+  }
+
+  // RATING
+  if (
+    gameState ===
+    "RATING"
+  ) {
+    const gap = min(
+      48,
+      width * 0.12
+    );
+
+    for (
+      let i = 1;
+      i <= 5;
+      i++
+    ) {
+      const sx =
+        width / 2 +
+        (i - 3) * gap;
+
+      if (
+        dist(
+          x,
+          y,
+          sx,
+          height * 0.48
+        ) <
+        28
+      ) {
+        selectedRating =
+          i;
+
+        return;
+      }
+    }
+
+    if (
+      abs(
+        y -
+          height * 0.67
+      ) < 30
+    ) {
+      if (
+        selectedRating >
+        0
+      ) {
+        saveRating(
+          selectedRating
         );
 
-      return;
+        gameState = "HOME";
 
+        playTone(
+          500,
+          1000,
+          0.25,
+          "sine",
+          0.04
+        );
+      }
+
+      return;
     }
 
+    if (
+      abs(
+        y -
+          height * 0.76
+      ) < 30
+    ) {
+      gameState = "HOME";
+      return;
+    }
+
+    return;
   }
 
-
-  if(gameState==="PLAYING"){
-
-    if(
+  // PLAYING
+  if (
+    gameState ===
+    "PLAYING"
+  ) {
+    if (
       dist(
-        x,y,
+        x,
+        y,
         pauseButton.x,
         pauseButton.y
-      )<32
-    ){
-
+      ) < 32
+    ) {
       pauseGame();
       return;
-
     }
 
-    if(
+    if (
       dist(
-        x,y,
+        x,
+        y,
         homeButton.x,
         homeButton.y
-      )<32
-    ){
+      ) < 32
+    ) {
+      stopBossMusic();
 
-      gameState="HOME";
-      resetJoystickOnly();
+      gameState =
+        "HOME";
+
+      resetJoystick();
+
       return;
-
     }
 
-    if(
+    if (
       dist(
-        x,y,
+        x,
+        y,
         fireButton.x,
         fireButton.y
-      )<
-      fireButton.radius+20
-    ){
-
+      ) <
+      fireButton.radius +
+        20
+    ) {
       shoot();
       return;
-
     }
 
+    return;
   }
 
-
-  if(gameState==="PAUSED"){
-
-    if(
+  // PAUSED
+  if (
+    gameState ===
+    "PAUSED"
+  ) {
+    if (
       abs(
-        y-height*.54
-      )<30
-    ){
-
+        y -
+          height * 0.54
+      ) < 30
+    ) {
       resumeGame();
       return;
-
     }
 
-    if(
+    if (
       abs(
-        y-height*.64
-      )<30
-    ){
+        y -
+          height * 0.64
+      ) < 30
+    ) {
+      stopBossMusic();
 
-      gameState="HOME";
+      gameState =
+        "HOME";
+
       return;
-
     }
 
+    return;
   }
 
-
-  if(gameState==="GAMEOVER"){
-
-    if(
+  // GAME OVER
+  if (
+    gameState ===
+    "GAMEOVER"
+  ) {
+    if (
       abs(
-        y-height*.56
-      )<30
-    ){
+        y -
+          height * 0.56
+      ) < 30
+    ) {
+      startLevel(
+        currentLevel
+      );
 
-      startLevel(currentLevel);
       return;
-
     }
 
-    if(
+    if (
       abs(
-        y-height*.66
-      )<30
-    ){
+        y -
+          height * 0.66
+      ) < 30
+    ) {
+      gameState =
+        "HOME";
 
-      gameState="HOME";
       return;
-
     }
+  }
+}
 
+function hitY(
+  y,
+  target
+) {
+  return (
+    abs(
+      y - target
+    ) < 30
+  );
+}
+
+// ================================================================
+// ARCHIVE TOUCH SCROLL
+// ================================================================
+
+function touchMoved() {
+  if (
+    gameState !==
+    "ARCHIVE"
+  ) {
+    return false;
   }
 
-}
+  if (
+    touches.length === 0
+  ) {
+    return false;
+  }
 
+  const currentY =
+    touches[0].y;
 
-function hitMenuY(y,target){
+  if (
+    !archiveDragging
+  ) {
+    archiveDragging =
+      true;
 
-  return abs(y-target)<30;
+    archiveStartY =
+      currentY;
 
-}
+    archiveStartScroll =
+      archiveScroll;
 
+    archiveMoved = false;
+  }
 
-function touchMoved(){
+  const delta =
+    archiveStartY -
+    currentY;
+
+  if (
+    abs(delta) > 8
+  ) {
+    archiveMoved =
+      true;
+  }
+
+  archiveTargetScroll =
+    constrain(
+      archiveStartScroll +
+        delta,
+      0,
+      archiveMaxScroll()
+    );
+
+  archiveScroll =
+    lerp(
+      archiveScroll,
+      archiveTargetScroll,
+      0.35
+    );
+
   return false;
 }
 
+function touchEnded() {
+  if (
+    gameState ===
+    "ARCHIVE"
+  ) {
+    archiveDragging =
+      false;
 
-function touchEnded(){
+    archiveScroll =
+      constrain(
+        archiveScroll,
+        0,
+        archiveMaxScroll()
+      );
+
+    archiveTargetScroll =
+      archiveScroll;
+
+    setTimeout(
+      function () {
+        archiveMoved =
+          false;
+      },
+      50
+    );
+  }
+
   return false;
 }
 
+// Mouse archive dragging.
+function mouseDragged() {
+  if (
+    gameState !==
+    "ARCHIVE"
+  ) {
+    return false;
+  }
+
+  if (
+    !archiveDragging
+  ) {
+    archiveDragging =
+      true;
+
+    archiveStartY =
+      mouseY;
+
+    archiveStartScroll =
+      archiveScroll;
+
+    archiveMoved = false;
+  }
+
+  const delta =
+    archiveStartY -
+    mouseY;
+
+  if (
+    abs(delta) > 8
+  ) {
+    archiveMoved =
+      true;
+  }
+
+  archiveTargetScroll =
+    constrain(
+      archiveStartScroll +
+        delta,
+      0,
+      archiveMaxScroll()
+    );
+
+  archiveScroll =
+    archiveTargetScroll;
+
+  return false;
+}
+
+function mouseReleased() {
+  if (
+    gameState ===
+    "ARCHIVE"
+  ) {
+    archiveDragging =
+      false;
+
+    setTimeout(
+      function () {
+        archiveMoved =
+          false;
+      },
+      50
+    );
+  }
+
+  return false;
+}
+
+// ================================================================
+// RATING SAVE
+// ================================================================
+
+function saveRating(rating) {
+  try {
+    localStorage.setItem(
+      "spaceDodgerRating",
+      String(rating)
+    );
+  } catch (err) {
+    // Ignore storage errors.
+  }
+}
 
 // ================================================================
 // RESIZE
 // ================================================================
 
-function windowResized(){
-
+function windowResized() {
   resizeCanvas(
     windowWidth,
     windowHeight
@@ -4606,4 +5254,33 @@ function windowResized(){
   createStars();
   resetControls();
 
+  archiveScroll =
+    constrain(
+      archiveScroll,
+      0,
+      archiveMaxScroll()
+    );
+
+  archiveTargetScroll =
+    archiveScroll;
+
+  if (ship) {
+    ship.x =
+      constrain(
+        ship.x,
+        20,
+        width - 20
+      );
+
+    ship.y =
+      constrain(
+        ship.y,
+        120,
+        height - 130
+      );
+  }
 }
+
+// ================================================================
+// END OF SPACE DODGER v4
+// ================================================================
