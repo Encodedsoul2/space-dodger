@@ -1,24 +1,28 @@
 // ================================================================
 // SPACE DODGER
-// COMPLETE sketch.js
-// FINAL FIXED BUILD
+// COMPLETE SINGLE FILE - MOBILE OPTIMIZED BUILD
 //
-// FIXES:
-// 1. FIRE / SHOOT SOUND RESTORED
-// 2. ARCHIVE HOME/BACK BUTTON FIXED
-// 3. ARCHIVE TOUCH SCROLL FIXED
-// 4. PLAIN GAMEPLAY TEXT - NO GLOW / NO SHADOW
-// 5. p5.js "key" CONFLICT REMOVED
+// IMPORTANT FIXES
+// ---------------------------------------------------------------
+// • ARCHIVE SWIPE SCROLL FIXED
+// • ARCHIVE SCROLLBAR THUMB IS DRAGGABLE
+// • ARCHIVE HOME BUTTON ALWAYS WORKS
+// • PAUSE / HOME MOVED BELOW PROGRESS BARS
+// • JOYSTICK / POWER / FIRE MOVED SLIGHTLY UP
+// • ALL GAMEPLAY TEXT IS PLAIN - NO GLOW / NO SHADOW
+// • FIRE SOUND RESTORED
+// • p5.js "key" CONFLICT REMOVED
+// • MOBILE TOUCH + MOUSE SUPPORT
 // ================================================================
 
 
 // ================================================================
-// GAME STATE
+// GLOBAL GAME STATE
 // ================================================================
 
 let gameState = "HOME";
 
-let player = null;
+let player;
 
 let bullets = [];
 let aliens = [];
@@ -29,6 +33,8 @@ let particles = [];
 let stars = [];
 
 let boss = null;
+let bossActive = false;
+let bossDefeated = false;
 
 let currentLevel = 1;
 let unlockedLevel = 1;
@@ -46,10 +52,9 @@ let lastAlienSpawn = 0;
 let lastPowerSpawn = 0;
 let lastShot = 0;
 
-let bossActive = false;
-let bossDefeated = false;
-
 let levelClearTime = 0;
+
+let powerReadyAt = 0;
 
 let soundOn = true;
 let swappedControls = false;
@@ -60,34 +65,46 @@ let shakeAmount = 0;
 
 let rating = 0;
 
-let safeBottom = 110;
+
+// ================================================================
+// MOBILE LAYOUT
+// ================================================================
+
+// This value deliberately keeps bottom controls above the
+// physical bottom area / navigation area of tall phones.
+
+let safeBottom = 170;
 
 
 // ================================================================
-// ARCHIVE
+// TOP BUTTONS
 // ================================================================
 
-let archiveScroll = 0;
-let archiveTargetScroll = 0;
+// IMPORTANT:
+// Earlier these were at y=52 and overlapped progress bars.
+// Now they sit BELOW the progress bars.
 
-let archiveTouching = false;
-let archiveDragging = false;
+let pauseButton = {
+  x: 38,
+  y: 94,
+  radius: 24
+};
 
-let archiveStartX = 0;
-let archiveStartY = 0;
-
-let archiveLastX = 0;
-let archiveLastY = 0;
+let homeButton = {
+  x: 0,
+  y: 94,
+  radius: 24
+};
 
 
 // ================================================================
-// CONTROLS
+// BOTTOM CONTROLS
 // ================================================================
 
 let joystick = {
-  baseX: 90,
+  baseX: 95,
   baseY: 0,
-  knobX: 90,
+  knobX: 95,
   knobY: 0,
   radius: 58,
   active: false
@@ -105,17 +122,23 @@ let powerButton = {
   radius: 43
 };
 
-let pauseButton = {
-  x: 38,
-  y: 52,
-  radius: 24
-};
 
-let homeButton = {
-  x: 0,
-  y: 52,
-  radius: 24
-};
+// ================================================================
+// ARCHIVE SCROLL
+// ================================================================
+
+let archiveScroll = 0;
+let archiveTargetScroll = 0;
+
+let archiveTouching = false;
+let archiveDragging = false;
+let archiveDraggingScrollbar = false;
+
+let archiveStartX = 0;
+let archiveStartY = 0;
+
+let archiveLastX = 0;
+let archiveLastY = 0;
 
 
 // ================================================================
@@ -272,13 +295,14 @@ const LEVEL_NAMES = [
   "SPACE LEGEND"
 ];
 
-
 function levelTime(level) {
-  return 45000 + (level - 1) * 6000;
+
+  return 45000 +
+    (level - 1) * 6000;
 }
 
-
 function levelTarget(level) {
+
   return floor(
     450 +
     (level - 1) * 180 +
@@ -286,13 +310,14 @@ function levelTarget(level) {
   );
 }
 
-
 function difficulty(level) {
-  return 1 + (level - 1) * 0.055;
+
+  return 1 +
+    (level - 1) * 0.055;
 }
 
-
 function bossLevel(level) {
+
   return (
     level === 5 ||
     level === 10 ||
@@ -326,9 +351,42 @@ function setup() {
 
   createStars();
 
-  updateSafeArea();
+  updateLayout();
 
   player = new Player();
+
+  resetControls();
+}
+
+
+// ================================================================
+// LAYOUT
+// ================================================================
+
+function updateLayout() {
+
+  // Tall mobile display optimization.
+  // More safeBottom = controls move UP.
+
+  safeBottom = constrain(
+    max(
+      145,
+      height * 0.155
+    ),
+    145,
+    245
+  );
+
+  // Top buttons are intentionally below
+  // the two progress bars.
+
+  pauseButton.x = 38;
+  pauseButton.y = 94;
+
+  homeButton.x =
+    width - 38;
+
+  homeButton.y = 94;
 
   resetControls();
 }
@@ -354,14 +412,18 @@ function loadSave() {
 
     unlockedLevel =
       constrain(
-        int(data.unlockedLevel || 1),
+        int(
+          data.unlockedLevel || 1
+        ),
         1,
         TOTAL_LEVELS
       );
 
     selectedShip =
       constrain(
-        int(data.selectedShip || 0),
+        int(
+          data.selectedShip || 0
+        ),
         0,
         SHIPS.length - 1
       );
@@ -372,7 +434,7 @@ function loadSave() {
     swappedControls =
       data.swappedControls === true;
 
-  } catch (err) {
+  } catch (e) {
 
     unlockedLevel = 1;
     selectedShip = 0;
@@ -389,20 +451,37 @@ function saveGame() {
     localStorage.setItem(
       "spaceDodgerCleanFinal",
       JSON.stringify({
-        unlockedLevel: unlockedLevel,
-        selectedShip: selectedShip,
-        sound: soundOn,
-        swappedControls: swappedControls
+
+        unlockedLevel:
+          unlockedLevel,
+
+        selectedShip:
+          selectedShip,
+
+        sound:
+          soundOn,
+
+        swappedControls:
+          swappedControls
+
       })
     );
 
-  } catch (err) {}
+  } catch (e) {}
 }
 
 
 // ================================================================
-// PLAIN TEXT RENDERER
-// ABSOLUTELY NO TEXT GLOW
+// PLAIN TEXT
+// ================================================================
+//
+// IMPORTANT:
+// NO GLOW
+// NO SHADOW
+// NO OUTLINE
+//
+// This function forcefully clears canvas shadow settings before
+// every text draw.
 // ================================================================
 
 function plainText(
@@ -444,10 +523,6 @@ function plainText(
   drawingContext.shadowBlur = 0;
   drawingContext.shadowColor =
     "rgba(0,0,0,0)";
-  drawingContext.shadowOffsetX = 0;
-  drawingContext.shadowOffsetY = 0;
-
-  noStroke();
 }
 
 
@@ -462,53 +537,63 @@ function draw() {
   drawStars();
 
   if (gameState === "HOME") {
+
     drawHome();
     return;
   }
 
   if (gameState === "LEVELS") {
+
     drawLevels();
     return;
   }
 
   if (gameState === "ARCHIVE") {
+
     drawArchive();
     return;
   }
 
   if (gameState === "ABOUT") {
+
     drawAbout();
     return;
   }
 
   if (gameState === "SETTINGS") {
+
     drawSettings();
     return;
   }
 
   if (gameState === "RATING") {
+
     drawRating();
     return;
   }
 
   if (gameState === "PLAYING") {
+
     runGame();
     return;
   }
 
   if (gameState === "PAUSED") {
+
     drawFrozenGame();
     drawPause();
     return;
   }
 
   if (gameState === "GAMEOVER") {
+
     drawFrozenGame();
     drawGameOver();
     return;
   }
 
   if (gameState === "LEVELUP") {
+
     updateParticles();
     drawLevelUp();
     return;
@@ -556,11 +641,28 @@ function createStars() {
   ) {
 
     stars.push({
+
       x: random(width),
+
       y: random(height),
-      size: random(0.8, 2.5),
-      speed: random(0.15, 0.9),
-      alpha: random(90, 210)
+
+      size:
+        random(
+          0.8,
+          2.5
+        ),
+
+      speed:
+        random(
+          0.15,
+          0.9
+        ),
+
+      alpha:
+        random(
+          90,
+          210
+        )
     });
   }
 }
@@ -587,6 +689,7 @@ function drawStars() {
       ) {
 
         star.y = -5;
+
         star.x =
           random(width);
       }
@@ -637,11 +740,17 @@ function drawHome() {
   );
 
   let buttons = [
+
     ["PLAY", height * 0.32],
+
     ["SHIP ARCHIVE", height * 0.43],
+
     ["ABOUT", height * 0.54],
+
     ["SETTINGS", height * 0.65],
+
     ["RATE US", height * 0.76]
+
   ];
 
   for (
@@ -684,6 +793,7 @@ function menuButton(
   rectMode(CENTER);
 
   stroke("#468ea8");
+
   strokeWeight(1.5);
 
   fill("#061522");
@@ -753,7 +863,8 @@ function drawLevels() {
   let size =
     min(
       66,
-      (width - 48) / cols
+      (width - 48) /
+      cols
     );
 
   let startY = 140;
@@ -774,11 +885,13 @@ function drawLevels() {
   ) {
 
     let col =
-      (level - 1) % cols;
+      (level - 1) %
+      cols;
 
     let row =
       floor(
-        (level - 1) / cols
+        (level - 1) /
+        cols
       );
 
     let x =
@@ -792,7 +905,8 @@ function drawLevels() {
       (size + 15);
 
     let open =
-      level <= unlockedLevel;
+      level <=
+      unlockedLevel;
 
     let isBoss =
       bossLevel(level);
@@ -878,28 +992,29 @@ function drawLevels() {
 
 function archiveGeometry() {
 
-  let top = 92;
+  let top = 105;
 
-  /*
-    Keep a dedicated bottom area for
-    the Home button.
-  */
+  // Keep bottom button completely separate from scroll viewport.
 
   let bottom =
     height -
     safeBottom -
-    30;
+    55;
+
+  let viewportHeight =
+    max(
+      100,
+      bottom - top
+    );
 
   let cardHeight = 145;
   let gap = 15;
 
-  let viewportHeight =
-    bottom - top;
-
   let contentHeight =
     SHIPS.length *
     (
-      cardHeight + gap
+      cardHeight +
+      gap
     );
 
   let maxScroll =
@@ -911,13 +1026,27 @@ function archiveGeometry() {
     );
 
   return {
-    top: top,
-    bottom: bottom,
-    viewportHeight: viewportHeight,
-    cardHeight: cardHeight,
-    gap: gap,
-    contentHeight: contentHeight,
-    maxScroll: maxScroll
+
+    top:
+      top,
+
+    bottom:
+      bottom,
+
+    viewportHeight:
+      viewportHeight,
+
+    cardHeight:
+      cardHeight,
+
+    gap:
+      gap,
+
+    contentHeight:
+      contentHeight,
+
+    maxScroll:
+      maxScroll
   };
 }
 
@@ -966,7 +1095,7 @@ function drawArchive() {
   );
 
   plainText(
-    "SWIPE TO BROWSE  •  TAP TO SELECT",
+    "SWIPE TO BROWSE  •  DRAG SCROLLBAR",
     width / 2,
     61,
     11,
@@ -977,15 +1106,14 @@ function drawArchive() {
     lerp(
       archiveScroll,
       archiveTargetScroll,
-      0.22
+      0.25
     );
 
   clampArchiveScroll();
 
-  /*
-    ONLY THE SHIP LIST IS CLIPPED.
-    THE HOME BUTTON IS OUTSIDE THIS AREA.
-  */
+  // ------------------------------------------------------------
+  // CLIPPED SHIP LIST
+  // ------------------------------------------------------------
 
   push();
 
@@ -1018,7 +1146,7 @@ function drawArchive() {
       SHIPS[i];
 
     let cardY =
-      100 +
+      112 +
       i *
       (
         g.cardHeight +
@@ -1044,7 +1172,9 @@ function drawArchive() {
     );
 
     strokeWeight(
-      selected ? 2.5 : 1.3
+      selected
+        ? 2.5
+        : 1.3
     );
 
     fill(
@@ -1150,70 +1280,270 @@ function drawArchive() {
 
   pop();
 
-  /*
-    Scroll bar.
-  */
+  // ------------------------------------------------------------
+  // ACTUAL DRAGGABLE SCROLLBAR
+  // ------------------------------------------------------------
 
-  if (
-    g.maxScroll > 0
-  ) {
+  drawArchiveScrollbar();
 
-    let barHeight =
-      max(
-        38,
-        g.viewportHeight *
-        (
-          g.viewportHeight /
-          g.contentHeight
-        )
-      );
-
-    let travel =
-      g.viewportHeight -
-      barHeight;
-
-    let ratio =
-      archiveScroll /
-      g.maxScroll;
-
-    let barY =
-      g.top +
-      travel *
-      constrain(
-        ratio,
-        0,
-        1
-      );
-
-    noStroke();
-
-    fill(
-      85,
-      150,
-      175,
-      160
-    );
-
-    rect(
-      width - 8,
-      barY,
-      4,
-      barHeight,
-      2
-    );
-  }
-
-  /*
-    IMPORTANT:
-    Home button is drawn AFTER clipping.
-  */
+  // ------------------------------------------------------------
+  // HOME BUTTON IS DRAWN LAST AND IS NEVER CLIPPED
+  // ------------------------------------------------------------
 
   homeBottomButton();
 }
 
 
 // ================================================================
-// ARCHIVE SHIP
+// ARCHIVE SCROLLBAR
+// ================================================================
+
+function drawArchiveScrollbar() {
+
+  let g =
+    archiveGeometry();
+
+  if (
+    g.maxScroll <= 0
+  ) {
+    return;
+  }
+
+  let trackX =
+    width - 10;
+
+  let trackTop =
+    g.top;
+
+  let trackHeight =
+    g.viewportHeight;
+
+  // Track
+
+  noStroke();
+
+  fill(
+    255,
+    255,
+    255,
+    22
+  );
+
+  rect(
+    trackX,
+    trackTop +
+    trackHeight / 2,
+    4,
+    trackHeight,
+    2
+  );
+
+  // Thumb size proportional to visible content.
+
+  let thumbHeight =
+    max(
+      55,
+      trackHeight *
+      (
+        g.viewportHeight /
+        g.contentHeight
+      )
+    );
+
+  let travel =
+    trackHeight -
+    thumbHeight;
+
+  let ratio =
+    g.maxScroll > 0
+      ? archiveScroll /
+        g.maxScroll
+      : 0;
+
+  let thumbY =
+    trackTop +
+    thumbHeight / 2 +
+    travel *
+    constrain(
+      ratio,
+      0,
+      1
+    );
+
+  stroke(
+    "#59b5d2"
+  );
+
+  strokeWeight(1);
+
+  fill(
+    45,
+    150,
+    185,
+    210
+  );
+
+  rect(
+    trackX,
+    thumbY,
+    10,
+    thumbHeight,
+    5
+  );
+}
+
+
+// ================================================================
+// ARCHIVE SCROLLBAR HIT
+// ================================================================
+
+function archiveScrollbarInfo() {
+
+  let g =
+    archiveGeometry();
+
+  if (
+    g.maxScroll <= 0
+  ) {
+    return null;
+  }
+
+  let trackX =
+    width - 10;
+
+  let trackTop =
+    g.top;
+
+  let trackHeight =
+    g.viewportHeight;
+
+  let thumbHeight =
+    max(
+      55,
+      trackHeight *
+      (
+        g.viewportHeight /
+        g.contentHeight
+      )
+    );
+
+  let travel =
+    trackHeight -
+    thumbHeight;
+
+  let ratio =
+    g.maxScroll > 0
+      ? archiveScroll /
+        g.maxScroll
+      : 0;
+
+  let thumbY =
+    trackTop +
+    thumbHeight / 2 +
+    travel *
+    constrain(
+      ratio,
+      0,
+      1
+    );
+
+  return {
+
+    x:
+      trackX,
+
+    top:
+      thumbY -
+      thumbHeight / 2,
+
+    bottom:
+      thumbY +
+      thumbHeight / 2,
+
+    thumbHeight:
+      thumbHeight,
+
+    travel:
+      travel,
+
+    trackTop:
+      trackTop,
+
+    trackHeight:
+      trackHeight,
+
+    maxScroll:
+      g.maxScroll
+  };
+}
+
+
+function isOnArchiveScrollbar(
+  x,
+  y
+) {
+
+  let info =
+    archiveScrollbarInfo();
+
+  if (!info)
+    return false;
+
+  return (
+    x >
+      width - 35 &&
+    y >=
+      info.top - 10 &&
+    y <=
+      info.bottom + 10
+  );
+}
+
+
+function setArchiveScrollFromScrollbar(
+  y
+) {
+
+  let info =
+    archiveScrollbarInfo();
+
+  if (!info)
+    return;
+
+  let center =
+    constrain(
+      y,
+      info.trackTop +
+      info.thumbHeight / 2,
+
+      info.trackTop +
+      info.trackHeight -
+      info.thumbHeight / 2
+    );
+
+  let ratio =
+    info.travel > 0
+      ? (
+          center -
+          (
+            info.trackTop +
+            info.thumbHeight / 2
+          )
+        ) /
+        info.travel
+      : 0;
+
+  archiveTargetScroll =
+    ratio *
+    info.maxScroll;
+
+  archiveScroll =
+    archiveTargetScroll;
+}
+
+
+// ================================================================
+// ARCHIVE SHIP DRAW
 // ================================================================
 
 function drawArchiveShip(
@@ -1238,6 +1568,7 @@ function drawArchiveShip(
   );
 
   stroke(ship.edge);
+
   strokeWeight(2.5);
 
   fill(ship.body);
@@ -1245,14 +1576,23 @@ function drawArchiveShip(
   beginShape();
 
   vertex(0, -42);
+
   vertex(-13, -17);
+
   vertex(-40, -5);
+
   vertex(-24, 11);
+
   vertex(-14, 27);
+
   vertex(0, 18);
+
   vertex(14, 27);
+
   vertex(24, 11);
+
   vertex(40, -5);
+
   vertex(13, -17);
 
   endShape(CLOSE);
@@ -1410,6 +1750,7 @@ function settingBox(
   rectMode(CENTER);
 
   stroke("#468ea8");
+
   strokeWeight(1.5);
 
   fill("#061622");
@@ -1507,7 +1848,8 @@ function drawRating() {
   }
 
   plainText(
-    rating + " / 5",
+    rating +
+    " / 5",
     width / 2,
     height * 0.55,
     16,
@@ -1624,6 +1966,7 @@ class Player {
     if (
       this.x < -40
     ) {
+
       this.x =
         width + 40;
     }
@@ -1632,12 +1975,14 @@ class Player {
       this.x >
       width + 40
     ) {
+
       this.x = -40;
     }
 
     if (
       this.y < -40
     ) {
+
       this.y =
         height + 40;
     }
@@ -1646,6 +1991,7 @@ class Player {
       this.y >
       height + 40
     ) {
+
       this.y = -40;
     }
   }
@@ -1659,6 +2005,7 @@ class Player {
         millis() / 90
       ) % 2 === 0
     ) {
+
       return;
     }
 
@@ -1680,6 +2027,7 @@ class Player {
     );
 
     stroke(ship.edge);
+
     strokeWeight(2.3);
 
     fill(ship.body);
@@ -1687,12 +2035,19 @@ class Player {
     beginShape();
 
     vertex(0, -32);
+
     vertex(-11, -9);
+
     vertex(-29, 17);
+
     vertex(-9, 12);
+
     vertex(0, 23);
+
     vertex(9, 12);
+
     vertex(29, 17);
+
     vertex(11, -9);
 
     endShape(CLOSE);
@@ -1722,6 +2077,7 @@ class Player {
     pop();
 
     if (hasShield()) {
+
       drawShield(
         this.x,
         this.y
@@ -1732,10 +2088,11 @@ class Player {
 
 
 // ================================================================
-// SHIP STATS
+// SHIP POWER
 // ================================================================
 
 function shipPower() {
+
   return SHIPS[
     selectedShip
   ].power;
@@ -1750,6 +2107,7 @@ function damageMultiplier() {
     shipPower() ===
     "BURN SHOT"
   ) {
+
     multiplier = 1.12;
   }
 
@@ -1758,6 +2116,7 @@ function damageMultiplier() {
     "DRAGON RAGE" &&
     bossActive
   ) {
+
     multiplier = 1.75;
   }
 
@@ -1765,6 +2124,7 @@ function damageMultiplier() {
     shipPower() ===
     "TITAN CORE"
   ) {
+
     multiplier = 1.65;
   }
 
@@ -1772,6 +2132,7 @@ function damageMultiplier() {
     shipPower() ===
     "REALITY BREAK"
   ) {
+
     multiplier = 2.1;
   }
 
@@ -1779,6 +2140,7 @@ function damageMultiplier() {
     millis() <
     powerEnds.BERSERKER
   ) {
+
     multiplier *= 1.55;
   }
 
@@ -1794,6 +2156,7 @@ function fireDelay() {
     shipPower() ===
     "QUANTUM DASH"
   ) {
+
     delay = 85;
   }
 
@@ -1801,6 +2164,7 @@ function fireDelay() {
     shipPower() ===
     "TITAN CORE"
   ) {
+
     delay = 105;
   }
 
@@ -1808,6 +2172,7 @@ function fireDelay() {
     shipPower() ===
     "REALITY BREAK"
   ) {
+
     delay = 75;
   }
 
@@ -1815,6 +2180,7 @@ function fireDelay() {
     millis() <
     powerEnds.BERSERKER
   ) {
+
     delay = 70;
   }
 
@@ -1830,6 +2196,7 @@ function moveSpeed() {
     shipPower() ===
     "QUANTUM DASH"
   ) {
+
     speed *= 1.35;
   }
 
@@ -1837,6 +2204,7 @@ function moveSpeed() {
     shipPower() ===
     "TITAN CORE"
   ) {
+
     speed *= 0.9;
   }
 
@@ -1897,27 +2265,38 @@ function runGame() {
   player.update();
 
   updateBullets();
+
   updateAliens();
+
   updateEnemyShots();
+
   updatePowerUps();
+
   updateParticles();
 
   if (bossActive) {
+
     updateBoss();
   }
 
   collideBulletsAliens();
+
   collideShipAliens();
+
   collideShipShots();
+
   collideBulletsBoss();
 
   spawnAliens();
+
   spawnPowerUps();
 
   checkBoss();
+
   checkLevelComplete();
 
   drawHUD();
+
   drawControls();
 
   player.display();
@@ -1945,6 +2324,7 @@ function updateShake() {
   if (
     shakeAmount <= 0
   ) {
+
     return;
   }
 
@@ -1953,6 +2333,7 @@ function updateShake() {
   if (
     shakeAmount < 0.25
   ) {
+
     shakeAmount = 0;
   }
 }
@@ -2028,24 +2409,19 @@ class Bullet {
     return (
       this.life <= 0 ||
       this.x < -80 ||
-      this.x > width + 80 ||
+      this.x >
+      width + 80 ||
       this.y < -80 ||
-      this.y > height + 80
+      this.y >
+      height + 80
     );
   }
 }
 
 
 // ================================================================
-// FIRE SOUND
+// AUDIO
 // ================================================================
-//
-// This is the important part missing before.
-//
-// Uses Web Audio API.
-// No external sound file required.
-// Works after the first user interaction.
-//
 
 function initAudio() {
 
@@ -2066,7 +2442,7 @@ function initAudio() {
         audioCtx =
           new AudioClass();
 
-      } catch (err) {
+      } catch (e) {
 
         audioCtx = null;
       }
@@ -2104,6 +2480,7 @@ function playFireSound() {
       audioCtx.state ===
       "suspended"
     ) {
+
       audioCtx.resume();
     }
 
@@ -2145,6 +2522,7 @@ function playFireSound() {
     );
 
     oscillator.connect(gain);
+
     gain.connect(
       audioCtx.destination
     );
@@ -2155,7 +2533,7 @@ function playFireSound() {
       now + 0.09
     );
 
-  } catch (err) {}
+  } catch (e) {}
 }
 
 
@@ -2213,16 +2591,18 @@ function playPowerSound() {
     );
 
     oscillator.connect(gain);
+
     gain.connect(
       audioCtx.destination
     );
 
     oscillator.start(now);
+
     oscillator.stop(
       now + 0.25
     );
 
-  } catch (err) {}
+  } catch (e) {}
 }
 
 
@@ -2236,6 +2616,7 @@ function shoot() {
     gameState !==
     "PLAYING"
   ) {
+
     return;
   }
 
@@ -2247,15 +2628,13 @@ function shoot() {
     lastShot <
     fireDelay()
   ) {
+
     return;
   }
 
   lastShot = now;
 
-  /*
-    FIRE SOUND IS CALLED HERE,
-    ONLY WHEN AN ACTUAL SHOT IS FIRED.
-  */
+  // ACTUAL FIRE SOUND
 
   playFireSound();
 
@@ -2265,12 +2644,15 @@ function shoot() {
     now <
     powerEnds.TRINITY
   ) {
+
     offsets =
       [-22, 0, 22];
+
   } else if (
     now <
     powerEnds.TWIN
   ) {
+
     offsets =
       [-17, 17];
   }
@@ -2285,6 +2667,7 @@ function shoot() {
   ) {
 
     angles = [
+
       player.angle -
       radians(12),
 
@@ -2292,6 +2675,7 @@ function shoot() {
 
       player.angle +
       radians(12)
+
     ];
   }
 
@@ -2301,6 +2685,7 @@ function shoot() {
   ) {
 
     angles = [
+
       player.angle -
       radians(8),
 
@@ -2308,6 +2693,7 @@ function shoot() {
 
       player.angle +
       radians(8)
+
     ];
   }
 
@@ -2317,6 +2703,7 @@ function shoot() {
   ) {
 
     angles = [
+
       player.angle -
       radians(20),
 
@@ -2330,6 +2717,7 @@ function shoot() {
 
       player.angle +
       radians(20)
+
     ];
   }
 
@@ -2359,6 +2747,7 @@ function shoot() {
 
       bullets.push(
         new Bullet(
+
           sx +
           cos(
             bulletAngle
@@ -2415,7 +2804,7 @@ function updateBullets() {
 
 
 // ================================================================
-// ALIEN CLASS
+// ALIEN
 // ================================================================
 
 class Alien {
@@ -2424,11 +2813,17 @@ class Alien {
 
     this.type =
       random([
+
         "SCOUT",
+
         "INTERCEPTOR",
+
         "HUNTER",
+
         "HEAVY",
+
         "ELITE"
+
       ]);
 
     if (
@@ -2485,6 +2880,7 @@ class Alien {
     }
 
     this.radius = 22;
+
     this.hp = 1;
 
     if (
@@ -2493,6 +2889,7 @@ class Alien {
     ) {
 
       this.radius = 20;
+
       this.hp = 1;
     }
 
@@ -2502,6 +2899,7 @@ class Alien {
     ) {
 
       this.radius = 24;
+
       this.hp = 2;
     }
 
@@ -2511,6 +2909,7 @@ class Alien {
     ) {
 
       this.radius = 32;
+
       this.hp = 4;
     }
 
@@ -2520,6 +2919,7 @@ class Alien {
     ) {
 
       this.radius = 29;
+
       this.hp = 3;
     }
 
@@ -2677,8 +3077,7 @@ class Alien {
         max(
           1500,
           2700 -
-          currentLevel *
-          28
+          currentLevel * 28
         )
       ) {
 
@@ -2696,7 +3095,6 @@ class Alien {
       atan2(
         player.y -
         this.y,
-
         player.x -
         this.x
       );
@@ -2766,12 +3164,17 @@ class Alien {
   dead() {
 
     return (
+
       this.x < -160 ||
+
       this.x >
       width + 160 ||
+
       this.y < -160 ||
+
       this.y >
       height + 160
+
     );
   }
 }
@@ -2784,6 +3187,7 @@ class Alien {
 function alienScout() {
 
   stroke("#65dff5");
+
   strokeWeight(2);
 
   fill("#183f58");
@@ -2838,6 +3242,7 @@ function alienScout() {
 function alienInterceptor() {
 
   stroke("#ef5dce");
+
   strokeWeight(2);
 
   fill("#42143f");
@@ -2887,6 +3292,7 @@ function alienInterceptor() {
 function alienHunter() {
 
   stroke("#ffad43");
+
   strokeWeight(2.2);
 
   fill("#572b14");
@@ -2938,6 +3344,7 @@ function alienHunter() {
 function alienHeavy() {
 
   stroke("#ff5757");
+
   strokeWeight(2.5);
 
   fill("#4b1518");
@@ -2958,6 +3365,7 @@ function alienHeavy() {
   endShape(CLOSE);
 
   stroke("#8c2b31");
+
   strokeWeight(2);
 
   line(
@@ -3004,6 +3412,7 @@ function alienHeavy() {
 function alienElite() {
 
   stroke("#b879ff");
+
   strokeWeight(2.5);
 
   fill("#32184d");
@@ -3155,9 +3564,13 @@ class EnemyShot {
 
     this.x = x;
     this.y = y;
+
     this.angle = angle;
+
     this.speed = speed;
+
     this.radius = 7;
+
     this.life = 220;
   }
 
@@ -3197,13 +3610,19 @@ class EnemyShot {
   dead() {
 
     return (
+
       this.life <= 0 ||
+
       this.x < -100 ||
+
       this.x >
       width + 100 ||
+
       this.y < -100 ||
+
       this.y >
       height + 100
+
     );
   }
 }
@@ -3304,6 +3723,7 @@ function collideBulletsAliens() {
             alien.type ===
             "HUNTER"
           ) {
+
             points = 45;
           }
 
@@ -3311,6 +3731,7 @@ function collideBulletsAliens() {
             alien.type ===
             "HEAVY"
           ) {
+
             points = 70;
           }
 
@@ -3318,10 +3739,12 @@ function collideBulletsAliens() {
             alien.type ===
             "ELITE"
           ) {
+
             points = 100;
           }
 
           score += points;
+
           levelScore += points;
 
           createExplosion(
@@ -3362,6 +3785,7 @@ function collideShipAliens() {
     millis() <
     player.invincibleUntil
   ) {
+
     return;
   }
 
@@ -3436,6 +3860,7 @@ function collideShipShots() {
     millis() <
     player.invincibleUntil
   ) {
+
     return;
   }
 
@@ -3520,6 +3945,7 @@ class PowerUp {
 
     this.type =
       random([
+
         "MULTI",
         "SHIELD",
         "TWIN",
@@ -3529,6 +3955,7 @@ class PowerUp {
         "BERSERKER",
         "CRYO",
         "CELESTIAL"
+
       ]);
 
     this.x =
@@ -3579,6 +4006,7 @@ class PowerUp {
     );
 
     stroke(cfg.color);
+
     strokeWeight(2);
 
     fill(
@@ -3677,6 +4105,7 @@ function spawnPowerUps() {
       currentLevel * 90
     )
   ) {
+
     return;
   }
 
@@ -3758,6 +4187,7 @@ function updatePowerUps() {
       );
 
       score += 50;
+
       levelScore += 50;
 
       powerUps.splice(
@@ -3795,7 +4225,8 @@ function activatePower(
     duration;
 
   if (
-    type === "NOVA"
+    type ===
+    "NOVA"
   ) {
 
     for (
@@ -3817,6 +4248,7 @@ function activatePower(
       );
 
       score += 20;
+
       levelScore += 20;
     }
 
@@ -3824,14 +4256,16 @@ function activatePower(
   }
 
   if (
-    type === "TWIN"
+    type ===
+    "TWIN"
   ) {
 
     powerEnds.TRINITY = 0;
   }
 
   if (
-    type === "TRINITY"
+    type ===
+    "TRINITY"
   ) {
 
     powerEnds.TWIN = 0;
@@ -3992,6 +4426,7 @@ class Boss {
     );
 
     stroke(edge);
+
     strokeWeight(3.5);
 
     fill(body);
@@ -4070,6 +4505,7 @@ function checkBoss() {
     bossActive ||
     bossDefeated
   ) {
+
     return;
   }
 
@@ -4089,6 +4525,7 @@ function checkBoss() {
     bossActive = true;
 
     aliens = [];
+
     powerUps = [];
 
     startShake(15);
@@ -4154,7 +4591,7 @@ function drawBossHealth() {
     width / 2 -
     w / 2;
 
-  let y = 91;
+  let y = 113;
 
   let ratio =
     constrain(
@@ -4215,6 +4652,7 @@ function collideBulletsBoss() {
     !bossActive ||
     !boss
   ) {
+
     return;
   }
 
@@ -4305,6 +4743,7 @@ function completeLevel() {
     gameState !==
     "PLAYING"
   ) {
+
     return;
   }
 
@@ -4374,7 +4813,8 @@ function drawLevelUp() {
   );
 
   plainText(
-    "SCORE  " + score,
+    "SCORE  " +
+    score,
     width / 2,
     height * 0.40,
     18,
@@ -4402,7 +4842,9 @@ function drawLevelUp() {
 
     plainText(
       "LEVEL " +
-      (currentLevel + 1),
+      (
+        currentLevel + 1
+      ),
       width / 2,
       height * 0.55,
       22,
@@ -4461,14 +4903,12 @@ function drawLevelUp() {
 
 
 // ================================================================
-// HUD
+// GAMEPLAY HUD
 // ================================================================
 
 function drawHUD() {
 
-  /*
-    HARD RESET BEFORE HUD.
-  */
+  // HARD RESET OF TEXT EFFECTS
 
   drawingContext.shadowBlur = 0;
   drawingContext.shadowColor =
@@ -4478,8 +4918,13 @@ function drawHUD() {
 
   noStroke();
 
+  // --------------------------------------------------------------
+  // TOP INFORMATION
+  // --------------------------------------------------------------
+
   plainText(
-    "SCORE  " + score,
+    "SCORE  " +
+    score,
     14,
     12,
     14,
@@ -4490,7 +4935,8 @@ function drawHUD() {
   );
 
   plainText(
-    "LEVEL " + currentLevel,
+    "LEVEL " +
+    currentLevel,
     width / 2,
     12,
     14,
@@ -4501,7 +4947,8 @@ function drawHUD() {
   );
 
   plainText(
-    "LIVES  " + lives,
+    "LIVES  " +
+    lives,
     width - 14,
     12,
     14,
@@ -4523,6 +4970,10 @@ function drawHUD() {
     TOP,
     NORMAL
   );
+
+  // --------------------------------------------------------------
+  // PROGRESS BAR 1
+  // --------------------------------------------------------------
 
   let w =
     min(
@@ -4587,6 +5038,10 @@ function drawHUD() {
     3
   );
 
+  // --------------------------------------------------------------
+  // PROGRESS BAR 2
+  // --------------------------------------------------------------
+
   fill(
     255,
     255,
@@ -4630,7 +5085,7 @@ function drawHUD() {
     ) +
     " SEC",
     width / 2,
-    y + 31,
+    y + 37,
     9,
     "#87999f"
   );
@@ -4641,10 +5096,16 @@ function drawHUD() {
     " / " +
     targetScore,
     width / 2,
-    y + 45,
+    y + 51,
     9,
     "#87999f"
   );
+
+  // --------------------------------------------------------------
+  // IMPORTANT:
+  // Pause and Home are now at y=94.
+  // They no longer sit on the progress bars.
+  // --------------------------------------------------------------
 
   topButton(
     pauseButton.x,
@@ -4657,12 +5118,6 @@ function drawHUD() {
     homeButton.y,
     "⌂"
   );
-
-  drawingContext.shadowBlur = 0;
-  drawingContext.shadowColor =
-    "rgba(0,0,0,0)";
-
-  noStroke();
 }
 
 
@@ -4695,8 +5150,7 @@ function resetControls() {
   joystick.knobY =
     joystick.baseY;
 
-  joystick.active =
-    false;
+  joystick.active = false;
 
   fireButton.x =
     fireX;
@@ -4711,20 +5165,17 @@ function resetControls() {
   powerButton.y =
     height -
     safeBottom;
-
-  homeButton.x =
-    width - 38;
-
-  homeButton.y = 52;
-
-  pauseButton.x = 38;
-  pauseButton.y = 52;
 }
 
+
+// ================================================================
+// MOBILE MOVEMENT
+// ================================================================
 
 function handleMovement() {
 
   let movementTouch = null;
+
   let firing = false;
 
   for (
@@ -4738,7 +5189,8 @@ function handleMovement() {
         fireButton.x,
         fireButton.y
       ) <
-      fireButton.radius + 18
+      fireButton.radius +
+      18
     ) {
 
       firing = true;
@@ -4765,6 +5217,7 @@ function handleMovement() {
   }
 
   if (firing) {
+
     shoot();
   }
 
@@ -4818,10 +5271,12 @@ function handleMovement() {
     }
 
     joystick.knobX =
-      joystick.baseX + dx;
+      joystick.baseX +
+      dx;
 
     joystick.knobY =
-      joystick.baseY + dy;
+      joystick.baseY +
+      dy;
 
   } else {
 
@@ -4860,6 +5315,7 @@ function movePlayer() {
   if (
     !joystick.active
   ) {
+
     return;
   }
 
@@ -4880,6 +5336,7 @@ function movePlayer() {
   if (
     magnitude < 4
   ) {
+
     return;
   }
 
@@ -4921,9 +5378,13 @@ function movePlayer() {
 
 function drawControls() {
 
+  // These are automatically higher because safeBottom is larger.
+
   let y =
     height -
     safeBottom;
+
+  // MOVEMENT
 
   stroke(
     70,
@@ -4960,6 +5421,8 @@ function drawControls() {
     46
   );
 
+  // FIRE
+
   stroke(
     230,
     75,
@@ -4990,6 +5453,8 @@ function drawControls() {
     CENTER,
     BOLD
   );
+
+  // POWER
 
   if (
     powerReadyAt <=
@@ -5031,7 +5496,7 @@ function drawControls() {
 
 
 // ================================================================
-// BUTTONS
+// TOP BUTTON
 // ================================================================
 
 function topButton(
@@ -5041,6 +5506,7 @@ function topButton(
 ) {
 
   stroke("#468ea8");
+
   strokeWeight(1.5);
 
   fill(
@@ -5069,6 +5535,10 @@ function topButton(
 }
 
 
+// ================================================================
+// HOME BUTTON
+// ================================================================
+
 function homeBottomButton() {
 
   let y =
@@ -5085,6 +5555,7 @@ function homeBottomButton() {
   rectMode(CENTER);
 
   stroke("#468ea8");
+
   strokeWeight(1.5);
 
   fill("#051522");
@@ -5110,6 +5581,10 @@ function homeBottomButton() {
 }
 
 
+// ================================================================
+// ACTION BUTTON
+// ================================================================
+
 function actionButton(
   label,
   y,
@@ -5119,6 +5594,7 @@ function actionButton(
   rectMode(CENTER);
 
   stroke("#468ea8");
+
   strokeWeight(1.5);
 
   fill("#051723");
@@ -5170,6 +5646,7 @@ function resumeGame() {
     gameState !==
     "PAUSED"
   ) {
+
     return;
   }
 
@@ -5186,24 +5663,28 @@ function drawFrozenGame() {
   for (
     let alien of aliens
   ) {
+
     alien.display();
   }
 
   for (
     let bullet of bullets
   ) {
+
     bullet.display();
   }
 
   for (
     let power of powerUps
   ) {
+
     power.display();
   }
 
   for (
     let shot of enemyShots
   ) {
+
     shot.display();
   }
 
@@ -5396,6 +5877,7 @@ class Particle {
       this.vy;
 
     this.vx *= 0.97;
+
     this.vy *= 0.97;
 
     this.life -= 7;
@@ -5463,6 +5945,7 @@ function updateParticles() {
       particles[i];
 
     particle.update();
+
     particle.display();
 
     if (
@@ -5488,16 +5971,21 @@ function createCelebration() {
 
     particles.push(
       new Particle(
+
         random(width),
+
         random(
           height * 0.25,
           height
         ),
+
         random([
+
           "#ffe600",
           "#00ddff",
           "#ff4dcc",
           "#ffffff"
+
         ])
       )
     );
@@ -5515,6 +6003,7 @@ function useSpecial() {
     powerReadyAt >
     millis()
   ) {
+
     return;
   }
 
@@ -5620,6 +6109,7 @@ function useSpecial() {
       );
 
       score += 35;
+
       levelScore += 35;
     }
 
@@ -5662,17 +6152,16 @@ function resetPowers() {
 
 
 // ================================================================
-// ARCHIVE TOUCH START
+// TOUCH START
 // ================================================================
 
 function touchStarted() {
 
-  /*
-    Unlock audio on the first real
-    user interaction.
-  */
-
   initAudio();
+
+  // --------------------------------------------------------------
+  // ARCHIVE
+  // --------------------------------------------------------------
 
   if (
     gameState ===
@@ -5682,18 +6171,14 @@ function touchStarted() {
     if (
       touches.length === 0
     ) {
+
       return false;
     }
 
     let touch =
       touches[0];
 
-    /*
-      ============================================================
-      CRITICAL FIX:
-      CHECK HOME BUTTON BEFORE STARTING ARCHIVE SCROLL.
-      ============================================================
-    */
+    // HOME ALWAYS HAS FIRST PRIORITY
 
     if (
       isArchiveHomeButton(
@@ -5702,13 +6187,14 @@ function touchStarted() {
       )
     ) {
 
-      archiveTouching =
-        false;
+      archiveTouching = false;
 
-      archiveDragging =
-        false;
+      archiveDragging = false;
+
+      archiveDraggingScrollbar = false;
 
       archiveScroll = 0;
+
       archiveTargetScroll = 0;
 
       gameState =
@@ -5717,30 +6203,61 @@ function touchStarted() {
       return false;
     }
 
+    // CHECK SCROLLBAR THUMB
+
+    if (
+      isOnArchiveScrollbar(
+        touch.x,
+        touch.y
+      )
+    ) {
+
+      archiveTouching = true;
+
+      archiveDragging = true;
+
+      archiveDraggingScrollbar =
+        true;
+
+      archiveStartX =
+        touch.x;
+
+      archiveStartY =
+        touch.y;
+
+      archiveLastX =
+        touch.x;
+
+      archiveLastY =
+        touch.y;
+
+      return false;
+    }
+
     let g =
       archiveGeometry();
 
-    /*
-      Ignore touches outside archive
-      scroll viewport.
-    */
+    // Ignore touches outside scroll viewport.
 
     if (
       touch.y < g.top ||
       touch.y > g.bottom
     ) {
 
-      archiveTouching =
-        false;
+      archiveTouching = false;
 
-      archiveDragging =
-        false;
+      archiveDragging = false;
+
+      archiveDraggingScrollbar = false;
 
       return false;
     }
 
     archiveTouching = true;
+
     archiveDragging = false;
+
+    archiveDraggingScrollbar = false;
 
     archiveStartX =
       touch.x;
@@ -5756,6 +6273,10 @@ function touchStarted() {
 
     return false;
   }
+
+  // --------------------------------------------------------------
+  // OTHER SCREENS
+  // --------------------------------------------------------------
 
   let x =
     touches.length
@@ -5777,7 +6298,7 @@ function touchStarted() {
 
 
 // ================================================================
-// ARCHIVE TOUCH MOVE
+// TOUCH MOVE
 // ================================================================
 
 function touchMoved() {
@@ -5786,6 +6307,7 @@ function touchMoved() {
     gameState !==
     "ARCHIVE"
   ) {
+
     return false;
   }
 
@@ -5793,24 +6315,24 @@ function touchMoved() {
     !archiveTouching ||
     touches.length === 0
   ) {
+
     return false;
   }
 
   let touch =
     touches[0];
 
-  /*
-    If finger reaches the bottom button,
-    don't allow it to become part of
-    the scroll gesture.
-  */
+  // --------------------------------------------------------------
+  // DRAGGING ACTUAL SCROLLBAR
+  // --------------------------------------------------------------
 
   if (
-    isArchiveHomeButton(
-      touch.x,
-      touch.y
-    )
+    archiveDraggingScrollbar
   ) {
+
+    setArchiveScrollFromScrollbar(
+      touch.y
+    );
 
     archiveLastX =
       touch.x;
@@ -5820,6 +6342,10 @@ function touchMoved() {
 
     return false;
   }
+
+  // --------------------------------------------------------------
+  // NORMAL ARCHIVE SWIPE
+  // --------------------------------------------------------------
 
   let movement =
     dist(
@@ -5833,8 +6359,7 @@ function touchMoved() {
     movement > 10
   ) {
 
-    archiveDragging =
-      true;
+    archiveDragging = true;
   }
 
   let deltaY =
@@ -5849,7 +6374,8 @@ function touchMoved() {
       archiveGeometry();
 
     archiveTargetScroll +=
-      deltaY * 1.15;
+      deltaY *
+      1.15;
 
     archiveTargetScroll =
       constrain(
@@ -5870,7 +6396,7 @@ function touchMoved() {
 
 
 // ================================================================
-// ARCHIVE TOUCH END
+// TOUCH END
 // ================================================================
 
 function touchEnded() {
@@ -5879,14 +6405,19 @@ function touchEnded() {
     gameState !==
     "ARCHIVE"
   ) {
+
     return false;
   }
 
   if (
     !archiveTouching
   ) {
+
     return false;
   }
+
+  let wasScrollbar =
+    archiveDraggingScrollbar;
 
   let movement =
     dist(
@@ -5898,14 +6429,17 @@ function touchEnded() {
 
   let wasTap =
     movement < 14 &&
-    archiveDragging === false;
+    archiveDragging === false &&
+    archiveDraggingScrollbar === false;
 
-  archiveTouching =
+  archiveTouching = false;
+
+  archiveDragging = false;
+
+  archiveDraggingScrollbar =
     false;
 
-  /*
-    HOME BUTTON HAS PRIORITY.
-  */
+  // HOME ALWAYS HAS PRIORITY
 
   if (
     isArchiveHomeButton(
@@ -5914,14 +6448,23 @@ function touchEnded() {
     )
   ) {
 
-    archiveDragging =
-      false;
-
     gameState =
       "HOME";
 
     archiveScroll = 0;
+
     archiveTargetScroll = 0;
+
+    return false;
+  }
+
+  // A scrollbar interaction is NEVER a ship selection.
+
+  if (
+    wasScrollbar
+  ) {
+
+    clampArchiveScroll();
 
     return false;
   }
@@ -5936,9 +6479,6 @@ function touchEnded() {
     );
   }
 
-  archiveDragging =
-    false;
-
   clampArchiveScroll();
 
   return false;
@@ -5946,7 +6486,7 @@ function touchEnded() {
 
 
 // ================================================================
-// ARCHIVE HOME BUTTON HITBOX
+// ARCHIVE HOME BUTTON
 // ================================================================
 
 function isArchiveHomeButton(
@@ -6007,6 +6547,101 @@ function mouseWheel(
 
 
 // ================================================================
+// MOUSE DRAG SUPPORT FOR ARCHIVE
+// ================================================================
+
+function mouseDragged() {
+
+  if (
+    gameState !==
+    "ARCHIVE"
+  ) {
+
+    return true;
+  }
+
+  if (
+    archiveDraggingScrollbar
+  ) {
+
+    setArchiveScrollFromScrollbar(
+      mouseY
+    );
+
+    return false;
+  }
+
+  if (
+    archiveTouching
+  ) {
+
+    let deltaY =
+      archiveLastY -
+      mouseY;
+
+    archiveTargetScroll +=
+      deltaY;
+
+    let g =
+      archiveGeometry();
+
+    archiveTargetScroll =
+      constrain(
+        archiveTargetScroll,
+        0,
+        g.maxScroll
+      );
+
+    archiveLastX =
+      mouseX;
+
+    archiveLastY =
+      mouseY;
+
+    archiveDragging = true;
+
+    return false;
+  }
+
+  return false;
+}
+
+
+// ================================================================
+// MOUSE RELEASE
+// ================================================================
+
+function mouseReleased() {
+
+  if (
+    gameState ===
+    "ARCHIVE"
+  ) {
+
+    if (
+      archiveDraggingScrollbar
+    ) {
+
+      archiveDraggingScrollbar =
+        false;
+
+      archiveDragging =
+        false;
+
+      archiveTouching =
+        false;
+
+      clampArchiveScroll();
+
+      return false;
+    }
+  }
+
+  return true;
+}
+
+
+// ================================================================
 // UNIVERSAL TAP
 // ================================================================
 
@@ -6025,11 +6660,17 @@ function handleTap(
   ) {
 
     let buttonYs = [
+
       height * 0.32,
+
       height * 0.43,
+
       height * 0.54,
+
       height * 0.65,
+
       height * 0.76
+
     ];
 
     for (
@@ -6063,6 +6704,7 @@ function handleTap(
             "ARCHIVE";
 
           archiveScroll = 0;
+
           archiveTargetScroll = 0;
 
         } else if (i === 2) {
@@ -6092,13 +6734,16 @@ function handleTap(
 
 
   // ============================================================
-  // MENUS HOME BUTTON
+  // MENU HOME BUTTON
   // ============================================================
 
   if (
-    gameState === "LEVELS" ||
-    gameState === "ABOUT" ||
-    gameState === "SETTINGS"
+    gameState ===
+    "LEVELS" ||
+    gameState ===
+    "ABOUT" ||
+    gameState ===
+    "SETTINGS"
   ) {
 
     let homeY =
@@ -6129,7 +6774,7 @@ function handleTap(
 
 
   // ============================================================
-  // LEVELS
+  // LEVEL SELECT
   // ============================================================
 
   if (
@@ -6138,6 +6783,7 @@ function handleTap(
   ) {
 
     let cols = 4;
+
     let gap = 9;
 
     let size =
@@ -6217,16 +6863,11 @@ function handleTap(
   // ARCHIVE
   // ============================================================
 
-  /*
-    Archive taps are deliberately
-    handled by handleArchiveTap()
-    so that scrolling doesn't conflict.
-  */
-
   if (
     gameState ===
     "ARCHIVE"
   ) {
+
     return;
   }
 
@@ -6284,6 +6925,7 @@ function handleTap(
       saveGame();
 
       if (soundOn) {
+
         initAudio();
       }
 
@@ -6386,13 +7028,15 @@ function handleTap(
     "PLAYING"
   ) {
 
+    // PAUSE
+
     if (
       dist(
         x,
         y,
         pauseButton.x,
         pauseButton.y
-      ) < 32
+      ) < 34
     ) {
 
       pauseGame();
@@ -6400,13 +7044,15 @@ function handleTap(
       return;
     }
 
+    // HOME
+
     if (
       dist(
         x,
         y,
         homeButton.x,
         homeButton.y
-      ) < 32
+      ) < 34
     ) {
 
       gameState =
@@ -6416,6 +7062,8 @@ function handleTap(
 
       return;
     }
+
+    // FIRE
 
     if (
       dist(
@@ -6432,6 +7080,8 @@ function handleTap(
 
       return;
     }
+
+    // POWER
 
     if (
       dist(
@@ -6555,10 +7205,7 @@ function handleArchiveTap(
   y
 ) {
 
-  /*
-    FIRST PRIORITY:
-    HOME BUTTON.
-  */
+  // HOME FIRST
 
   if (
     isArchiveHomeButton(
@@ -6571,6 +7218,7 @@ function handleArchiveTap(
       "HOME";
 
     archiveScroll = 0;
+
     archiveTargetScroll = 0;
 
     return;
@@ -6583,6 +7231,17 @@ function handleArchiveTap(
     y < g.top ||
     y > g.bottom
   ) {
+
+    return;
+  }
+
+  // Do not treat scrollbar as ship.
+
+  if (
+    x >
+    width - 35
+  ) {
+
     return;
   }
 
@@ -6599,7 +7258,7 @@ function handleArchiveTap(
   ) {
 
     let cardY =
-      100 +
+      112 +
       i *
       (
         g.cardHeight +
@@ -6648,31 +7307,20 @@ function insideRect(
 ) {
 
   return (
-    px >= cx - w / 2 &&
-    px <= cx + w / 2 &&
-    py >= cy - h / 2 &&
-    py <= cy + h / 2
+
+    px >=
+    cx - w / 2 &&
+
+    px <=
+    cx + w / 2 &&
+
+    py >=
+    cy - h / 2 &&
+
+    py <=
+    cy + h / 2
+
   );
-}
-
-
-// ================================================================
-// SAFE AREA
-// ================================================================
-
-function updateSafeArea() {
-
-  safeBottom =
-    constrain(
-      max(
-        105,
-        height * 0.13
-      ),
-      105,
-      150
-    );
-
-  resetControls();
 }
 
 
@@ -6689,30 +7337,30 @@ function windowResized() {
 
   createStars();
 
-  updateSafeArea();
+  updateLayout();
 
   clampArchiveScroll();
 }
 
 
 // ================================================================
-// MOUSE
+// MOUSE PRESS
 // ================================================================
 
 function mousePressed() {
 
   initAudio();
 
-  /*
-    IMPORTANT:
-    Archive mouse Home button gets
-    priority before archive ship tap.
-  */
+  // --------------------------------------------------------------
+  // ARCHIVE
+  // --------------------------------------------------------------
 
   if (
     gameState ===
     "ARCHIVE"
   ) {
+
+    // HOME FIRST
 
     if (
       isArchiveHomeButton(
@@ -6725,15 +7373,65 @@ function mousePressed() {
         "HOME";
 
       archiveScroll = 0;
+
       archiveTargetScroll = 0;
 
       return false;
     }
 
-    handleArchiveTap(
-      mouseX,
-      mouseY
-    );
+    // SCROLLBAR
+
+    if (
+      isOnArchiveScrollbar(
+        mouseX,
+        mouseY
+      )
+    ) {
+
+      archiveDraggingScrollbar =
+        true;
+
+      archiveTouching =
+        true;
+
+      archiveDragging =
+        true;
+
+      setArchiveScrollFromScrollbar(
+        mouseY
+      );
+
+      archiveLastX =
+        mouseX;
+
+      archiveLastY =
+        mouseY;
+
+      return false;
+    }
+
+    // NORMAL ARCHIVE TAP
+
+    archiveTouching =
+      true;
+
+    archiveDragging =
+      false;
+
+    archiveDraggingScrollbar =
+      false;
+
+    archiveStartX =
+      mouseX;
+
+    archiveStartY =
+      mouseY;
+
+    archiveLastX =
+      mouseX;
+
+    archiveLastY =
+      mouseY;
 
     return false;
   }
