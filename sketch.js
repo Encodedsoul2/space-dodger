@@ -1,24 +1,23 @@
 // ================================================================
 // SPACE DODGER
-// COMPLETE SINGLE FILE - MOBILE OPTIMIZED BUILD
-//
-// IMPORTANT FIXES
+// COMPLETE MOBILE BUILD
+// ================================================================
+// FIXED IN THIS BUILD
 // ---------------------------------------------------------------
-// • ARCHIVE SWIPE SCROLL FIXED
-// • ARCHIVE SCROLLBAR THUMB IS DRAGGABLE
-// • ARCHIVE HOME BUTTON ALWAYS WORKS
-// • PAUSE / HOME MOVED BELOW PROGRESS BARS
-// • JOYSTICK / POWER / FIRE MOVED SLIGHTLY UP
-// • ALL GAMEPLAY TEXT IS PLAIN - NO GLOW / NO SHADOW
-// • FIRE SOUND RESTORED
-// • p5.js "key" CONFLICT REMOVED
-// • MOBILE TOUCH + MOUSE SUPPORT
+// 1. JOYSTICK-ONLY MOVEMENT
+// 2. RANDOM SCREEN TOUCH DOES NOT MOVE SHIP
+// 3. TRUE 360 DEGREE JOYSTICK
+// 4. ARCHIVE FIRST/LAST SHIP FULLY VISIBLE
+// 5. ARCHIVE SWIPE + DRAGGABLE SCROLLBAR
+// 6. PAUSE / HOME ALIGNMENT
+// 7. BALANCED BOTTOM CONTROLS
+// 8. PLAYER/ALIEN COLLISION GLITCH FIX
+// 9. GAME OVER FLICKER FIX
+// 10. ZERO TEXT GLOW / ZERO TEXT SHADOW
+// 11. FIRE SOUND
+// 12. NO p5.js "key" VARIABLE CONFLICT
 // ================================================================
 
-
-// ================================================================
-// GLOBAL GAME STATE
-// ================================================================
 
 let gameState = "HOME";
 
@@ -29,7 +28,6 @@ let aliens = [];
 let enemyShots = [];
 let powerUps = [];
 let particles = [];
-
 let stars = [];
 
 let boss = null;
@@ -67,64 +65,64 @@ let rating = 0;
 
 
 // ================================================================
-// MOBILE LAYOUT
+// LAYOUT
 // ================================================================
-
-// This value deliberately keeps bottom controls above the
-// physical bottom area / navigation area of tall phones.
 
 let safeBottom = 170;
 
-
-// ================================================================
-// TOP BUTTONS
-// ================================================================
-
-// IMPORTANT:
-// Earlier these were at y=52 and overlapped progress bars.
-// Now they sit BELOW the progress bars.
-
 let pauseButton = {
   x: 38,
-  y: 94,
-  radius: 24
+  y: 95,
+  radius: 23
 };
 
 let homeButton = {
   x: 0,
-  y: 94,
-  radius: 24
+  y: 95,
+  radius: 23
 };
-
-
-// ================================================================
-// BOTTOM CONTROLS
-// ================================================================
 
 let joystick = {
   baseX: 95,
   baseY: 0,
   knobX: 95,
   knobY: 0,
-  radius: 58,
+  radius: 57,
   active: false
 };
 
 let fireButton = {
   x: 0,
   y: 0,
-  radius: 54
+  radius: 52
 };
 
 let powerButton = {
   x: 0,
   y: 0,
-  radius: 43
+  radius: 42
 };
 
 
 // ================================================================
-// ARCHIVE SCROLL
+// JOYSTICK INPUT STATE
+// ================================================================
+
+// IMPORTANT:
+// Movement begins ONLY if touch starts inside joystick.
+// A random touch elsewhere is ignored.
+
+let joystickTouchActive = false;
+
+let joystickStartX = 0;
+let joystickStartY = 0;
+
+let joystickLastX = 0;
+let joystickLastY = 0;
+
+
+// ================================================================
+// ARCHIVE
 // ================================================================
 
 let archiveScroll = 0;
@@ -273,6 +271,7 @@ const SHIPS = [
 const TOTAL_LEVELS = 20;
 
 const LEVEL_NAMES = [
+
   "SPACE ROOKIE",
   "STAR CADET",
   "ORBIT SCOUT",
@@ -293,13 +292,16 @@ const LEVEL_NAMES = [
   "COSMIC OVERLORD",
   "MULTIVERSE MASTER",
   "SPACE LEGEND"
+
 ];
+
 
 function levelTime(level) {
 
   return 45000 +
     (level - 1) * 6000;
 }
+
 
 function levelTarget(level) {
 
@@ -310,11 +312,13 @@ function levelTarget(level) {
   );
 }
 
+
 function difficulty(level) {
 
   return 1 +
     (level - 1) * 0.055;
 }
+
 
 function bossLevel(level) {
 
@@ -360,33 +364,27 @@ function setup() {
 
 
 // ================================================================
-// LAYOUT
+// RESPONSIVE LAYOUT
 // ================================================================
 
 function updateLayout() {
 
-  // Tall mobile display optimization.
-  // More safeBottom = controls move UP.
-
   safeBottom = constrain(
     max(
-      145,
-      height * 0.155
+      125,
+      height * 0.125
     ),
-    145,
-    245
+    125,
+    190
   );
 
-  // Top buttons are intentionally below
-  // the two progress bars.
-
   pauseButton.x = 38;
-  pauseButton.y = 94;
+  pauseButton.y = 96;
 
   homeButton.x =
     width - 38;
 
-  homeButton.y = 94;
+  homeButton.y = 96;
 
   resetControls();
 }
@@ -473,15 +471,8 @@ function saveGame() {
 
 // ================================================================
 // PLAIN TEXT
-// ================================================================
-//
-// IMPORTANT:
 // NO GLOW
 // NO SHADOW
-// NO OUTLINE
-//
-// This function forcefully clears canvas shadow settings before
-// every text draw.
 // ================================================================
 
 function plainText(
@@ -521,8 +512,6 @@ function plainText(
   );
 
   drawingContext.shadowBlur = 0;
-  drawingContext.shadowColor =
-    "rgba(0,0,0,0)";
 }
 
 
@@ -537,63 +526,53 @@ function draw() {
   drawStars();
 
   if (gameState === "HOME") {
-
     drawHome();
     return;
   }
 
   if (gameState === "LEVELS") {
-
     drawLevels();
     return;
   }
 
   if (gameState === "ARCHIVE") {
-
     drawArchive();
     return;
   }
 
   if (gameState === "ABOUT") {
-
     drawAbout();
     return;
   }
 
   if (gameState === "SETTINGS") {
-
     drawSettings();
     return;
   }
 
   if (gameState === "RATING") {
-
     drawRating();
     return;
   }
 
   if (gameState === "PLAYING") {
-
     runGame();
     return;
   }
 
   if (gameState === "PAUSED") {
-
     drawFrozenGame();
     drawPause();
     return;
   }
 
   if (gameState === "GAMEOVER") {
-
     drawFrozenGame();
     drawGameOver();
     return;
   }
 
   if (gameState === "LEVELUP") {
-
     updateParticles();
     drawLevelUp();
     return;
@@ -643,7 +622,6 @@ function createStars() {
     stars.push({
 
       x: random(width),
-
       y: random(height),
 
       size:
@@ -663,6 +641,7 @@ function createStars() {
           90,
           210
         )
+
     });
   }
 }
@@ -742,13 +721,9 @@ function drawHome() {
   let buttons = [
 
     ["PLAY", height * 0.32],
-
     ["SHIP ARCHIVE", height * 0.43],
-
     ["ABOUT", height * 0.54],
-
     ["SETTINGS", height * 0.65],
-
     ["RATE US", height * 0.76]
 
   ];
@@ -989,49 +964,57 @@ function drawLevels() {
 // ================================================================
 // ARCHIVE GEOMETRY
 // ================================================================
+//
+// IMPORTANT FIX:
+// There is now TOP PADDING and BOTTOM PADDING inside the
+// scroll content. This guarantees first and last ship can both
+// reach a completely visible position.
+// ================================================================
 
 function archiveGeometry() {
 
-  let top = 105;
+  let viewportTop = 112;
 
-  // Keep bottom button completely separate from scroll viewport.
-
-  let bottom =
+  let viewportBottom =
     height -
     safeBottom -
-    55;
+    65;
 
   let viewportHeight =
     max(
-      100,
-      bottom - top
+      120,
+      viewportBottom -
+      viewportTop
     );
 
   let cardHeight = 145;
   let gap = 15;
 
+  let topPadding = 28;
+  let bottomPadding = 55;
+
   let contentHeight =
+    topPadding +
     SHIPS.length *
-    (
-      cardHeight +
-      gap
-    );
+    cardHeight +
+    (SHIPS.length - 1) *
+    gap +
+    bottomPadding;
 
   let maxScroll =
     max(
       0,
       contentHeight -
-      viewportHeight +
-      20
+      viewportHeight
     );
 
   return {
 
     top:
-      top,
+      viewportTop,
 
     bottom:
-      bottom,
+      viewportBottom,
 
     viewportHeight:
       viewportHeight,
@@ -1041,6 +1024,12 @@ function archiveGeometry() {
 
     gap:
       gap,
+
+    topPadding:
+      topPadding,
+
+    bottomPadding:
+      bottomPadding,
 
     contentHeight:
       contentHeight,
@@ -1073,7 +1062,7 @@ function clampArchiveScroll() {
 
 
 // ================================================================
-// ARCHIVE
+// ARCHIVE DRAW
 // ================================================================
 
 function drawArchive() {
@@ -1106,14 +1095,10 @@ function drawArchive() {
     lerp(
       archiveScroll,
       archiveTargetScroll,
-      0.25
+      0.28
     );
 
   clampArchiveScroll();
-
-  // ------------------------------------------------------------
-  // CLIPPED SHIP LIST
-  // ------------------------------------------------------------
 
   push();
 
@@ -1136,17 +1121,22 @@ function drawArchive() {
       width * 0.89
     );
 
+  // --------------------------------------------------------------
+  // IMPORTANT:
+  // Card positions use TOP PADDING.
+  // First card is never hidden under title.
+  // --------------------------------------------------------------
+
   for (
     let i = 0;
     i < SHIPS.length;
     i++
   ) {
 
-    let ship =
-      SHIPS[i];
-
     let cardY =
-      112 +
+      g.top +
+      g.topPadding +
+      g.cardHeight / 2 +
       i *
       (
         g.cardHeight +
@@ -1154,247 +1144,161 @@ function drawArchive() {
       ) -
       archiveScroll;
 
-    let unlocked =
-      unlockedLevel >=
-      ship.unlock;
-
-    let selected =
-      selectedShip === i;
-
-    rectMode(CENTER);
-
-    stroke(
-      selected
-        ? "#ead34c"
-        : unlocked
-          ? "#468fa9"
-          : "#44484c"
-    );
-
-    strokeWeight(
-      selected
-        ? 2.5
-        : 1.3
-    );
-
-    fill(
-      unlocked
-        ? "#061421"
-        : "#11151a"
-    );
-
-    rect(
-      width / 2,
+    drawArchiveCard(
+      SHIPS[i],
+      i,
       cardY,
       cardWidth,
-      g.cardHeight,
-      14
+      g.cardHeight
     );
-
-    if (unlocked) {
-
-      drawArchiveShip(
-        width / 2 -
-        cardWidth * 0.31,
-        cardY,
-        i,
-        0.84
-      );
-
-      plainText(
-        ship.name,
-        width / 2 -
-        cardWidth * 0.05,
-        cardY - 40,
-        13,
-        "#eef7fa",
-        LEFT,
-        CENTER,
-        BOLD
-      );
-
-      plainText(
-        ship.power,
-        width / 2 -
-        cardWidth * 0.05,
-        cardY - 14,
-        10,
-        "#e4cc55",
-        LEFT,
-        CENTER,
-        BOLD
-      );
-
-      plainText(
-        ship.desc,
-        width / 2 -
-        cardWidth * 0.05,
-        cardY + 10,
-        9,
-        "#9aaeb8",
-        LEFT,
-        CENTER,
-        NORMAL
-      );
-
-      plainText(
-        selected
-          ? "SELECTED"
-          : "TAP TO SELECT",
-        width / 2 -
-        cardWidth * 0.05,
-        cardY + 38,
-        9,
-        selected
-          ? "#ead34c"
-          : "#78b1c6",
-        LEFT,
-        CENTER,
-        BOLD
-      );
-
-    } else {
-
-      drawArchiveShip(
-        width / 2,
-        cardY - 5,
-        i,
-        0.65
-      );
-
-      plainText(
-        "LOCKED  •  LEVEL " +
-        ship.unlock,
-        width / 2,
-        cardY + 48,
-        10,
-        "#858b8f",
-        CENTER,
-        CENTER,
-        BOLD
-      );
-    }
   }
 
   drawingContext.restore();
 
   pop();
 
-  // ------------------------------------------------------------
-  // ACTUAL DRAGGABLE SCROLLBAR
-  // ------------------------------------------------------------
-
   drawArchiveScrollbar();
-
-  // ------------------------------------------------------------
-  // HOME BUTTON IS DRAWN LAST AND IS NEVER CLIPPED
-  // ------------------------------------------------------------
 
   homeBottomButton();
 }
 
 
 // ================================================================
-// ARCHIVE SCROLLBAR
+// ARCHIVE CARD
 // ================================================================
 
-function drawArchiveScrollbar() {
+function drawArchiveCard(
+  ship,
+  index,
+  cardY,
+  cardWidth,
+  cardHeight
+) {
 
-  let g =
-    archiveGeometry();
+  let unlocked =
+    unlockedLevel >=
+    ship.unlock;
 
-  if (
-    g.maxScroll <= 0
-  ) {
-    return;
-  }
+  let selected =
+    selectedShip ===
+    index;
 
-  let trackX =
-    width - 10;
-
-  let trackTop =
-    g.top;
-
-  let trackHeight =
-    g.viewportHeight;
-
-  // Track
-
-  noStroke();
-
-  fill(
-    255,
-    255,
-    255,
-    22
-  );
-
-  rect(
-    trackX,
-    trackTop +
-    trackHeight / 2,
-    4,
-    trackHeight,
-    2
-  );
-
-  // Thumb size proportional to visible content.
-
-  let thumbHeight =
-    max(
-      55,
-      trackHeight *
-      (
-        g.viewportHeight /
-        g.contentHeight
-      )
-    );
-
-  let travel =
-    trackHeight -
-    thumbHeight;
-
-  let ratio =
-    g.maxScroll > 0
-      ? archiveScroll /
-        g.maxScroll
-      : 0;
-
-  let thumbY =
-    trackTop +
-    thumbHeight / 2 +
-    travel *
-    constrain(
-      ratio,
-      0,
-      1
-    );
+  rectMode(CENTER);
 
   stroke(
-    "#59b5d2"
+    selected
+      ? "#ead34c"
+      : unlocked
+        ? "#468fa9"
+        : "#44484c"
   );
 
-  strokeWeight(1);
+  strokeWeight(
+    selected
+      ? 2.5
+      : 1.3
+  );
 
   fill(
-    45,
-    150,
-    185,
-    210
+    unlocked
+      ? "#061421"
+      : "#11151a"
   );
 
   rect(
-    trackX,
-    thumbY,
-    10,
-    thumbHeight,
-    5
+    width / 2,
+    cardY,
+    cardWidth,
+    cardHeight,
+    14
   );
+
+  if (unlocked) {
+
+    drawArchiveShip(
+      width / 2 -
+      cardWidth * 0.31,
+      cardY,
+      index,
+      0.84
+    );
+
+    plainText(
+      ship.name,
+      width / 2 -
+      cardWidth * 0.05,
+      cardY - 40,
+      13,
+      "#eef7fa",
+      LEFT,
+      CENTER,
+      BOLD
+    );
+
+    plainText(
+      ship.power,
+      width / 2 -
+      cardWidth * 0.05,
+      cardY - 14,
+      10,
+      "#e4cc55",
+      LEFT,
+      CENTER,
+      BOLD
+    );
+
+    plainText(
+      ship.desc,
+      width / 2 -
+      cardWidth * 0.05,
+      cardY + 10,
+      9,
+      "#9aaeb8",
+      LEFT
+    );
+
+    plainText(
+      selected
+        ? "SELECTED"
+        : "TAP TO SELECT",
+      width / 2 -
+      cardWidth * 0.05,
+      cardY + 38,
+      9,
+      selected
+        ? "#ead34c"
+        : "#78b1c6",
+      LEFT,
+      CENTER,
+      BOLD
+    );
+
+  } else {
+
+    drawArchiveShip(
+      width / 2,
+      cardY - 5,
+      index,
+      0.65
+    );
+
+    plainText(
+      "LOCKED  •  LEVEL " +
+      ship.unlock,
+      width / 2,
+      cardY + 48,
+      10,
+      "#858b8f",
+      CENTER,
+      CENTER,
+      BOLD
+    );
+  }
 }
 
 
 // ================================================================
-// ARCHIVE SCROLLBAR HIT
+// ARCHIVE SCROLLBAR
 // ================================================================
 
 function archiveScrollbarInfo() {
@@ -1405,6 +1309,7 @@ function archiveScrollbarInfo() {
   if (
     g.maxScroll <= 0
   ) {
+
     return null;
   }
 
@@ -1432,10 +1337,8 @@ function archiveScrollbarInfo() {
     thumbHeight;
 
   let ratio =
-    g.maxScroll > 0
-      ? archiveScroll /
-        g.maxScroll
-      : 0;
+    archiveScroll /
+    g.maxScroll;
 
   let thumbY =
     trackTop +
@@ -1449,8 +1352,7 @@ function archiveScrollbarInfo() {
 
   return {
 
-    x:
-      trackX,
+    x: trackX,
 
     top:
       thumbY -
@@ -1478,6 +1380,55 @@ function archiveScrollbarInfo() {
 }
 
 
+function drawArchiveScrollbar() {
+
+  let info =
+    archiveScrollbarInfo();
+
+  if (!info) return;
+
+  noStroke();
+
+  fill(
+    255,
+    255,
+    255,
+    22
+  );
+
+  rect(
+    info.x,
+    info.trackTop +
+    info.trackHeight / 2,
+    4,
+    info.trackHeight,
+    2
+  );
+
+  stroke("#59b5d2");
+
+  strokeWeight(1);
+
+  fill(
+    45,
+    150,
+    185,
+    215
+  );
+
+  rect(
+    info.x,
+    (
+      info.top +
+      info.bottom
+    ) / 2,
+    10,
+    info.thumbHeight,
+    5
+  );
+}
+
+
 function isOnArchiveScrollbar(
   x,
   y
@@ -1491,11 +1442,11 @@ function isOnArchiveScrollbar(
 
   return (
     x >
-      width - 35 &&
+      width - 38 &&
     y >=
-      info.top - 10 &&
+      info.top - 12 &&
     y <=
-      info.bottom + 10
+      info.bottom + 12
   );
 }
 
@@ -1543,7 +1494,7 @@ function setArchiveScrollFromScrollbar(
 
 
 // ================================================================
-// ARCHIVE SHIP DRAW
+// ARCHIVE SHIP ART
 // ================================================================
 
 function drawArchiveShip(
@@ -1576,23 +1527,14 @@ function drawArchiveShip(
   beginShape();
 
   vertex(0, -42);
-
   vertex(-13, -17);
-
   vertex(-40, -5);
-
   vertex(-24, 11);
-
   vertex(-14, 27);
-
   vertex(0, 18);
-
   vertex(14, 27);
-
   vertex(24, 11);
-
   vertex(40, -5);
-
   vertex(13, -17);
 
   endShape(CLOSE);
@@ -1877,9 +1819,7 @@ function drawRating() {
 // START LEVEL
 // ================================================================
 
-function startLevel(
-  level
-) {
+function startLevel(level) {
 
   currentLevel =
     constrain(
@@ -1951,7 +1891,7 @@ class Player {
       width / 2;
 
     this.y =
-      height * 0.68;
+      height * 0.67;
 
     this.angle =
       -HALF_PI;
@@ -1962,6 +1902,11 @@ class Player {
   }
 
   update() {
+
+    // No automatic movement.
+    // Movement happens ONLY through joystick.
+
+    // Horizontal wrapping.
 
     if (
       this.x < -40
@@ -1978,6 +1923,8 @@ class Player {
 
       this.x = -40;
     }
+
+    // Vertical wrapping.
 
     if (
       this.y < -40
@@ -2002,7 +1949,7 @@ class Player {
       millis() <
       this.invincibleUntil &&
       floor(
-        millis() / 90
+        millis() / 120
       ) % 2 === 0
     ) {
 
@@ -2035,19 +1982,12 @@ class Player {
     beginShape();
 
     vertex(0, -32);
-
     vertex(-11, -9);
-
     vertex(-29, 17);
-
     vertex(-9, 12);
-
     vertex(0, 23);
-
     vertex(9, 12);
-
     vertex(29, 17);
-
     vertex(11, -9);
 
     endShape(CLOSE);
@@ -2260,7 +2200,7 @@ function runGame() {
 
   updateShake();
 
-  handleMovement();
+  handleJoystickMovement();
 
   player.update();
 
@@ -2275,7 +2215,6 @@ function runGame() {
   updateParticles();
 
   if (bossActive) {
-
     updateBoss();
   }
 
@@ -2307,9 +2246,7 @@ function runGame() {
 // SHAKE
 // ================================================================
 
-function startShake(
-  amount
-) {
+function startShake(amount) {
 
   shakeAmount =
     max(
@@ -2354,6 +2291,7 @@ class Bullet {
 
     this.x = x;
     this.y = y;
+
     this.angle = angle;
     this.power = power;
 
@@ -2409,11 +2347,9 @@ class Bullet {
     return (
       this.life <= 0 ||
       this.x < -80 ||
-      this.x >
-      width + 80 ||
+      this.x > width + 80 ||
       this.y < -80 ||
-      this.y >
-      height + 80
+      this.y > height + 80
     );
   }
 }
@@ -2462,27 +2398,15 @@ function initAudio() {
 
 function playFireSound() {
 
-  if (!soundOn) {
-    return;
-  }
+  if (!soundOn) return;
 
   if (!audioCtx) {
     initAudio();
   }
 
-  if (!audioCtx) {
-    return;
-  }
+  if (!audioCtx) return;
 
   try {
-
-    if (
-      audioCtx.state ===
-      "suspended"
-    ) {
-
-      audioCtx.resume();
-    }
 
     let now =
       audioCtx.currentTime;
@@ -2539,17 +2463,13 @@ function playFireSound() {
 
 function playPowerSound() {
 
-  if (!soundOn) {
-    return;
-  }
+  if (!soundOn) return;
 
   if (!audioCtx) {
     initAudio();
   }
 
-  if (!audioCtx) {
-    return;
-  }
+  if (!audioCtx) return;
 
   try {
 
@@ -2633,8 +2553,6 @@ function shoot() {
   }
 
   lastShot = now;
-
-  // ACTUAL FIRE SOUND
 
   playFireSound();
 
@@ -2761,6 +2679,7 @@ function shoot() {
           bulletAngle,
 
           damageMultiplier()
+
         )
       );
     }
@@ -2769,7 +2688,7 @@ function shoot() {
 
 
 // ================================================================
-// BULLET UPDATE
+// BULLETS UPDATE
 // ================================================================
 
 function updateBullets() {
@@ -2815,13 +2734,9 @@ class Alien {
       random([
 
         "SCOUT",
-
         "INTERCEPTOR",
-
         "HUNTER",
-
         "HEAVY",
-
         "ELITE"
 
       ]);
@@ -2856,8 +2771,8 @@ class Alien {
 
       this.y =
         random(
-          height * 0.16,
-          height * 0.75
+          height * 0.17,
+          height * 0.70
         );
 
     } else if (side === 2) {
@@ -2874,8 +2789,8 @@ class Alien {
 
       this.y =
         random(
-          height * 0.16,
-          height * 0.75
+          height * 0.17,
+          height * 0.70
         );
     }
 
@@ -2889,7 +2804,6 @@ class Alien {
     ) {
 
       this.radius = 20;
-
       this.hp = 1;
     }
 
@@ -2899,7 +2813,6 @@ class Alien {
     ) {
 
       this.radius = 24;
-
       this.hp = 2;
     }
 
@@ -2909,7 +2822,6 @@ class Alien {
     ) {
 
       this.radius = 32;
-
       this.hp = 4;
     }
 
@@ -2919,7 +2831,6 @@ class Alien {
     ) {
 
       this.radius = 29;
-
       this.hp = 3;
     }
 
@@ -3166,12 +3077,9 @@ class Alien {
     return (
 
       this.x < -160 ||
-
       this.x >
       width + 160 ||
-
       this.y < -160 ||
-
       this.y >
       height + 160
 
@@ -3219,23 +3127,9 @@ function alienScout() {
 
   fill("#4de5ff");
 
-  circle(
-    -15,
-    6,
-    4
-  );
-
-  circle(
-    0,
-    9,
-    4
-  );
-
-  circle(
-    15,
-    6,
-    4
-  );
+  circle(-15, 6, 4);
+  circle(0, 9, 4);
+  circle(15, 6, 4);
 }
 
 
@@ -3271,20 +3165,6 @@ function alienInterceptor() {
     -2,
     9,
     14
-  );
-
-  fill("#ff6de0");
-
-  circle(
-    -22,
-    -4,
-    5
-  );
-
-  circle(
-    22,
-    -4,
-    5
   );
 }
 
@@ -3324,20 +3204,6 @@ function alienHunter() {
     13,
     18
   );
-
-  fill("#ff9c38");
-
-  circle(
-    -18,
-    -8,
-    4
-  );
-
-  circle(
-    18,
-    -8,
-    4
-  );
 }
 
 
@@ -3364,24 +3230,6 @@ function alienHeavy() {
 
   endShape(CLOSE);
 
-  stroke("#8c2b31");
-
-  strokeWeight(2);
-
-  line(
-    -27,
-    -3,
-    -10,
-    7
-  );
-
-  line(
-    27,
-    -3,
-    10,
-    7
-  );
-
   noStroke();
 
   fill("#ffb4b4");
@@ -3391,20 +3239,6 @@ function alienHeavy() {
     -4,
     15,
     20
-  );
-
-  fill("#ff5555");
-
-  circle(
-    -20,
-    10,
-    5
-  );
-
-  circle(
-    20,
-    10,
-    5
   );
 }
 
@@ -3443,20 +3277,6 @@ function alienElite() {
     -5,
     12,
     18
-  );
-
-  fill("#c879ff");
-
-  circle(
-    -19,
-    -8,
-    4
-  );
-
-  circle(
-    19,
-    -8,
-    4
   );
 }
 
@@ -3566,7 +3386,6 @@ class EnemyShot {
     this.y = y;
 
     this.angle = angle;
-
     this.speed = speed;
 
     this.radius = 7;
@@ -3610,19 +3429,11 @@ class EnemyShot {
   dead() {
 
     return (
-
       this.life <= 0 ||
-
       this.x < -100 ||
-
-      this.x >
-      width + 100 ||
-
+      this.x > width + 100 ||
       this.y < -100 ||
-
-      this.y >
-      height + 100
-
+      this.y > height + 100
     );
   }
 }
@@ -3660,7 +3471,7 @@ function updateEnemyShots() {
 
 
 // ================================================================
-// COLLISIONS
+// COLLISION: BULLET -> ALIEN
 // ================================================================
 
 function collideBulletsAliens() {
@@ -3722,29 +3533,22 @@ function collideBulletsAliens() {
           if (
             alien.type ===
             "HUNTER"
-          ) {
-
+          )
             points = 45;
-          }
 
           if (
             alien.type ===
             "HEAVY"
-          ) {
-
+          )
             points = 70;
-          }
 
           if (
             alien.type ===
             "ELITE"
-          ) {
-
+          )
             points = 100;
-          }
 
           score += points;
-
           levelScore += points;
 
           createExplosion(
@@ -3779,6 +3583,15 @@ function collideBulletsAliens() {
 }
 
 
+// ================================================================
+// COLLISION: PLAYER -> ALIEN
+// FIXED:
+// • Enemy is removed first.
+// • Player receives invulnerability.
+// • No player deletion.
+// • No multiple collision chain.
+// ================================================================
+
 function collideShipAliens() {
 
   if (
@@ -3799,23 +3612,28 @@ function collideShipAliens() {
     let alien =
       aliens[i];
 
-    if (
+    let d =
       dist(
         player.x,
         player.y,
         alien.x,
         alien.y
-      ) <
+      );
+
+    if (
+      d <
       player.radius +
-      alien.radius * 0.7
+      alien.radius * 0.72
     ) {
+
+      // Shield collision
 
       if (hasShield()) {
 
         createExplosion(
           alien.x,
           alien.y,
-          22,
+          28,
           "#00cfff"
         );
 
@@ -3829,6 +3647,8 @@ function collideShipAliens() {
         return;
       }
 
+      // PHASE DODGE
+
       if (
         shipPower() ===
         "PHASE DODGE" &&
@@ -3836,10 +3656,23 @@ function collideShipAliens() {
       ) {
 
         player.invincibleUntil =
-          millis() + 300;
+          millis() + 500;
 
         return;
       }
+
+      // IMPORTANT:
+      // Remove enemy before damaging player.
+      // This prevents the visual overlap glitch.
+
+      createExplosion(
+        alien.x,
+        alien.y,
+        28,
+        SHIPS[
+          selectedShip
+        ].edge
+      );
 
       aliens.splice(
         i,
@@ -3853,6 +3686,10 @@ function collideShipAliens() {
   }
 }
 
+
+// ================================================================
+// COLLISION: PLAYER -> ENEMY BULLET
+// ================================================================
 
 function collideShipShots() {
 
@@ -3892,6 +3729,13 @@ function collideShipShots() {
           1
         );
 
+        createExplosion(
+          shot.x,
+          shot.y,
+          8,
+          "#00cfff"
+        );
+
         startShake(4);
 
         return;
@@ -3910,9 +3754,20 @@ function collideShipShots() {
 }
 
 
+// ================================================================
+// PLAYER DAMAGE
+// ================================================================
+
 function damagePlayer() {
 
   lives--;
+
+  createExplosion(
+    player.x,
+    player.y,
+    35,
+    "#ff5968"
+  );
 
   player.invincibleUntil =
     millis() + 1800;
@@ -3923,14 +3778,16 @@ function damagePlayer() {
     lives <= 0
   ) {
 
+    // Clear active objects so Game Over cannot
+    // draw a conflicting collision frame.
+
+    bullets = [];
+    enemyShots = [];
+    aliens = [];
+    powerUps = [];
+
     gameState =
       "GAMEOVER";
-
-    createExplosion(
-      player.x,
-      player.y,
-      60
-    );
   }
 }
 
@@ -3966,7 +3823,7 @@ class PowerUp {
 
     this.y =
       random(
-        130,
+        145,
         height -
         safeBottom -
         50
@@ -4038,9 +3895,7 @@ class PowerUp {
 }
 
 
-function powerConfig(
-  type
-) {
+function powerConfig(type) {
 
   const data = {
 
@@ -4088,6 +3943,7 @@ function powerConfig(
       color: "#fff176",
       label: "CX"
     }
+
   };
 
   return data[type];
@@ -4187,7 +4043,6 @@ function updatePowerUps() {
       );
 
       score += 50;
-
       levelScore += 50;
 
       powerUps.splice(
@@ -4201,9 +4056,7 @@ function updatePowerUps() {
 }
 
 
-function activatePower(
-  type
-) {
+function activatePower(type) {
 
   playPowerSound();
 
@@ -4248,7 +4101,6 @@ function activatePower(
       );
 
       score += 20;
-
       levelScore += 20;
     }
 
@@ -4477,19 +4329,8 @@ class Boss {
         : "#fff05a"
     );
 
-    ellipse(
-      -14,
-      -34,
-      11,
-      8
-    );
-
-    ellipse(
-      14,
-      -34,
-      11,
-      8
-    );
+    ellipse(-14, -34, 11, 8);
+    ellipse(14, -34, 11, 8);
 
     pop();
   }
@@ -4903,24 +4744,16 @@ function drawLevelUp() {
 
 
 // ================================================================
-// GAMEPLAY HUD
+// HUD
 // ================================================================
 
 function drawHUD() {
-
-  // HARD RESET OF TEXT EFFECTS
 
   drawingContext.shadowBlur = 0;
   drawingContext.shadowColor =
     "rgba(0,0,0,0)";
   drawingContext.shadowOffsetX = 0;
   drawingContext.shadowOffsetY = 0;
-
-  noStroke();
-
-  // --------------------------------------------------------------
-  // TOP INFORMATION
-  // --------------------------------------------------------------
 
   plainText(
     "SCORE  " +
@@ -4967,13 +4800,8 @@ function drawHUD() {
     9,
     "#9daab0",
     CENTER,
-    TOP,
-    NORMAL
+    TOP
   );
-
-  // --------------------------------------------------------------
-  // PROGRESS BAR 1
-  // --------------------------------------------------------------
 
   let w =
     min(
@@ -5038,10 +4866,6 @@ function drawHUD() {
     3
   );
 
-  // --------------------------------------------------------------
-  // PROGRESS BAR 2
-  // --------------------------------------------------------------
-
   fill(
     255,
     255,
@@ -5101,23 +4925,138 @@ function drawHUD() {
     "#87999f"
   );
 
-  // --------------------------------------------------------------
-  // IMPORTANT:
-  // Pause and Home are now at y=94.
-  // They no longer sit on the progress bars.
-  // --------------------------------------------------------------
+  // Proper symmetrical buttons
 
-  topButton(
+  drawPauseIconButton(
     pauseButton.x,
-    pauseButton.y,
-    "Ⅱ"
+    pauseButton.y
   );
 
-  topButton(
+  drawHomeIconButton(
     homeButton.x,
-    homeButton.y,
-    "⌂"
+    homeButton.y
   );
+}
+
+
+// ================================================================
+// PAUSE ICON
+// ================================================================
+
+function drawPauseIconButton(
+  x,
+  y
+) {
+
+  stroke("#468ea8");
+
+  strokeWeight(1.5);
+
+  fill(
+    5,
+    22,
+    36,
+    235
+  );
+
+  circle(
+    x,
+    y,
+    44
+  );
+
+  noStroke();
+
+  fill("#edf7ff");
+
+  rect(
+    x - 5,
+    y,
+    4,
+    15,
+    1
+  );
+
+  rect(
+    x + 5,
+    y,
+    4,
+    15,
+    1
+  );
+}
+
+
+// ================================================================
+// HOME ICON
+// ================================================================
+
+function drawHomeIconButton(
+  x,
+  y
+) {
+
+  stroke("#468ea8");
+
+  strokeWeight(1.5);
+
+  fill(
+    5,
+    22,
+    36,
+    235
+  );
+
+  circle(
+    x,
+    y,
+    44
+  );
+
+  stroke("#edf7ff");
+
+  strokeWeight(2.2);
+
+  noFill();
+
+  beginShape();
+
+  vertex(
+    x - 9,
+    y - 1
+  );
+
+  vertex(
+    x,
+    y - 9
+  );
+
+  vertex(
+    x + 9,
+    y - 1
+  );
+
+  vertex(
+    x + 7,
+    y - 1
+  );
+
+  vertex(
+    x + 7,
+    y + 8
+  );
+
+  vertex(
+    x - 7,
+    y + 8
+  );
+
+  vertex(
+    x - 7,
+    y - 1
+  );
+
+  endShape(CLOSE);
 }
 
 
@@ -5129,13 +5068,13 @@ function resetControls() {
 
   let moveX =
     swappedControls
-      ? width - 95
-      : 95;
+      ? width - 96
+      : 96;
 
   let fireX =
     swappedControls
-      ? 95
-      : width - 95;
+      ? 96
+      : width - 96;
 
   joystick.baseX =
     moveX;
@@ -5169,206 +5108,182 @@ function resetControls() {
 
 
 // ================================================================
-// MOBILE MOVEMENT
+// JOYSTICK-ONLY MOVEMENT
+// ================================================================
+//
+// THIS IS THE IMPORTANT FIX.
+//
+// A touch must START inside the joystick.
+// Touching anywhere else on the gameplay screen does NOTHING.
 // ================================================================
 
-function handleMovement() {
+function handleJoystickMovement() {
 
-  let movementTouch = null;
+  if (
+    !joystickTouchActive
+  ) {
 
-  let firing = false;
+    resetJoystickVisual();
+
+    return;
+  }
+
+  if (
+    touches.length === 0
+  ) {
+
+    joystickTouchActive =
+      false;
+
+    resetJoystickVisual();
+
+    return;
+  }
+
+  // Find the touch closest to the joystick's current
+  // controlled position. This allows simultaneous fire touch.
+
+  let chosen = null;
+
+  let bestDistance =
+    Infinity;
 
   for (
     let touch of touches
   ) {
 
-    if (
+    let d =
       dist(
         touch.x,
         touch.y,
-        fireButton.x,
-        fireButton.y
-      ) <
-      fireButton.radius +
-      18
-    ) {
-
-      firing = true;
-
-      continue;
-    }
-
-    let correctSide =
-      swappedControls
-        ? touch.x >
-          width * 0.45
-        : touch.x <
-          width * 0.55;
-
-    if (
-      correctSide &&
-      touch.y >
-      height * 0.40
-    ) {
-
-      movementTouch =
-        touch;
-    }
-  }
-
-  if (firing) {
-
-    shoot();
-  }
-
-  if (movementTouch) {
-
-    if (
-      !joystick.active
-    ) {
-
-      joystick.active = true;
-
-      joystick.baseX =
-        movementTouch.x;
-
-      joystick.baseY =
-        movementTouch.y;
-    }
-
-    let dx =
-      movementTouch.x -
-      joystick.baseX;
-
-    let dy =
-      movementTouch.y -
-      joystick.baseY;
-
-    let distance =
-      sqrt(
-        dx * dx +
-        dy * dy
+        joystickLastX,
+        joystickLastY
       );
 
     if (
-      distance >
-      joystick.radius
+      d < bestDistance
     ) {
 
-      let angle =
-        atan2(
-          dy,
-          dx
-        );
+      bestDistance = d;
 
-      dx =
-        cos(angle) *
-        joystick.radius;
-
-      dy =
-        sin(angle) *
-        joystick.radius;
+      chosen = touch;
     }
-
-    joystick.knobX =
-      joystick.baseX +
-      dx;
-
-    joystick.knobY =
-      joystick.baseY +
-      dy;
-
-  } else {
-
-    resetJoystick();
   }
 
-  movePlayer();
-}
-
-
-function resetJoystick() {
-
-  joystick.active =
-    false;
-
-  let x =
-    swappedControls
-      ? width - 95
-      : 95;
-
-  joystick.baseX = x;
-
-  joystick.baseY =
-    height -
-    safeBottom;
-
-  joystick.knobX = x;
-
-  joystick.knobY =
-    joystick.baseY;
-}
-
-
-function movePlayer() {
-
-  if (
-    !joystick.active
-  ) {
-
+  if (!chosen)
     return;
-  }
+
+  joystickLastX =
+    chosen.x;
+
+  joystickLastY =
+    chosen.y;
 
   let dx =
-    joystick.knobX -
-    joystick.baseX;
+    chosen.x -
+    joystickStartX;
 
   let dy =
-    joystick.knobY -
-    joystick.baseY;
+    chosen.y -
+    joystickStartY;
 
-  let magnitude =
+  let distance =
     sqrt(
       dx * dx +
       dy * dy
     );
 
   if (
-    magnitude < 4
+    distance >
+    joystick.radius
   ) {
 
-    return;
+    let angle =
+      atan2(
+        dy,
+        dx
+      );
+
+    dx =
+      cos(angle) *
+      joystick.radius;
+
+    dy =
+      sin(angle) *
+      joystick.radius;
+
+    distance =
+      joystick.radius;
   }
 
-  let angle =
-    atan2(
-      dy,
-      dx
-    );
+  joystick.knobX =
+    joystickStartX +
+    dx;
 
-  player.angle =
-    angle;
+  joystick.knobY =
+    joystickStartY +
+    dy;
 
-  let strength =
-    constrain(
-      magnitude /
-      joystick.radius,
-      0,
-      1
-    );
+  // 360 degree movement
 
-  let speed =
-    moveSpeed();
+  if (
+    distance > 5
+  ) {
 
-  player.x +=
-    cos(angle) *
-    speed *
-    strength;
+    let angle =
+      atan2(
+        dy,
+        dx
+      );
 
-  player.y +=
-    sin(angle) *
-    speed *
-    strength;
+    player.angle =
+      angle;
+
+    let strength =
+      constrain(
+        distance /
+        joystick.radius,
+        0,
+        1
+      );
+
+    let speed =
+      moveSpeed();
+
+    player.x +=
+      cos(angle) *
+      speed *
+      strength;
+
+    player.y +=
+      sin(angle) *
+      speed *
+      strength;
+  }
+}
+
+
+function resetJoystickVisual() {
+
+  let x =
+    swappedControls
+      ? width - 96
+      : 96;
+
+  joystick.baseX =
+    x;
+
+  joystick.baseY =
+    height -
+    safeBottom;
+
+  joystick.knobX =
+    x;
+
+  joystick.knobY =
+    joystick.baseY;
+
+  joystick.active = false;
 }
 
 
@@ -5378,13 +5293,11 @@ function movePlayer() {
 
 function drawControls() {
 
-  // These are automatically higher because safeBottom is larger.
-
   let y =
     height -
     safeBottom;
 
-  // MOVEMENT
+  // JOYSTICK
 
   stroke(
     70,
@@ -5496,47 +5409,7 @@ function drawControls() {
 
 
 // ================================================================
-// TOP BUTTON
-// ================================================================
-
-function topButton(
-  x,
-  y,
-  label
-) {
-
-  stroke("#468ea8");
-
-  strokeWeight(1.5);
-
-  fill(
-    5,
-    22,
-    36,
-    235
-  );
-
-  circle(
-    x,
-    y,
-    43
-  );
-
-  plainText(
-    label,
-    x,
-    y,
-    17,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-}
-
-
-// ================================================================
-// HOME BUTTON
+// BOTTOM HOME BUTTON
 // ================================================================
 
 function homeBottomButton() {
@@ -5544,7 +5417,7 @@ function homeBottomButton() {
   let y =
     height -
     safeBottom +
-    20;
+    22;
 
   let w =
     min(
@@ -5634,6 +5507,11 @@ function pauseGame() {
     "PLAYING"
   ) {
 
+    joystickTouchActive =
+      false;
+
+    resetJoystickVisual();
+
     gameState =
       "PAUSED";
   }
@@ -5650,15 +5528,31 @@ function resumeGame() {
     return;
   }
 
+  resetJoystickVisual();
+
   gameState =
     "PLAYING";
 }
 
 
+// ================================================================
+// FROZEN GAME
+// ================================================================
+
 function drawFrozenGame() {
 
-  if (player)
-    player.display();
+  // IMPORTANT:
+  // Never draw a dying player during GAMEOVER.
+  // This eliminates final-frame flicker.
+
+  if (
+    gameState !==
+    "GAMEOVER"
+  ) {
+
+    if (player)
+      player.display();
+  }
 
   for (
     let alien of aliens
@@ -5692,8 +5586,14 @@ function drawFrozenGame() {
     boss.display();
 
   drawHUD();
+
+  updateParticles();
 }
 
+
+// ================================================================
+// PAUSE SCREEN
+// ================================================================
 
 function drawPause() {
 
@@ -5877,7 +5777,6 @@ class Particle {
       this.vy;
 
     this.vx *= 0.97;
-
     this.vy *= 0.97;
 
     this.life -= 7;
@@ -6109,7 +6008,6 @@ function useSpecial() {
       );
 
       score += 35;
-
       levelScore += 35;
     }
 
@@ -6159,9 +6057,20 @@ function touchStarted() {
 
   initAudio();
 
-  // --------------------------------------------------------------
+  let x =
+    touches.length
+      ? touches[0].x
+      : mouseX;
+
+  let y =
+    touches.length
+      ? touches[0].y
+      : mouseY;
+
+
+  // ============================================================
   // ARCHIVE
-  // --------------------------------------------------------------
+  // ============================================================
 
   if (
     gameState ===
@@ -6178,8 +6087,6 @@ function touchStarted() {
     let touch =
       touches[0];
 
-    // HOME ALWAYS HAS FIRST PRIORITY
-
     if (
       isArchiveHomeButton(
         touch.x,
@@ -6188,13 +6095,10 @@ function touchStarted() {
     ) {
 
       archiveTouching = false;
-
       archiveDragging = false;
-
       archiveDraggingScrollbar = false;
 
       archiveScroll = 0;
-
       archiveTargetScroll = 0;
 
       gameState =
@@ -6202,8 +6106,6 @@ function touchStarted() {
 
       return false;
     }
-
-    // CHECK SCROLLBAR THUMB
 
     if (
       isOnArchiveScrollbar(
@@ -6213,11 +6115,8 @@ function touchStarted() {
     ) {
 
       archiveTouching = true;
-
       archiveDragging = true;
-
-      archiveDraggingScrollbar =
-        true;
+      archiveDraggingScrollbar = true;
 
       archiveStartX =
         touch.x;
@@ -6231,32 +6130,26 @@ function touchStarted() {
       archiveLastY =
         touch.y;
 
+      setArchiveScrollFromScrollbar(
+        touch.y
+      );
+
       return false;
     }
 
     let g =
       archiveGeometry();
 
-    // Ignore touches outside scroll viewport.
-
     if (
       touch.y < g.top ||
       touch.y > g.bottom
     ) {
 
-      archiveTouching = false;
-
-      archiveDragging = false;
-
-      archiveDraggingScrollbar = false;
-
       return false;
     }
 
     archiveTouching = true;
-
     archiveDragging = false;
-
     archiveDraggingScrollbar = false;
 
     archiveStartX =
@@ -6274,19 +6167,139 @@ function touchStarted() {
     return false;
   }
 
-  // --------------------------------------------------------------
+
+  // ============================================================
+  // GAMEPLAY
+  // ============================================================
+
+  if (
+    gameState ===
+    "PLAYING"
+  ) {
+
+    // ----------------------------------------------------------
+    // IMPORTANT:
+    // First determine whether touch starts inside JOYSTICK.
+    // ----------------------------------------------------------
+
+    if (
+      isInsideJoystick(
+        x,
+        y
+      )
+    ) {
+
+      joystickTouchActive =
+        true;
+
+      joystick.active = true;
+
+      joystickStartX =
+        joystick.baseX;
+
+      joystickStartY =
+        joystick.baseY;
+
+      joystickLastX =
+        x;
+
+      joystickLastY =
+        y;
+
+      return false;
+    }
+
+    // ----------------------------------------------------------
+    // FIRE
+    // ----------------------------------------------------------
+
+    if (
+      dist(
+        x,
+        y,
+        fireButton.x,
+        fireButton.y
+      ) <
+      fireButton.radius +
+      20
+    ) {
+
+      shoot();
+
+      return false;
+    }
+
+    // ----------------------------------------------------------
+    // POWER
+    // ----------------------------------------------------------
+
+    if (
+      dist(
+        x,
+        y,
+        powerButton.x,
+        powerButton.y
+      ) <
+      powerButton.radius +
+      15
+    ) {
+
+      useSpecial();
+
+      return false;
+    }
+
+    // ----------------------------------------------------------
+    // PAUSE
+    // ----------------------------------------------------------
+
+    if (
+      dist(
+        x,
+        y,
+        pauseButton.x,
+        pauseButton.y
+      ) < 34
+    ) {
+
+      pauseGame();
+
+      return false;
+    }
+
+    // ----------------------------------------------------------
+    // HOME
+    // ----------------------------------------------------------
+
+    if (
+      dist(
+        x,
+        y,
+        homeButton.x,
+        homeButton.y
+      ) < 34
+    ) {
+
+      joystickTouchActive =
+        false;
+
+      gameState =
+        "HOME";
+
+      return false;
+    }
+
+    // ----------------------------------------------------------
+    // ANY OTHER SCREEN TOUCH = NOTHING
+    // ----------------------------------------------------------
+
+    return false;
+  }
+
+
+  // ============================================================
   // OTHER SCREENS
-  // --------------------------------------------------------------
-
-  let x =
-    touches.length
-      ? touches[0].x
-      : mouseX;
-
-  let y =
-    touches.length
-      ? touches[0].y
-      : mouseY;
+  // ============================================================
 
   handleTap(
     x,
@@ -6303,36 +6316,80 @@ function touchStarted() {
 
 function touchMoved() {
 
+  // --------------------------------------------------------------
+  // ARCHIVE
+  // --------------------------------------------------------------
+
   if (
-    gameState !==
+    gameState ===
     "ARCHIVE"
   ) {
 
-    return false;
-  }
+    if (
+      !archiveTouching ||
+      touches.length === 0
+    ) {
 
-  if (
-    !archiveTouching ||
-    touches.length === 0
-  ) {
+      return false;
+    }
 
-    return false;
-  }
+    let touch =
+      touches[0];
 
-  let touch =
-    touches[0];
+    if (
+      archiveDraggingScrollbar
+    ) {
 
-  // --------------------------------------------------------------
-  // DRAGGING ACTUAL SCROLLBAR
-  // --------------------------------------------------------------
+      setArchiveScrollFromScrollbar(
+        touch.y
+      );
 
-  if (
-    archiveDraggingScrollbar
-  ) {
+      archiveLastX =
+        touch.x;
 
-    setArchiveScrollFromScrollbar(
-      touch.y
-    );
+      archiveLastY =
+        touch.y;
+
+      return false;
+    }
+
+    let movement =
+      dist(
+        archiveStartX,
+        archiveStartY,
+        touch.x,
+        touch.y
+      );
+
+    if (
+      movement > 10
+    ) {
+
+      archiveDragging =
+        true;
+    }
+
+    let deltaY =
+      archiveLastY -
+      touch.y;
+
+    if (
+      archiveDragging
+    ) {
+
+      let g =
+        archiveGeometry();
+
+      archiveTargetScroll +=
+        deltaY * 1.15;
+
+      archiveTargetScroll =
+        constrain(
+          archiveTargetScroll,
+          0,
+          g.maxScroll
+        );
+    }
 
     archiveLastX =
       touch.x;
@@ -6343,53 +6400,21 @@ function touchMoved() {
     return false;
   }
 
-  // --------------------------------------------------------------
-  // NORMAL ARCHIVE SWIPE
-  // --------------------------------------------------------------
 
-  let movement =
-    dist(
-      archiveStartX,
-      archiveStartY,
-      touch.x,
-      touch.y
-    );
+  // --------------------------------------------------------------
+  // GAMEPLAY
+  // --------------------------------------------------------------
 
   if (
-    movement > 10
+    gameState ===
+    "PLAYING"
   ) {
 
-    archiveDragging = true;
+    // If movement did not start in joystick,
+    // movement remains disabled.
+
+    return false;
   }
-
-  let deltaY =
-    archiveLastY -
-    touch.y;
-
-  if (
-    archiveDragging
-  ) {
-
-    let g =
-      archiveGeometry();
-
-    archiveTargetScroll +=
-      deltaY *
-      1.15;
-
-    archiveTargetScroll =
-      constrain(
-        archiveTargetScroll,
-        0,
-        g.maxScroll
-      );
-  }
-
-  archiveLastX =
-    touch.x;
-
-  archiveLastY =
-    touch.y;
 
   return false;
 }
@@ -6401,92 +6426,127 @@ function touchMoved() {
 
 function touchEnded() {
 
+  // --------------------------------------------------------------
+  // JOYSTICK
+  // --------------------------------------------------------------
+
   if (
-    gameState !==
+    gameState ===
+    "PLAYING"
+  ) {
+
+    joystickTouchActive =
+      false;
+
+    resetJoystickVisual();
+
+    return false;
+  }
+
+
+  // --------------------------------------------------------------
+  // ARCHIVE
+  // --------------------------------------------------------------
+
+  if (
+    gameState ===
     "ARCHIVE"
   ) {
 
-    return false;
-  }
+    if (
+      !archiveTouching
+    ) {
 
-  if (
-    !archiveTouching
-  ) {
+      return false;
+    }
 
-    return false;
-  }
+    let wasScrollbar =
+      archiveDraggingScrollbar;
 
-  let wasScrollbar =
-    archiveDraggingScrollbar;
+    let movement =
+      dist(
+        archiveStartX,
+        archiveStartY,
+        archiveLastX,
+        archiveLastY
+      );
 
-  let movement =
-    dist(
-      archiveStartX,
-      archiveStartY,
-      archiveLastX,
-      archiveLastY
-    );
+    let wasTap =
+      movement < 14 &&
+      !archiveDragging &&
+      !archiveDraggingScrollbar;
 
-  let wasTap =
-    movement < 14 &&
-    archiveDragging === false &&
-    archiveDraggingScrollbar === false;
+    archiveTouching = false;
+    archiveDragging = false;
+    archiveDraggingScrollbar = false;
 
-  archiveTouching = false;
+    if (
+      isArchiveHomeButton(
+        archiveLastX,
+        archiveLastY
+      )
+    ) {
 
-  archiveDragging = false;
+      gameState =
+        "HOME";
 
-  archiveDraggingScrollbar =
-    false;
+      archiveScroll = 0;
+      archiveTargetScroll = 0;
 
-  // HOME ALWAYS HAS PRIORITY
+      return false;
+    }
 
-  if (
-    isArchiveHomeButton(
-      archiveLastX,
-      archiveLastY
-    )
-  ) {
+    if (
+      wasScrollbar
+    ) {
 
-    gameState =
-      "HOME";
+      clampArchiveScroll();
 
-    archiveScroll = 0;
+      return false;
+    }
 
-    archiveTargetScroll = 0;
+    if (
+      wasTap
+    ) {
 
-    return false;
-  }
-
-  // A scrollbar interaction is NEVER a ship selection.
-
-  if (
-    wasScrollbar
-  ) {
+      handleArchiveTap(
+        archiveStartX,
+        archiveStartY
+      );
+    }
 
     clampArchiveScroll();
 
     return false;
   }
 
-  if (
-    wasTap
-  ) {
-
-    handleArchiveTap(
-      archiveStartX,
-      archiveStartY
-    );
-  }
-
-  clampArchiveScroll();
-
   return false;
 }
 
 
 // ================================================================
-// ARCHIVE HOME BUTTON
+// JOYSTICK HIT
+// ================================================================
+
+function isInsideJoystick(
+  x,
+  y
+) {
+
+  return (
+    dist(
+      x,
+      y,
+      joystick.baseX,
+      joystick.baseY
+    ) <=
+    joystick.radius + 12
+  );
+}
+
+
+// ================================================================
+// ARCHIVE HOME
 // ================================================================
 
 function isArchiveHomeButton(
@@ -6497,7 +6557,7 @@ function isArchiveHomeButton(
   let homeY =
     height -
     safeBottom +
-    20;
+    22;
 
   return insideRect(
     x,
@@ -6517,9 +6577,7 @@ function isArchiveHomeButton(
 // MOUSE WHEEL
 // ================================================================
 
-function mouseWheel(
-  event
-) {
+function mouseWheel(event) {
 
   if (
     gameState ===
@@ -6547,50 +6605,77 @@ function mouseWheel(
 
 
 // ================================================================
-// MOUSE DRAG SUPPORT FOR ARCHIVE
+// MOUSE PRESS
 // ================================================================
 
-function mouseDragged() {
+function mousePressed() {
+
+  initAudio();
 
   if (
-    gameState !==
+    gameState ===
     "ARCHIVE"
   ) {
 
-    return true;
-  }
+    if (
+      isArchiveHomeButton(
+        mouseX,
+        mouseY
+      )
+    ) {
 
-  if (
-    archiveDraggingScrollbar
-  ) {
+      gameState =
+        "HOME";
 
-    setArchiveScrollFromScrollbar(
-      mouseY
-    );
+      archiveScroll = 0;
+      archiveTargetScroll = 0;
 
-    return false;
-  }
+      return false;
+    }
 
-  if (
-    archiveTouching
-  ) {
+    if (
+      isOnArchiveScrollbar(
+        mouseX,
+        mouseY
+      )
+    ) {
 
-    let deltaY =
-      archiveLastY -
-      mouseY;
+      archiveDraggingScrollbar =
+        true;
 
-    archiveTargetScroll +=
-      deltaY;
+      archiveTouching =
+        true;
 
-    let g =
-      archiveGeometry();
+      archiveDragging =
+        true;
 
-    archiveTargetScroll =
-      constrain(
-        archiveTargetScroll,
-        0,
-        g.maxScroll
+      setArchiveScrollFromScrollbar(
+        mouseY
       );
+
+      archiveLastX =
+        mouseX;
+
+      archiveLastY =
+        mouseY;
+
+      return false;
+    }
+
+    archiveTouching =
+      true;
+
+    archiveDragging =
+      false;
+
+    archiveDraggingScrollbar =
+      false;
+
+    archiveStartX =
+      mouseX;
+
+    archiveStartY =
+      mouseY;
 
     archiveLastX =
       mouseX;
@@ -6598,7 +6683,230 @@ function mouseDragged() {
     archiveLastY =
       mouseY;
 
-    archiveDragging = true;
+    return false;
+  }
+
+
+  if (
+    gameState ===
+    "PLAYING"
+  ) {
+
+    // Desktop joystick
+
+    if (
+      isInsideJoystick(
+        mouseX,
+        mouseY
+      )
+    ) {
+
+      joystickTouchActive =
+        true;
+
+      joystick.active =
+        true;
+
+      joystickStartX =
+        joystick.baseX;
+
+      joystickStartY =
+        joystick.baseY;
+
+      joystickLastX =
+        mouseX;
+
+      joystickLastY =
+        mouseY;
+
+      return false;
+    }
+
+    if (
+      dist(
+        mouseX,
+        mouseY,
+        fireButton.x,
+        fireButton.y
+      ) <
+      fireButton.radius +
+      20
+    ) {
+
+      shoot();
+
+      return false;
+    }
+
+    if (
+      dist(
+        mouseX,
+        mouseY,
+        powerButton.x,
+        powerButton.y
+      ) <
+      powerButton.radius +
+      15
+    ) {
+
+      useSpecial();
+
+      return false;
+    }
+
+    if (
+      dist(
+        mouseX,
+        mouseY,
+        pauseButton.x,
+        pauseButton.y
+      ) < 34
+    ) {
+
+      pauseGame();
+
+      return false;
+    }
+
+    if (
+      dist(
+        mouseX,
+        mouseY,
+        homeButton.x,
+        homeButton.y
+      ) < 34
+    ) {
+
+      gameState =
+        "HOME";
+
+      return false;
+    }
+
+    // Other screen area does nothing.
+
+    return false;
+  }
+
+  handleTap(
+    mouseX,
+    mouseY
+  );
+
+  return false;
+}
+
+
+// ================================================================
+// MOUSE DRAGGED
+// ================================================================
+
+function mouseDragged() {
+
+  if (
+    gameState ===
+    "ARCHIVE"
+  ) {
+
+    if (
+      archiveDraggingScrollbar
+    ) {
+
+      setArchiveScrollFromScrollbar(
+        mouseY
+      );
+
+      return false;
+    }
+
+    if (
+      archiveTouching
+    ) {
+
+      let deltaY =
+        archiveLastY -
+        mouseY;
+
+      archiveTargetScroll +=
+        deltaY;
+
+      let g =
+        archiveGeometry();
+
+      archiveTargetScroll =
+        constrain(
+          archiveTargetScroll,
+          0,
+          g.maxScroll
+        );
+
+      archiveLastX =
+        mouseX;
+
+      archiveLastY =
+        mouseY;
+
+      archiveDragging =
+        true;
+
+      return false;
+    }
+  }
+
+
+  if (
+    gameState ===
+    "PLAYING" &&
+    joystickTouchActive
+  ) {
+
+    joystickLastX =
+      mouseX;
+
+    joystickLastY =
+      mouseY;
+
+    let dx =
+      mouseX -
+      joystickStartX;
+
+    let dy =
+      mouseY -
+      joystickStartY;
+
+    let distance =
+      sqrt(
+        dx * dx +
+        dy * dy
+      );
+
+    if (
+      distance >
+      joystick.radius
+    ) {
+
+      let angle =
+        atan2(
+          dy,
+          dx
+        );
+
+      dx =
+        cos(angle) *
+        joystick.radius;
+
+      dy =
+        sin(angle) *
+        joystick.radius;
+    }
+
+    joystick.knobX =
+      joystickStartX +
+      dx;
+
+    joystick.knobY =
+      joystickStartY +
+      dy;
 
     return false;
   }
@@ -6615,29 +6923,37 @@ function mouseReleased() {
 
   if (
     gameState ===
+    "PLAYING"
+  ) {
+
+    joystickTouchActive =
+      false;
+
+    resetJoystickVisual();
+
+    return false;
+  }
+
+  if (
+    gameState ===
     "ARCHIVE"
   ) {
 
-    if (
-      archiveDraggingScrollbar
-    ) {
+    archiveDraggingScrollbar =
+      false;
 
-      archiveDraggingScrollbar =
-        false;
+    archiveDragging =
+      false;
 
-      archiveDragging =
-        false;
+    archiveTouching =
+      false;
 
-      archiveTouching =
-        false;
+    clampArchiveScroll();
 
-      clampArchiveScroll();
-
-      return false;
-    }
+    return false;
   }
 
-  return true;
+  return false;
 }
 
 
@@ -6662,13 +6978,9 @@ function handleTap(
     let buttonYs = [
 
       height * 0.32,
-
       height * 0.43,
-
       height * 0.54,
-
       height * 0.65,
-
       height * 0.76
 
     ];
@@ -6704,7 +7016,6 @@ function handleTap(
             "ARCHIVE";
 
           archiveScroll = 0;
-
           archiveTargetScroll = 0;
 
         } else if (i === 2) {
@@ -6734,22 +7045,19 @@ function handleTap(
 
 
   // ============================================================
-  // MENU HOME BUTTON
+  // MENU HOME
   // ============================================================
 
   if (
-    gameState ===
-    "LEVELS" ||
-    gameState ===
-    "ABOUT" ||
-    gameState ===
-    "SETTINGS"
+    gameState === "LEVELS" ||
+    gameState === "ABOUT" ||
+    gameState === "SETTINGS"
   ) {
 
     let homeY =
       height -
       safeBottom +
-      20;
+      22;
 
     if (
       insideRect(
@@ -6783,7 +7091,6 @@ function handleTap(
   ) {
 
     let cols = 4;
-
     let gap = 9;
 
     let size =
@@ -6860,19 +7167,6 @@ function handleTap(
 
 
   // ============================================================
-  // ARCHIVE
-  // ============================================================
-
-  if (
-    gameState ===
-    "ARCHIVE"
-  ) {
-
-    return;
-  }
-
-
-  // ============================================================
   // SETTINGS
   // ============================================================
 
@@ -6925,7 +7219,6 @@ function handleTap(
       saveGame();
 
       if (soundOn) {
-
         initAudio();
       }
 
@@ -7011,90 +7304,6 @@ function handleTap(
 
       gameState =
         "HOME";
-
-      return;
-    }
-
-    return;
-  }
-
-
-  // ============================================================
-  // PLAYING
-  // ============================================================
-
-  if (
-    gameState ===
-    "PLAYING"
-  ) {
-
-    // PAUSE
-
-    if (
-      dist(
-        x,
-        y,
-        pauseButton.x,
-        pauseButton.y
-      ) < 34
-    ) {
-
-      pauseGame();
-
-      return;
-    }
-
-    // HOME
-
-    if (
-      dist(
-        x,
-        y,
-        homeButton.x,
-        homeButton.y
-      ) < 34
-    ) {
-
-      gameState =
-        "HOME";
-
-      resetJoystick();
-
-      return;
-    }
-
-    // FIRE
-
-    if (
-      dist(
-        x,
-        y,
-        fireButton.x,
-        fireButton.y
-      ) <
-      fireButton.radius +
-      20
-    ) {
-
-      shoot();
-
-      return;
-    }
-
-    // POWER
-
-    if (
-      dist(
-        x,
-        y,
-        powerButton.x,
-        powerButton.y
-      ) <
-      powerButton.radius +
-      15
-    ) {
-
-      useSpecial();
 
       return;
     }
@@ -7205,8 +7414,6 @@ function handleArchiveTap(
   y
 ) {
 
-  // HOME FIRST
-
   if (
     isArchiveHomeButton(
       x,
@@ -7218,7 +7425,6 @@ function handleArchiveTap(
       "HOME";
 
     archiveScroll = 0;
-
     archiveTargetScroll = 0;
 
     return;
@@ -7235,11 +7441,9 @@ function handleArchiveTap(
     return;
   }
 
-  // Do not treat scrollbar as ship.
-
   if (
     x >
-    width - 35
+    width - 38
   ) {
 
     return;
@@ -7258,7 +7462,9 @@ function handleArchiveTap(
   ) {
 
     let cardY =
-      112 +
+      g.top +
+      g.topPadding +
+      g.cardHeight / 2 +
       i *
       (
         g.cardHeight +
@@ -7282,7 +7488,8 @@ function handleArchiveTap(
         SHIPS[i].unlock
       ) {
 
-        selectedShip = i;
+        selectedShip =
+          i;
 
         saveGame();
       }
@@ -7340,106 +7547,4 @@ function windowResized() {
   updateLayout();
 
   clampArchiveScroll();
-}
-
-
-// ================================================================
-// MOUSE PRESS
-// ================================================================
-
-function mousePressed() {
-
-  initAudio();
-
-  // --------------------------------------------------------------
-  // ARCHIVE
-  // --------------------------------------------------------------
-
-  if (
-    gameState ===
-    "ARCHIVE"
-  ) {
-
-    // HOME FIRST
-
-    if (
-      isArchiveHomeButton(
-        mouseX,
-        mouseY
-      )
-    ) {
-
-      gameState =
-        "HOME";
-
-      archiveScroll = 0;
-
-      archiveTargetScroll = 0;
-
-      return false;
-    }
-
-    // SCROLLBAR
-
-    if (
-      isOnArchiveScrollbar(
-        mouseX,
-        mouseY
-      )
-    ) {
-
-      archiveDraggingScrollbar =
-        true;
-
-      archiveTouching =
-        true;
-
-      archiveDragging =
-        true;
-
-      setArchiveScrollFromScrollbar(
-        mouseY
-      );
-
-      archiveLastX =
-        mouseX;
-
-      archiveLastY =
-        mouseY;
-
-      return false;
-    }
-
-    // NORMAL ARCHIVE TAP
-
-    archiveTouching =
-      true;
-
-    archiveDragging =
-      false;
-
-    archiveDraggingScrollbar =
-      false;
-
-    archiveStartX =
-      mouseX;
-
-    archiveStartY =
-      mouseY;
-
-    archiveLastX =
-      mouseX;
-
-    archiveLastY =
-      mouseY;
-
-    return false;
-  }
-
-  handleTap(
-    mouseX,
-    mouseY
-  );
-
-  return false;
 }
