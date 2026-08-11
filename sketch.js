@@ -1,9 +1,19 @@
-/* SPACE DODGER - p5.js v2 SAFE BUILD
-   Full replacement for sketch.js
-   Features: menu, levels, archive, about, settings, rating, gameplay,
-   5 starting lives, +1 permanent life after Dragon levels 5/10/15/20,
-   local save for lives/settings/unlocks/ship, mobile multitouch controls.
-*/
+/* ================================================================
+   SPACE DODGER - p5.js v3 GAMEPLAY / CONTROL FIX
+   FULL REPLACEMENT FOR sketch.js
+
+   Main changes:
+   - Enemies spawn from TOP only
+   - Player starts near bottom
+   - Player movement unlocks after first enemy kill
+   - Fire works independently from movement
+   - Robust mobile multitouch / pointer handling
+   - Larger enemies reduced in size
+   - Gameplay controls moved upward
+   - Gameplay Home/Pause icons moved upward
+   - Menu Home buttons moved upward
+   - Existing campaign / ships / powers / bosses preserved
+================================================================ */
 
 // ---------- Safe constants ----------
 const PI2 = Math.PI * 2;
@@ -15,7 +25,7 @@ const TOTAL_LEVELS = 20;
 const START_LIVES = 5;
 const MAX_LIVES = 9;
 const DRAGON_LEVELS = [5, 10, 15, 20];
-const SAVE_KEY = "spaceDodgerCampaignV2";
+const SAVE_KEY = "spaceDodgerCampaignV3";
 
 let state = "HOME";
 
@@ -39,7 +49,10 @@ let rating = 0;
 let soundOn = true;
 let swappedControls = false;
 
-// ---------- Game objects ----------
+// ================================================================
+// GAME OBJECTS
+// ================================================================
+
 let shipPlayer = null;
 
 let bullets = [];
@@ -53,19 +66,37 @@ let boss = null;
 let bossActive = false;
 let bossDefeated = false;
 
-// ---------- Timers ----------
+// ================================================================
+// GAMEPLAY STATE
+// ================================================================
+
+// Player starts restricted to the bottom area.
+// Once the first alien is destroyed, free movement unlocks.
+let freeMovementUnlocked = false;
+let enemiesDestroyedThisLevel = 0;
+
+// Keep player initially in the lower zone.
+const INITIAL_PLAYER_Y_RATIO = 0.79;
+const INITIAL_MOVEMENT_MIN_Y_RATIO = 0.66;
+
+// ================================================================
+// TIMERS
+// ================================================================
+
 let lastEnemySpawn = 0;
 let lastDropSpawn = 0;
 let lastFire = 0;
 
 let specialReadyAt = 0;
 
-// Power button visual feedback
 let powerPressedUntil = 0;
 
 let shake = 0;
 
-// ---------- Touch / Mouse ----------
+// ================================================================
+// TOUCH / POINTER
+// ================================================================
+
 let moveId = null;
 let fireId = null;
 
@@ -76,7 +107,10 @@ let mouseFiring = false;
 
 let suppressMouseOnce = false;
 
-// ---------- Controls ----------
+// ================================================================
+// CONTROLS
+// ================================================================
+
 const joy = {
   x: 90,
   y: 0,
@@ -99,23 +133,35 @@ const powerBtn = {
 
 const pauseBtn = {
   x: 38,
-  y: 92,
+  y: 78,
   r: 22
 };
 
 const homeBtn = {
   x: 0,
-  y: 92,
+  y: 78,
   r: 22
 };
+
+// Menu HOME buttons are intentionally higher than before.
+const MENU_HOME_OFFSET = 96;
+
+// Gameplay controls are intentionally higher from the bottom.
+const CONTROL_BOTTOM_OFFSET = 150;
 
 let joyAngle = -HALFPI;
 let joyStrength = 0;
 
-// ---------- Audio ----------
+// ================================================================
+// AUDIO
+// ================================================================
+
 let audioCtx = null;
 
-// ---------- Temporary powers ----------
+// ================================================================
+// TEMPORARY POWERS
+// ================================================================
+
 const powers = {
   MULTI: 0,
   SHIELD: 0,
@@ -280,8 +326,7 @@ function setup() {
 
   updateLayout();
 
-  shipPlayer =
-    new SpacePlayer();
+  shipPlayer = new SpacePlayer();
 
   installPointerEvents();
 
@@ -556,7 +601,6 @@ function startLevel(n) {
 
   lastFire = 0;
 
-  // POWER IS READY AT START
   specialReadyAt =
     millis();
 
@@ -571,6 +615,11 @@ function startLevel(n) {
   boss = null;
   bossActive = false;
   bossDefeated = false;
+
+  // NEW GAMEPLAY RULE:
+  // Player begins restricted near bottom.
+  freeMovementUnlocked = false;
+  enemiesDestroyedThisLevel = 0;
 
   resetPowers();
 
@@ -610,7 +659,8 @@ class SpacePlayer {
       width / 2;
 
     this.y =
-      height * 0.63;
+      height *
+      INITIAL_PLAYER_Y_RATIO;
 
     this.angle =
       -HALFPI;
@@ -901,6 +951,22 @@ function runGame() {
   updateShake();
 
   updateJoystickMovement();
+
+  // IMPORTANT:
+  // Fire state is independent from movement state.
+  // Holding FIRE continues shooting even when joystick is released.
+  if (
+    fireId !== null ||
+    mouseFiring
+  ) {
+
+    fireHeld = true;
+
+  } else {
+
+    fireHeld = false;
+
+  }
 
   if (fireHeld) {
     shoot();
@@ -1352,46 +1418,20 @@ class Enemy {
 
     }
 
-    const side =
-      Math.floor(
-        Math.random() * 4
+    // ============================================================
+    // IMPORTANT:
+    // ALL NORMAL ALIEN SHIPS NOW ENTER FROM THE TOP.
+    // ============================================================
+
+    this.x =
+      40 +
+      Math.random() *
+      Math.max(
+        40,
+        width - 80
       );
 
-    if (side === 0) {
-
-      this.x =
-        Math.random() * width;
-
-      this.y = -60;
-
-    } else if (side === 1) {
-
-      this.x =
-        width + 60;
-
-      this.y =
-        130 +
-        Math.random() *
-        height * 0.55;
-
-    } else if (side === 2) {
-
-      this.x =
-        Math.random() * width;
-
-      this.y =
-        height + 60;
-
-    } else {
-
-      this.x = -60;
-
-      this.y =
-        130 +
-        Math.random() *
-        height * 0.55;
-
-    }
+    this.y = -65;
 
     this.r = 22;
     this.hp = 1;
@@ -1403,34 +1443,37 @@ class Enemy {
       ) *
       difficulty();
 
+    // Small enemies remain essentially unchanged.
     if (
       this.type ===
       "HUNTER"
     ) {
 
-      this.r = 25;
+      this.r = 22;
       this.hp = 2;
 
     }
 
+    // Larger enemy reduced.
     if (
       this.type ===
       "HEAVY"
     ) {
 
-      this.r = 32;
+      this.r = 26;
       this.hp = 4;
 
       this.speed *= 0.65;
 
     }
 
+    // Larger enemy reduced.
     if (
       this.type ===
       "ELITE"
     ) {
 
-      this.r = 29;
+      this.r = 25;
       this.hp = 3;
 
       this.speed *= 0.9;
@@ -1729,18 +1772,18 @@ function drawHunter() {
 
   beginShape();
 
-  vertex(0, -30);
-  vertex(12, -18);
-  vertex(27, -20);
-  vertex(22, -4);
-  vertex(31, 16);
-  vertex(10, 11);
-  vertex(0, 27);
-  vertex(-10, 11);
-  vertex(-31, 16);
-  vertex(-22, -4);
-  vertex(-27, -20);
-  vertex(-12, -18);
+  vertex(0, -27);
+  vertex(11, -16);
+  vertex(24, -18);
+  vertex(19, -3);
+  vertex(27, 14);
+  vertex(9, 10);
+  vertex(0, 24);
+  vertex(-9, 10);
+  vertex(-27, 14);
+  vertex(-19, -3);
+  vertex(-24, -18);
+  vertex(-11, -16);
 
   endShape(CLOSE);
 
@@ -1748,7 +1791,7 @@ function drawHunter() {
 
   fill("#fff0c7");
 
-  ellipse(0, -2, 13, 18);
+  ellipse(0, -2, 12, 17);
 
 }
 
@@ -1760,16 +1803,16 @@ function drawHeavy() {
 
   beginShape();
 
-  vertex(0, -34);
-  vertex(19, -24);
-  vertex(36, -7);
-  vertex(31, 20);
-  vertex(14, 30);
-  vertex(0, 24);
-  vertex(-14, 30);
-  vertex(-31, 20);
-  vertex(-36, -7);
-  vertex(-19, -24);
+  vertex(0, -28);
+  vertex(15, -20);
+  vertex(29, -6);
+  vertex(25, 17);
+  vertex(11, 24);
+  vertex(0, 20);
+  vertex(-11, 24);
+  vertex(-25, 17);
+  vertex(-29, -6);
+  vertex(-15, -20);
 
   endShape(CLOSE);
 
@@ -1777,7 +1820,7 @@ function drawHeavy() {
 
   fill("#ffb4b4");
 
-  ellipse(0, -4, 15, 20);
+  ellipse(0, -3, 13, 18);
 
 }
 
@@ -1789,18 +1832,18 @@ function drawElite() {
 
   beginShape();
 
-  vertex(0, -36);
-  vertex(14, -20);
-  vertex(32, -12);
-  vertex(22, 4);
-  vertex(28, 23);
-  vertex(9, 17);
-  vertex(0, 31);
-  vertex(-9, 17);
-  vertex(-28, 23);
-  vertex(-22, 4);
-  vertex(-32, -12);
-  vertex(-14, -20);
+  vertex(0, -30);
+  vertex(12, -17);
+  vertex(27, -10);
+  vertex(19, 3);
+  vertex(23, 20);
+  vertex(8, 15);
+  vertex(0, 26);
+  vertex(-8, 15);
+  vertex(-23, 20);
+  vertex(-19, 3);
+  vertex(-27, -10);
+  vertex(-12, -17);
 
   endShape(CLOSE);
 
@@ -1808,7 +1851,7 @@ function drawElite() {
 
   fill("#f3d9ff");
 
-  ellipse(0, -5, 12, 18);
+  ellipse(0, -4, 11, 17);
 
 }
 
@@ -2352,6 +2395,22 @@ function collideBulletsEnemies() {
 
           score += points;
           levelScore += points;
+
+          // ======================================================
+          // FIRST KILL UNLOCKS FREE MOVEMENT
+          // ======================================================
+
+          enemiesDestroyedThisLevel++;
+
+          if (
+            !freeMovementUnlocked
+          ) {
+
+            freeMovementUnlocked = true;
+
+            createCelebration();
+
+          }
 
           createExplosion(
 
@@ -2953,6 +3012,16 @@ function activatePower(type) {
       score += 20;
       levelScore += 20;
 
+      enemiesDestroyedThisLevel++;
+
+      if (
+        !freeMovementUnlocked
+      ) {
+
+        freeMovementUnlocked = true;
+
+      }
+
     }
 
     shake = 14;
@@ -2982,7 +3051,6 @@ function useSpecial() {
   const now =
     millis();
 
-  // Still refilling
   if (
     now <
     specialReadyAt
@@ -2992,7 +3060,6 @@ function useSpecial() {
 
   }
 
-  // Visual press feedback
   powerPressedUntil =
     now + 280;
 
@@ -3000,11 +3067,6 @@ function useSpecial() {
 
   const power =
     shipPower();
-
-  // ------------------------------------------------------------
-  // BALANCED / BURN SHOT / DRAGON RAGE / TITAN CORE
-  // Extra combat power
-  // ------------------------------------------------------------
 
   if (
     power === "BALANCED" ||
@@ -3018,11 +3080,6 @@ function useSpecial() {
 
   }
 
-  // ------------------------------------------------------------
-  // GRAVITY PULSE / TIME FREEZE
-  // Extra slow effect
-  // ------------------------------------------------------------
-
   else if (
 
     power === "GRAVITY PULSE" ||
@@ -3034,11 +3091,6 @@ function useSpecial() {
       now + 6500;
 
   }
-
-  // ------------------------------------------------------------
-  // PHASE DODGE / QUANTUM DASH
-  // Temporary invincibility
-  // ------------------------------------------------------------
 
   else if (
 
@@ -3052,10 +3104,6 @@ function useSpecial() {
 
   }
 
-  // ------------------------------------------------------------
-  // HOLY SHIELD
-  // ------------------------------------------------------------
-
   else if (
     power === "HOLY SHIELD"
   ) {
@@ -3064,10 +3112,6 @@ function useSpecial() {
       now + 7000;
 
   }
-
-  // ------------------------------------------------------------
-  // REALITY BREAK
-  // ------------------------------------------------------------
 
   else if (
     power === "REALITY BREAK"
@@ -3100,6 +3144,16 @@ function useSpecial() {
       score += 35;
       levelScore += 35;
 
+      enemiesDestroyedThisLevel++;
+
+      if (
+        !freeMovementUnlocked
+      ) {
+
+        freeMovementUnlocked = true;
+
+      }
+
     }
 
     if (
@@ -3114,11 +3168,6 @@ function useSpecial() {
     shake = 18;
 
   }
-
-  // ------------------------------------------------------------
-  // IMPORTANT:
-  // Power button now needs REFILL TIME after every use.
-  // ------------------------------------------------------------
 
   specialReadyAt =
     now + 15000;
@@ -3329,21 +3378,26 @@ function updateShake() {
 }
 
 // ================================================================
-// CONTROLS
+// CONTROLS LAYOUT
 // ================================================================
 
 function updateLayout() {
 
+  // Top icons moved upward.
   pauseBtn.x = 38;
-  pauseBtn.y = 92;
+  pauseBtn.y = 76;
 
   homeBtn.x =
     width - 38;
 
-  homeBtn.y = 92;
+  homeBtn.y = 76;
 
+  // Controls moved substantially upward from bottom.
   const y =
-    height - 105;
+    Math.max(
+      170,
+      height - CONTROL_BOTTOM_OFFSET
+    );
 
   joy.x =
     swappedControls
@@ -3371,6 +3425,10 @@ function updateLayout() {
   powerBtn.y = y;
 
 }
+
+// ================================================================
+// JOYSTICK
+// ================================================================
 
 function updateJoystick(
   x,
@@ -3473,6 +3531,33 @@ function updateJoystickMovement() {
       Math.sin(joyAngle) *
       speed;
 
+    // ============================================================
+    // BEFORE FIRST KILL:
+    // Keep player in lower portion of screen.
+    // AFTER FIRST KILL:
+    // Full-screen movement becomes available.
+    // ============================================================
+
+    if (
+      !freeMovementUnlocked
+    ) {
+
+      const minimumY =
+        height *
+        INITIAL_MOVEMENT_MIN_Y_RATIO;
+
+      if (
+        shipPlayer.y <
+        minimumY
+      ) {
+
+        shipPlayer.y =
+          minimumY;
+
+      }
+
+    }
+
   }
 
 }
@@ -3522,6 +3607,9 @@ function installPointerEvents() {
     "none";
 
   canvas.style.userSelect =
+    "none";
+
+  canvas.style.webkitUserSelect =
     "none";
 
   canvas.addEventListener(
@@ -3582,11 +3670,43 @@ function pointerPos(event) {
 
 }
 
+// ================================================================
+// POINTER DOWN
+// ================================================================
+
 function onPointerDown(event) {
 
   event.preventDefault();
 
-  suppressMouseOnce = true;
+  // ============================================================
+  // IMPORTANT MOBILE FIX:
+  // Capture each touch independently.
+  // This prevents releasing joystick from killing FIRE.
+  // ============================================================
+
+  try {
+
+    if (
+      event.currentTarget
+        .setPointerCapture
+    ) {
+
+      event.currentTarget
+        .setPointerCapture(
+          event.pointerId
+        );
+
+    }
+
+  } catch (error) {}
+
+  if (
+    event.pointerType === "mouse"
+  ) {
+
+    suppressMouseOnce = true;
+
+  }
 
   initAudio();
 
@@ -3601,7 +3721,7 @@ function onPointerDown(event) {
     "PLAYING"
   ) {
 
-    // POWER BUTTON HAS PRIORITY
+    // POWER
     if (
 
       sdDist(
@@ -3620,6 +3740,7 @@ function onPointerDown(event) {
 
     }
 
+    // JOYSTICK
     if (
 
       moveId === null &&
@@ -3646,6 +3767,7 @@ function onPointerDown(event) {
 
     }
 
+    // FIRE
     if (
 
       fireId === null &&
@@ -3671,6 +3793,7 @@ function onPointerDown(event) {
 
     }
 
+    // PAUSE
     if (
 
       sdDist(
@@ -3690,6 +3813,7 @@ function onPointerDown(event) {
 
     }
 
+    // HOME
     if (
 
       sdDist(
@@ -3734,6 +3858,10 @@ function onPointerDown(event) {
 
 }
 
+// ================================================================
+// POINTER MOVE
+// ================================================================
+
 function onPointerMove(event) {
 
   event.preventDefault();
@@ -3772,12 +3900,21 @@ function onPointerMove(event) {
 
 }
 
+// ================================================================
+// POINTER UP
+// ================================================================
+
 function onPointerUp(event) {
 
   event.preventDefault();
 
   const p =
     pointerPos(event);
+
+  // ============================================================
+  // IMPORTANT:
+  // Only release the control belonging to THIS pointer.
+  // ============================================================
 
   if (
     state ===
@@ -3802,9 +3939,28 @@ function onPointerUp(event) {
 
       fireId = null;
 
-      fireHeld = false;
-
     }
+
+    // Fire remains active if another fire pointer is still active.
+    fireHeld =
+      fireId !== null ||
+      mouseFiring;
+
+    try {
+
+      if (
+        event.currentTarget
+          .releasePointerCapture
+      ) {
+
+        event.currentTarget
+          .releasePointerCapture(
+            event.pointerId
+          );
+
+      }
+
+    } catch (error) {}
 
     return;
 
@@ -3979,6 +4135,9 @@ function mouseDragged() {
 
 function mouseReleased() {
 
+  // Mouse fallback ONLY.
+  // It no longer blindly kills mobile FIRE state.
+
   mouseMoving = false;
   mouseFiring = false;
 
@@ -3990,7 +4149,13 @@ function mouseReleased() {
 
   }
 
-  fireHeld = false;
+  if (
+    fireId === null
+  ) {
+
+    fireHeld = false;
+
+  }
 
   return false;
 
@@ -4628,10 +4793,7 @@ function drawGameOver() {
     width / 2,
     height * 0.43,
     14,
-    "#d9c65a",
-    CENTER,
-    CENTER,
-    true
+    "#d9c65a"
   );
 
   label(
@@ -4822,7 +4984,7 @@ let archiveLY = 0;
 function archiveGeo() {
 
   const top = 105;
-  const bottom = height - 125;
+  const bottom = height - 150;
 
   const vh =
     bottom - top;
@@ -5213,7 +5375,8 @@ function archivePointerDown(
 
   if (
     y >
-    height - 95
+    height -
+    MENU_HOME_OFFSET
   ) {
 
     state =
@@ -5530,6 +5693,10 @@ function handleTap(
 
   }
 
+  // ============================================================
+  // LEVELS
+  // ============================================================
+
   if (
     state ===
     "LEVELS"
@@ -5543,7 +5710,8 @@ function handleTap(
         y,
 
         width / 2,
-        height - 58,
+        height -
+        MENU_HOME_OFFSET,
 
         230,
         70
@@ -5640,6 +5808,10 @@ function handleTap(
 
   }
 
+  // ============================================================
+  // ABOUT
+  // ============================================================
+
   if (
     state ===
     "ABOUT"
@@ -5653,7 +5825,8 @@ function handleTap(
         y,
 
         width / 2,
-        height - 58,
+        height -
+        MENU_HOME_OFFSET,
 
         230,
         70
@@ -5670,6 +5843,10 @@ function handleTap(
     return;
 
   }
+
+  // ============================================================
+  // SETTINGS
+  // ============================================================
 
   if (
     state ===
@@ -5748,7 +5925,8 @@ function handleTap(
         y,
 
         width / 2,
-        height - 58,
+        height -
+        MENU_HOME_OFFSET,
 
         230,
         70
@@ -5765,6 +5943,10 @@ function handleTap(
     return;
 
   }
+
+  // ============================================================
+  // RATING
+  // ============================================================
 
   if (
     state ===
@@ -5874,6 +6056,10 @@ function handleTap(
 
   }
 
+  // ============================================================
+  // PAUSED
+  // ============================================================
+
   if (
     state ===
     "PAUSED"
@@ -5928,6 +6114,10 @@ function handleTap(
     }
 
   }
+
+  // ============================================================
+  // GAME OVER
+  // ============================================================
 
   if (
     state ===
@@ -6066,6 +6256,10 @@ function button(
 
 }
 
+// ================================================================
+// DEDICATED MENU HOME BUTTON
+// ================================================================
+
 function homeButton() {
 
   button(
@@ -6074,7 +6268,8 @@ function homeButton() {
 
     width / 2,
 
-    height - 58,
+    height -
+    MENU_HOME_OFFSET,
 
     Math.min(
       190,
@@ -6173,10 +6368,6 @@ function drawHUD() {
 
   const y = 56;
 
-  const elapsed =
-    millis() -
-    levelStartedAt;
-
   noStroke();
 
   fill(
@@ -6203,7 +6394,10 @@ function drawHUD() {
 
     w *
     constrain(
-      elapsed /
+      (
+        millis() -
+        levelStartedAt
+      ) /
       levelDuration,
       0,
       1
@@ -6273,7 +6467,9 @@ function drawHUD() {
 
 function drawControls() {
 
+  // ============================================================
   // JOYSTICK
+  // ============================================================
 
   stroke(
     70,
@@ -6310,7 +6506,9 @@ function drawControls() {
     46
   );
 
+  // ============================================================
   // FIRE
+  // ============================================================
 
   stroke(
     230,
@@ -6344,7 +6542,7 @@ function drawControls() {
   );
 
   // ============================================================
-  // POWER BUTTON
+  // POWER
   // ============================================================
 
   const now =
@@ -6466,6 +6664,10 @@ function drawControls() {
 
 }
 
+// ================================================================
+// PAUSE ICON
+// ================================================================
+
 function drawPause() {
 
   stroke("#468ea8");
@@ -6505,6 +6707,10 @@ function drawPause() {
   );
 
 }
+
+// ================================================================
+// HOME ICON
+// ================================================================
 
 function drawHomeIcon() {
 
@@ -6570,6 +6776,10 @@ function drawHomeIcon() {
 
 }
 
+// ================================================================
+// STATIC GAME
+// ================================================================
+
 function drawStaticGame() {
 
   for (
@@ -6614,6 +6824,10 @@ function drawStaticGame() {
   shipPlayer.draw();
 
 }
+
+// ================================================================
+// OVERLAY
+// ================================================================
 
 function overlay() {
 
