@@ -1,32 +1,51 @@
-// ================================================================
-// SPACE DODGER
-// COMPLETE MOBILE BUILD
-// ================================================================
-// FIXED IN THIS BUILD
-// ---------------------------------------------------------------
-// 1. JOYSTICK-ONLY MOVEMENT
-// 2. RANDOM SCREEN TOUCH DOES NOT MOVE SHIP
-// 3. TRUE 360 DEGREE JOYSTICK
-// 4. ARCHIVE FIRST/LAST SHIP FULLY VISIBLE
-// 5. ARCHIVE SWIPE + DRAGGABLE SCROLLBAR
-// 6. PAUSE / HOME ALIGNMENT
-// 7. BALANCED BOTTOM CONTROLS
-// 8. PLAYER/ALIEN COLLISION GLITCH FIX
-// 9. GAME OVER FLICKER FIX
-// 10. ZERO TEXT GLOW / ZERO TEXT SHADOW
-// 11. FIRE SOUND
-// 12. NO p5.js "key" VARIABLE CONFLICT
-// ================================================================
+/* SPACE DODGER - p5.js v2 SAFE BUILD
+   Full replacement for sketch.js
+   Features: menu, levels, archive, about, settings, rating, gameplay,
+   5 starting lives, +1 permanent life after Dragon levels 5/10/15/20,
+   local save for lives/settings/unlocks/ship, mobile multitouch controls.
+*/
 
+// ---------- Safe constants ----------
+const PI2 = Math.PI * 2;
+const HALFPI = Math.PI / 2;
+const QUARTERPI = Math.PI / 4;
 
-let gameState = "HOME";
+// ---------- Campaign ----------
+const TOTAL_LEVELS = 20;
+const START_LIVES = 5;
+const MAX_LIVES = 9;
+const DRAGON_LEVELS = [5, 10, 15, 20];
+const SAVE_KEY = "spaceDodgerCampaignV2";
 
-let player;
+let state = "HOME";
+
+let level = 1;
+let unlockedLevel = 1;
+let selectedShip = 0;
+
+let campaignLives = START_LIVES;
+let lives = START_LIVES;
+
+let score = 0;
+let levelScore = 0;
+
+let levelStartedAt = 0;
+let levelDuration = 42000;
+let levelTarget = 500;
+let levelClearAt = 0;
+
+let rating = 0;
+
+let soundOn = true;
+let swappedControls = false;
+
+// ---------- Game objects ----------
+let shipPlayer = null;
 
 let bullets = [];
-let aliens = [];
+let enemies = [];
 let enemyShots = [];
-let powerUps = [];
+let drops = [];
 let particles = [];
 let stars = [];
 
@@ -34,126 +53,76 @@ let boss = null;
 let bossActive = false;
 let bossDefeated = false;
 
-let currentLevel = 1;
-let unlockedLevel = 1;
-let selectedShip = 0;
+// ---------- Timers ----------
+let lastEnemySpawn = 0;
+let lastDropSpawn = 0;
+let lastFire = 0;
 
-let score = 0;
-let levelScore = 0;
-let lives = 3;
+let specialReadyAt = 0;
 
-let levelStart = 0;
-let levelDuration = 45000;
-let targetScore = 500;
+// Power button visual feedback
+let powerPressedUntil = 0;
 
-let lastAlienSpawn = 0;
-let lastPowerSpawn = 0;
-let lastShot = 0;
+let shake = 0;
 
-let levelClearTime = 0;
+// ---------- Touch / Mouse ----------
+let moveId = null;
+let fireId = null;
 
-let powerReadyAt = 0;
+let fireHeld = false;
 
-let soundOn = true;
-let swappedControls = false;
+let mouseMoving = false;
+let mouseFiring = false;
 
+let suppressMouseOnce = false;
+
+// ---------- Controls ----------
+const joy = {
+  x: 90,
+  y: 0,
+  r: 56,
+  knobX: 90,
+  knobY: 0
+};
+
+const fireBtn = {
+  x: 0,
+  y: 0,
+  r: 52
+};
+
+const powerBtn = {
+  x: 0,
+  y: 0,
+  r: 40
+};
+
+const pauseBtn = {
+  x: 38,
+  y: 92,
+  r: 22
+};
+
+const homeBtn = {
+  x: 0,
+  y: 92,
+  r: 22
+};
+
+let joyAngle = -HALFPI;
+let joyStrength = 0;
+
+// ---------- Audio ----------
 let audioCtx = null;
 
-let shakeAmount = 0;
-
-let rating = 0;
-
-
-// ================================================================
-// LAYOUT
-// ================================================================
-
-let safeBottom = 170;
-
-let pauseButton = {
-  x: 38,
-  y: 95,
-  radius: 23
-};
-
-let homeButton = {
-  x: 0,
-  y: 95,
-  radius: 23
-};
-
-let joystick = {
-  baseX: 95,
-  baseY: 0,
-  knobX: 95,
-  knobY: 0,
-  radius: 57,
-  active: false
-};
-
-let fireButton = {
-  x: 0,
-  y: 0,
-  radius: 52
-};
-
-let powerButton = {
-  x: 0,
-  y: 0,
-  radius: 42
-};
-
-
-// ================================================================
-// JOYSTICK INPUT STATE
-// ================================================================
-
-// IMPORTANT:
-// Movement begins ONLY if touch starts inside joystick.
-// A random touch elsewhere is ignored.
-
-let joystickTouchActive = false;
-
-let joystickStartX = 0;
-let joystickStartY = 0;
-
-let joystickLastX = 0;
-let joystickLastY = 0;
-
-
-// ================================================================
-// ARCHIVE
-// ================================================================
-
-let archiveScroll = 0;
-let archiveTargetScroll = 0;
-
-let archiveTouching = false;
-let archiveDragging = false;
-let archiveDraggingScrollbar = false;
-
-let archiveStartX = 0;
-let archiveStartY = 0;
-
-let archiveLastX = 0;
-let archiveLastY = 0;
-
-
-// ================================================================
-// POWER TIMERS
-// ================================================================
-
-let powerEnds = {
+// ---------- Temporary powers ----------
+const powers = {
   MULTI: 0,
   SHIELD: 0,
-  TWIN: 0,
-  TRINITY: 0,
-  PHANTOM: 0,
   BERSERKER: 0,
   CRYO: 0,
   CELESTIAL: 0
 };
-
 
 // ================================================================
 // SHIPS
@@ -164,111 +133,98 @@ const SHIPS = [
   {
     name: "NOVA SCOUT",
     unlock: 1,
-    body: "#12324b",
-    edge: "#29c9e8",
-    core: "#f3ffff",
-    power: "BALANCED",
-    desc: "Balanced weapons and movement."
+    edge: "#39d8ff",
+    body: "#0a2b43",
+    core: "#ffffff",
+    power: "BALANCED"
   },
 
   {
     name: "SOLAR FANG",
     unlock: 3,
-    body: "#54200d",
-    edge: "#ff8d26",
+    edge: "#ff9a35",
+    body: "#51200b",
     core: "#fff0a0",
-    power: "BURN SHOT",
-    desc: "Shots deal increased damage."
+    power: "BURN SHOT"
   },
 
   {
     name: "NEBULA WING",
     unlock: 5,
-    body: "#35144e",
-    edge: "#bd6cff",
-    core: "#fff2ff",
-    power: "GRAVITY PULSE",
-    desc: "Slows nearby enemies."
+    edge: "#c77aff",
+    body: "#32134d",
+    core: "#fff3ff",
+    power: "GRAVITY PULSE"
   },
 
   {
     name: "CRYO HAWK",
     unlock: 7,
-    body: "#123e59",
-    edge: "#72e6ff",
-    core: "#efffff",
-    power: "TIME FREEZE",
-    desc: "Greatly slows enemy movement."
+    edge: "#7eeaff",
+    body: "#123b55",
+    core: "#ffffff",
+    power: "TIME FREEZE"
   },
 
   {
     name: "VOID SPEAR",
     unlock: 9,
-    body: "#2b1033",
-    edge: "#f15bda",
+    edge: "#ff62dc",
+    body: "#35102f",
     core: "#ffffff",
-    power: "PHASE DODGE",
-    desc: "Temporary damage immunity."
+    power: "PHASE DODGE"
   },
 
   {
     name: "DRAGON BANE",
     unlock: 10,
-    body: "#551019",
-    edge: "#ff4255",
-    core: "#ffe56a",
-    power: "DRAGON RAGE",
-    desc: "Massive boss damage bonus."
+    edge: "#ff4c5c",
+    body: "#55121b",
+    core: "#ffe36a",
+    power: "DRAGON RAGE"
   },
 
   {
     name: "QUANTUM EDGE",
     unlock: 12,
+    edge: "#00dfc5",
     body: "#073e43",
-    edge: "#00d8c0",
     core: "#efffff",
-    power: "QUANTUM DASH",
-    desc: "Fast movement and rapid fire."
+    power: "QUANTUM DASH"
   },
 
   {
     name: "STAR PALADIN",
     unlock: 15,
-    body: "#51470d",
-    edge: "#ffe35c",
+    edge: "#ffe15b",
+    body: "#51460d",
     core: "#ffffff",
-    power: "HOLY SHIELD",
-    desc: "Temporary protective shield."
+    power: "HOLY SHIELD"
   },
 
   {
     name: "GALACTIC TITAN",
     unlock: 18,
-    body: "#421b55",
-    edge: "#ed72ff",
+    edge: "#ee73ff",
+    body: "#42194f",
     core: "#ffffbc",
-    power: "TITAN CORE",
-    desc: "Huge shots and high damage."
+    power: "TITAN CORE"
   },
 
   {
     name: "MULTIVERSE KING",
     unlock: 20,
-    body: "#513c04",
     edge: "#ffd43b",
+    body: "#503d04",
     core: "#ffffff",
-    power: "REALITY BREAK",
-    desc: "Extreme firepower and shield."
+    power: "REALITY BREAK"
   }
 
 ];
 
-
 // ================================================================
-// LEVEL DATA
+// LEVEL NAMES
 // ================================================================
-
-const TOTAL_LEVELS = 20;
 
 const LEVEL_NAMES = [
 
@@ -277,16 +233,19 @@ const LEVEL_NAMES = [
   "ORBIT SCOUT",
   "ALIEN HUNTER",
   "DRAGON CHALLENGER",
+
   "COSMIC RANGER",
   "NEBULA KNIGHT",
   "VOID WALKER",
   "STAR COMMANDER",
   "DRAGON SLAYER",
+
   "GALAXY GUARDIAN",
   "QUANTUM WARRIOR",
   "COSMIC MASTER",
   "STAR LORD",
   "DRAGON CONQUEROR",
+
   "VOID EMPEROR",
   "GALACTIC TITAN",
   "COSMIC OVERLORD",
@@ -294,42 +253,6 @@ const LEVEL_NAMES = [
   "SPACE LEGEND"
 
 ];
-
-
-function levelTime(level) {
-
-  return 45000 +
-    (level - 1) * 6000;
-}
-
-
-function levelTarget(level) {
-
-  return floor(
-    450 +
-    (level - 1) * 180 +
-    pow(level, 1.35) * 30
-  );
-}
-
-
-function difficulty(level) {
-
-  return 1 +
-    (level - 1) * 0.055;
-}
-
-
-function bossLevel(level) {
-
-  return (
-    level === 5 ||
-    level === 10 ||
-    level === 15 ||
-    level === 20
-  );
-}
-
 
 // ================================================================
 // SETUP
@@ -343,7 +266,7 @@ function setup() {
   );
 
   pixelDensity(
-    min(
+    Math.min(
       2,
       window.devicePixelRatio || 1
     )
@@ -357,38 +280,70 @@ function setup() {
 
   updateLayout();
 
-  player = new Player();
+  shipPlayer =
+    new SpacePlayer();
 
-  resetControls();
+  installPointerEvents();
+
 }
 
-
 // ================================================================
-// RESPONSIVE LAYOUT
+// MAIN DRAW
 // ================================================================
 
-function updateLayout() {
+function draw() {
 
-  safeBottom = constrain(
-    max(
-      125,
-      height * 0.125
-    ),
-    125,
-    190
+  background(
+    2,
+    6,
+    17
   );
 
-  pauseButton.x = 38;
-  pauseButton.y = 96;
+  drawStars();
 
-  homeButton.x =
-    width - 38;
+  if (state === "HOME") {
 
-  homeButton.y = 96;
+    drawHome();
 
-  resetControls();
+  } else if (state === "LEVELS") {
+
+    drawLevels();
+
+  } else if (state === "ARCHIVE") {
+
+    drawArchive();
+
+  } else if (state === "ABOUT") {
+
+    drawAbout();
+
+  } else if (state === "SETTINGS") {
+
+    drawSettings();
+
+  } else if (state === "RATING") {
+
+    drawRating();
+
+  } else if (state === "PLAYING") {
+
+    runGame();
+
+  } else if (state === "PAUSED") {
+
+    drawPaused();
+
+  } else if (state === "GAMEOVER") {
+
+    drawGameOver();
+
+  } else if (state === "LEVELUP") {
+
+    drawLevelUp();
+
+  }
+
 }
-
 
 // ================================================================
 // SAVE / LOAD
@@ -398,56 +353,70 @@ function loadSave() {
 
   try {
 
-    let raw =
+    const raw =
       localStorage.getItem(
-        "spaceDodgerCleanFinal"
+        SAVE_KEY
       );
 
-    if (!raw) return;
+    if (!raw) {
+      return;
+    }
 
-    let data =
+    const data =
       JSON.parse(raw);
 
     unlockedLevel =
-      constrain(
-        int(
-          data.unlockedLevel || 1
-        ),
+      constrainInt(
+        data.unlockedLevel || 1,
         1,
         TOTAL_LEVELS
       );
 
     selectedShip =
-      constrain(
-        int(
-          data.selectedShip || 0
-        ),
+      constrainInt(
+        data.selectedShip || 0,
         0,
         SHIPS.length - 1
       );
 
+    campaignLives =
+      constrainInt(
+        data.campaignLives ||
+        START_LIVES,
+        START_LIVES,
+        MAX_LIVES
+      );
+
+    lives =
+      campaignLives;
+
     soundOn =
-      data.sound !== false;
+      data.soundOn !== false;
 
     swappedControls =
       data.swappedControls === true;
 
-  } catch (e) {
+  } catch (error) {
 
     unlockedLevel = 1;
     selectedShip = 0;
+    campaignLives = START_LIVES;
+    lives = START_LIVES;
     soundOn = true;
     swappedControls = false;
-  }
-}
 
+  }
+
+}
 
 function saveGame() {
 
   try {
 
     localStorage.setItem(
-      "spaceDodgerCleanFinal",
+
+      SAVE_KEY,
+
       JSON.stringify({
 
         unlockedLevel:
@@ -456,1434 +425,184 @@ function saveGame() {
         selectedShip:
           selectedShip,
 
-        sound:
+        campaignLives:
+          campaignLives,
+
+        soundOn:
           soundOn,
 
         swappedControls:
           swappedControls
 
       })
+
     );
 
-  } catch (e) {}
+  } catch (error) {}
+
 }
 
-
 // ================================================================
-// PLAIN TEXT
-// NO GLOW
-// NO SHADOW
+// DRAGON LIFE REWARD
 // ================================================================
 
-function plainText(
-  value,
-  x,
-  y,
-  size,
-  colorValue,
-  alignX = CENTER,
-  alignY = CENTER,
-  styleValue = NORMAL
-) {
-
-  drawingContext.shadowBlur = 0;
-  drawingContext.shadowColor =
-    "rgba(0,0,0,0)";
-  drawingContext.shadowOffsetX = 0;
-  drawingContext.shadowOffsetY = 0;
-
-  noStroke();
-
-  fill(colorValue);
-
-  textSize(size);
-
-  textAlign(
-    alignX,
-    alignY
-  );
-
-  textStyle(styleValue);
-
-  text(
-    value,
-    x,
-    y
-  );
-
-  drawingContext.shadowBlur = 0;
-}
-
-
-// ================================================================
-// MAIN DRAW
-// ================================================================
-
-function draw() {
-
-  drawBackground();
-
-  drawStars();
-
-  if (gameState === "HOME") {
-    drawHome();
-    return;
-  }
-
-  if (gameState === "LEVELS") {
-    drawLevels();
-    return;
-  }
-
-  if (gameState === "ARCHIVE") {
-    drawArchive();
-    return;
-  }
-
-  if (gameState === "ABOUT") {
-    drawAbout();
-    return;
-  }
-
-  if (gameState === "SETTINGS") {
-    drawSettings();
-    return;
-  }
-
-  if (gameState === "RATING") {
-    drawRating();
-    return;
-  }
-
-  if (gameState === "PLAYING") {
-    runGame();
-    return;
-  }
-
-  if (gameState === "PAUSED") {
-    drawFrozenGame();
-    drawPause();
-    return;
-  }
-
-  if (gameState === "GAMEOVER") {
-    drawFrozenGame();
-    drawGameOver();
-    return;
-  }
-
-  if (gameState === "LEVELUP") {
-    updateParticles();
-    drawLevelUp();
-    return;
-  }
-}
-
-
-// ================================================================
-// BACKGROUND
-// ================================================================
-
-function drawBackground() {
-
-  if (bossActive) {
-
-    background(
-      18,
-      4,
-      10
-    );
-
-  } else {
-
-    background(
-      2,
-      6,
-      17
-    );
-  }
-}
-
-
-// ================================================================
-// STARS
-// ================================================================
-
-function createStars() {
-
-  stars = [];
-
-  for (
-    let i = 0;
-    i < 145;
-    i++
-  ) {
-
-    stars.push({
-
-      x: random(width),
-      y: random(height),
-
-      size:
-        random(
-          0.8,
-          2.5
-        ),
-
-      speed:
-        random(
-          0.15,
-          0.9
-        ),
-
-      alpha:
-        random(
-          90,
-          210
-        )
-
-    });
-  }
-}
-
-
-function drawStars() {
-
-  noStroke();
-
-  for (
-    let star of stars
-  ) {
-
-    if (
-      gameState ===
-      "PLAYING"
-    ) {
-
-      star.y +=
-        star.speed;
-
-      if (
-        star.y > height
-      ) {
-
-        star.y = -5;
-
-        star.x =
-          random(width);
-      }
-    }
-
-    fill(
-      185,
-      220,
-      255,
-      star.alpha
-    );
-
-    circle(
-      star.x,
-      star.y,
-      star.size
-    );
-  }
-}
-
-
-// ================================================================
-// HOME
-// ================================================================
-
-function drawHome() {
-
-  plainText(
-    "SPACE DODGER",
-    width / 2,
-    height * 0.14,
-    min(
-      42,
-      width * 0.105
-    ),
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "GALACTIC CAMPAIGN",
-    width / 2,
-    height * 0.195,
-    12,
-    "#8aa9b9"
-  );
-
-  let buttons = [
-
-    ["PLAY", height * 0.32],
-    ["SHIP ARCHIVE", height * 0.43],
-    ["ABOUT", height * 0.54],
-    ["SETTINGS", height * 0.65],
-    ["RATE US", height * 0.76]
-
-  ];
-
-  for (
-    let i = 0;
-    i < buttons.length;
-    i++
-  ) {
-
-    menuButton(
-      buttons[i][0],
-      buttons[i][1]
-    );
-  }
-
-  plainText(
-    "LEVEL " +
-    unlockedLevel +
-    " / " +
-    TOTAL_LEVELS +
-    " UNLOCKED",
-    width / 2,
-    height - 27,
-    11,
-    "#8b999f"
-  );
-}
-
-
-function menuButton(
-  label,
-  y
-) {
-
-  let w =
-    min(
-      320,
-      width * 0.80
-    );
-
-  rectMode(CENTER);
-
-  stroke("#468ea8");
-
-  strokeWeight(1.5);
-
-  fill("#061522");
-
-  rect(
-    width / 2,
-    y,
-    w,
-    56,
-    12
-  );
-
-  plainText(
-    label,
-    width / 2,
-    y,
-    15,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-}
-
-
-// ================================================================
-// LEVEL SELECT
-// ================================================================
-
-function drawLevels() {
-
-  plainText(
-    "SELECT LEVEL",
-    width / 2,
-    42,
-    27,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "CURRENT RANK",
-    width / 2,
-    69,
-    11,
-    "#789aaa"
-  );
-
-  plainText(
-    LEVEL_NAMES[
-      unlockedLevel - 1
-    ],
-    width / 2,
-    91,
-    14,
-    "#ead75b",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  let cols = 4;
-  let gap = 9;
-
-  let size =
-    min(
-      66,
-      (width - 48) /
-      cols
-    );
-
-  let startY = 140;
-
-  let totalWidth =
-    cols * size +
-    (cols - 1) * gap;
-
-  let startX =
-    width / 2 -
-    totalWidth / 2 +
-    size / 2;
-
-  for (
-    let level = 1;
-    level <= TOTAL_LEVELS;
-    level++
-  ) {
-
-    let col =
-      (level - 1) %
-      cols;
-
-    let row =
-      floor(
-        (level - 1) /
-        cols
-      );
-
-    let x =
-      startX +
-      col *
-      (size + gap);
-
-    let y =
-      startY +
-      row *
-      (size + 15);
-
-    let open =
-      level <=
-      unlockedLevel;
-
-    let isBoss =
-      bossLevel(level);
-
-    rectMode(CENTER);
-
-    stroke(
-      open
-        ? isBoss
-          ? "#d76b58"
-          : "#469ab7"
-        : "#3b4045"
-    );
-
-    strokeWeight(1.5);
-
-    fill(
-      open
-        ? isBoss
-          ? "#34191c"
-          : "#071e30"
-        : "#11151a"
-    );
-
-    rect(
-      x,
-      y,
-      size,
-      size,
-      10
-    );
-
-    if (open) {
-
-      plainText(
-        String(level),
-        x,
-        y - 5,
-        17,
-        "#eef6f8",
-        CENTER,
-        CENTER,
-        BOLD
-      );
-
-      plainText(
-        isBoss
-          ? "BOSS"
-          : "LEVEL",
-        x,
-        y + 19,
-        8,
-        isBoss
-          ? "#ff9278"
-          : "#79aabd",
-        CENTER,
-        CENTER,
-        BOLD
-      );
-
-    } else {
-
-      plainText(
-        "LOCK",
-        x,
-        y,
-        10,
-        "#777d81",
-        CENTER,
-        CENTER,
-        BOLD
-      );
-    }
-  }
-
-  homeBottomButton();
-}
-
-
-// ================================================================
-// ARCHIVE GEOMETRY
-// ================================================================
-//
-// IMPORTANT FIX:
-// There is now TOP PADDING and BOTTOM PADDING inside the
-// scroll content. This guarantees first and last ship can both
-// reach a completely visible position.
-// ================================================================
-
-function archiveGeometry() {
-
-  let viewportTop = 112;
-
-  let viewportBottom =
-    height -
-    safeBottom -
-    65;
-
-  let viewportHeight =
-    max(
-      120,
-      viewportBottom -
-      viewportTop
-    );
-
-  let cardHeight = 145;
-  let gap = 15;
-
-  let topPadding = 28;
-  let bottomPadding = 55;
-
-  let contentHeight =
-    topPadding +
-    SHIPS.length *
-    cardHeight +
-    (SHIPS.length - 1) *
-    gap +
-    bottomPadding;
-
-  let maxScroll =
-    max(
-      0,
-      contentHeight -
-      viewportHeight
-    );
-
-  return {
-
-    top:
-      viewportTop,
-
-    bottom:
-      viewportBottom,
-
-    viewportHeight:
-      viewportHeight,
-
-    cardHeight:
-      cardHeight,
-
-    gap:
-      gap,
-
-    topPadding:
-      topPadding,
-
-    bottomPadding:
-      bottomPadding,
-
-    contentHeight:
-      contentHeight,
-
-    maxScroll:
-      maxScroll
-  };
-}
-
-
-function clampArchiveScroll() {
-
-  let g =
-    archiveGeometry();
-
-  archiveTargetScroll =
-    constrain(
-      archiveTargetScroll,
-      0,
-      g.maxScroll
-    );
-
-  archiveScroll =
-    constrain(
-      archiveScroll,
-      0,
-      g.maxScroll
-    );
-}
-
-
-// ================================================================
-// ARCHIVE DRAW
-// ================================================================
-
-function drawArchive() {
-
-  let g =
-    archiveGeometry();
-
-  clampArchiveScroll();
-
-  plainText(
-    "SHIP ARCHIVE",
-    width / 2,
-    35,
-    25,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "SWIPE TO BROWSE  •  DRAG SCROLLBAR",
-    width / 2,
-    61,
-    11,
-    "#789aaa"
-  );
-
-  archiveScroll =
-    lerp(
-      archiveScroll,
-      archiveTargetScroll,
-      0.28
-    );
-
-  clampArchiveScroll();
-
-  push();
-
-  drawingContext.save();
-
-  drawingContext.beginPath();
-
-  drawingContext.rect(
-    0,
-    g.top,
-    width,
-    g.viewportHeight
-  );
-
-  drawingContext.clip();
-
-  let cardWidth =
-    min(
-      355,
-      width * 0.89
-    );
-
-  // --------------------------------------------------------------
-  // IMPORTANT:
-  // Card positions use TOP PADDING.
-  // First card is never hidden under title.
-  // --------------------------------------------------------------
-
-  for (
-    let i = 0;
-    i < SHIPS.length;
-    i++
-  ) {
-
-    let cardY =
-      g.top +
-      g.topPadding +
-      g.cardHeight / 2 +
-      i *
-      (
-        g.cardHeight +
-        g.gap
-      ) -
-      archiveScroll;
-
-    drawArchiveCard(
-      SHIPS[i],
-      i,
-      cardY,
-      cardWidth,
-      g.cardHeight
-    );
-  }
-
-  drawingContext.restore();
-
-  pop();
-
-  drawArchiveScrollbar();
-
-  homeBottomButton();
-}
-
-
-// ================================================================
-// ARCHIVE CARD
-// ================================================================
-
-function drawArchiveCard(
-  ship,
-  index,
-  cardY,
-  cardWidth,
-  cardHeight
-) {
-
-  let unlocked =
-    unlockedLevel >=
-    ship.unlock;
-
-  let selected =
-    selectedShip ===
-    index;
-
-  rectMode(CENTER);
-
-  stroke(
-    selected
-      ? "#ead34c"
-      : unlocked
-        ? "#468fa9"
-        : "#44484c"
-  );
-
-  strokeWeight(
-    selected
-      ? 2.5
-      : 1.3
-  );
-
-  fill(
-    unlocked
-      ? "#061421"
-      : "#11151a"
-  );
-
-  rect(
-    width / 2,
-    cardY,
-    cardWidth,
-    cardHeight,
-    14
-  );
-
-  if (unlocked) {
-
-    drawArchiveShip(
-      width / 2 -
-      cardWidth * 0.31,
-      cardY,
-      index,
-      0.84
-    );
-
-    plainText(
-      ship.name,
-      width / 2 -
-      cardWidth * 0.05,
-      cardY - 40,
-      13,
-      "#eef7fa",
-      LEFT,
-      CENTER,
-      BOLD
-    );
-
-    plainText(
-      ship.power,
-      width / 2 -
-      cardWidth * 0.05,
-      cardY - 14,
-      10,
-      "#e4cc55",
-      LEFT,
-      CENTER,
-      BOLD
-    );
-
-    plainText(
-      ship.desc,
-      width / 2 -
-      cardWidth * 0.05,
-      cardY + 10,
-      9,
-      "#9aaeb8",
-      LEFT
-    );
-
-    plainText(
-      selected
-        ? "SELECTED"
-        : "TAP TO SELECT",
-      width / 2 -
-      cardWidth * 0.05,
-      cardY + 38,
-      9,
-      selected
-        ? "#ead34c"
-        : "#78b1c6",
-      LEFT,
-      CENTER,
-      BOLD
-    );
-
-  } else {
-
-    drawArchiveShip(
-      width / 2,
-      cardY - 5,
-      index,
-      0.65
-    );
-
-    plainText(
-      "LOCKED  •  LEVEL " +
-      ship.unlock,
-      width / 2,
-      cardY + 48,
-      10,
-      "#858b8f",
-      CENTER,
-      CENTER,
-      BOLD
-    );
-  }
-}
-
-
-// ================================================================
-// ARCHIVE SCROLLBAR
-// ================================================================
-
-function archiveScrollbarInfo() {
-
-  let g =
-    archiveGeometry();
+function awardDragonLife() {
 
   if (
-    g.maxScroll <= 0
+    !DRAGON_LEVELS.includes(level)
   ) {
 
-    return null;
-  }
-
-  let trackX =
-    width - 10;
-
-  let trackTop =
-    g.top;
-
-  let trackHeight =
-    g.viewportHeight;
-
-  let thumbHeight =
-    max(
-      55,
-      trackHeight *
-      (
-        g.viewportHeight /
-        g.contentHeight
-      )
-    );
-
-  let travel =
-    trackHeight -
-    thumbHeight;
-
-  let ratio =
-    archiveScroll /
-    g.maxScroll;
-
-  let thumbY =
-    trackTop +
-    thumbHeight / 2 +
-    travel *
-    constrain(
-      ratio,
-      0,
-      1
-    );
-
-  return {
-
-    x: trackX,
-
-    top:
-      thumbY -
-      thumbHeight / 2,
-
-    bottom:
-      thumbY +
-      thumbHeight / 2,
-
-    thumbHeight:
-      thumbHeight,
-
-    travel:
-      travel,
-
-    trackTop:
-      trackTop,
-
-    trackHeight:
-      trackHeight,
-
-    maxScroll:
-      g.maxScroll
-  };
-}
-
-
-function drawArchiveScrollbar() {
-
-  let info =
-    archiveScrollbarInfo();
-
-  if (!info) return;
-
-  noStroke();
-
-  fill(
-    255,
-    255,
-    255,
-    22
-  );
-
-  rect(
-    info.x,
-    info.trackTop +
-    info.trackHeight / 2,
-    4,
-    info.trackHeight,
-    2
-  );
-
-  stroke("#59b5d2");
-
-  strokeWeight(1);
-
-  fill(
-    45,
-    150,
-    185,
-    215
-  );
-
-  rect(
-    info.x,
-    (
-      info.top +
-      info.bottom
-    ) / 2,
-    10,
-    info.thumbHeight,
-    5
-  );
-}
-
-
-function isOnArchiveScrollbar(
-  x,
-  y
-) {
-
-  let info =
-    archiveScrollbarInfo();
-
-  if (!info)
-    return false;
-
-  return (
-    x >
-      width - 38 &&
-    y >=
-      info.top - 12 &&
-    y <=
-      info.bottom + 12
-  );
-}
-
-
-function setArchiveScrollFromScrollbar(
-  y
-) {
-
-  let info =
-    archiveScrollbarInfo();
-
-  if (!info)
     return;
 
-  let center =
-    constrain(
-      y,
-      info.trackTop +
-      info.thumbHeight / 2,
-
-      info.trackTop +
-      info.trackHeight -
-      info.thumbHeight / 2
-    );
-
-  let ratio =
-    info.travel > 0
-      ? (
-          center -
-          (
-            info.trackTop +
-            info.thumbHeight / 2
-          )
-        ) /
-        info.travel
-      : 0;
-
-  archiveTargetScroll =
-    ratio *
-    info.maxScroll;
-
-  archiveScroll =
-    archiveTargetScroll;
-}
-
-
-// ================================================================
-// ARCHIVE SHIP ART
-// ================================================================
-
-function drawArchiveShip(
-  x,
-  y,
-  index,
-  scaleValue
-) {
-
-  let ship =
-    SHIPS[index];
-
-  push();
-
-  translate(
-    x,
-    y
-  );
-
-  scale(
-    scaleValue
-  );
-
-  stroke(ship.edge);
-
-  strokeWeight(2.5);
-
-  fill(ship.body);
-
-  beginShape();
-
-  vertex(0, -42);
-  vertex(-13, -17);
-  vertex(-40, -5);
-  vertex(-24, 11);
-  vertex(-14, 27);
-  vertex(0, 18);
-  vertex(14, 27);
-  vertex(24, 11);
-  vertex(40, -5);
-  vertex(13, -17);
-
-  endShape(CLOSE);
-
-  noStroke();
-
-  fill(ship.core);
-
-  ellipse(
-    0,
-    -4,
-    12,
-    20
-  );
-
-  fill(ship.edge);
-
-  triangle(
-    -7,
-    25,
-    7,
-    25,
-    0,
-    38
-  );
-
-  pop();
-}
-
-
-// ================================================================
-// ABOUT
-// ================================================================
-
-function drawAbout() {
-
-  plainText(
-    "ABOUT",
-    width / 2,
-    height * 0.18,
-    30,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "Developed by",
-    width / 2,
-    height * 0.34,
-    14,
-    "#a0afb6"
-  );
-
-  plainText(
-    "Aazad S Rana",
-    width / 2,
-    height * 0.42,
-    min(
-      23,
-      width * 0.06
-    ),
-    "#ead75b",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "Space Dodger  •  Galactic Campaign",
-    width / 2,
-    height * 0.51,
-    12,
-    "#a0afb6"
-  );
-
-  plainText(
-    "20 levels  •  Alien invasion  •  Boss battles",
-    width / 2,
-    height * 0.57,
-    11,
-    "#7e8f97"
-  );
-
-  plainText(
-    "Built for mobile arcade gameplay.",
-    width / 2,
-    height * 0.62,
-    11,
-    "#7e8f97"
-  );
-
-  homeBottomButton();
-}
-
-
-// ================================================================
-// SETTINGS
-// ================================================================
-
-function drawSettings() {
-
-  plainText(
-    "SETTINGS",
-    width / 2,
-    height * 0.15,
-    29,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  settingBox(
-    "CONTROL LAYOUT",
-    swappedControls
-      ? "FIRE LEFT  •  MOVE RIGHT"
-      : "MOVE LEFT  •  FIRE RIGHT",
-    height * 0.33
-  );
-
-  settingBox(
-    "SOUND",
-    soundOn
-      ? "ON"
-      : "OFF",
-    height * 0.49
-  );
-
-  plainText(
-    "Tap a panel to change its setting.",
-    width / 2,
-    height * 0.63,
-    11,
-    "#7e9098"
-  );
-
-  homeBottomButton();
-}
-
-
-function settingBox(
-  title,
-  value,
-  y
-) {
-
-  let w =
-    min(
-      340,
-      width * 0.84
-    );
-
-  rectMode(CENTER);
-
-  stroke("#468ea8");
-
-  strokeWeight(1.5);
-
-  fill("#061622");
-
-  rect(
-    width / 2,
-    y,
-    w,
-    82,
-    14
-  );
-
-  plainText(
-    title,
-    width / 2,
-    y - 18,
-    11,
-    "#839ba6",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    value,
-    width / 2,
-    y + 14,
-    15,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-}
-
-
-// ================================================================
-// RATING
-// ================================================================
-
-function drawRating() {
-
-  plainText(
-    "RATE SPACE DODGER",
-    width / 2,
-    height * 0.24,
-    27,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "HOW WAS YOUR EXPERIENCE?",
-    width / 2,
-    height * 0.32,
-    13,
-    "#9aabb2"
-  );
-
-  let gap =
-    min(
-      53,
-      width * 0.13
-    );
-
-  let total =
-    gap * 4;
-
-  for (
-    let i = 1;
-    i <= 5;
-    i++
-  ) {
-
-    let x =
-      width / 2 -
-      total / 2 +
-      (i - 1) *
-      gap;
-
-    plainText(
-      "★",
-      x,
-      height * 0.45,
-      39,
-      i <= rating
-        ? "#ead34c"
-        : "#555b60",
-      CENTER,
-      CENTER,
-      BOLD
-    );
   }
 
-  plainText(
-    rating +
-    " / 5",
-    width / 2,
-    height * 0.55,
-    16,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
+  if (
+    campaignLives < MAX_LIVES
+  ) {
 
-  actionButton(
-    "SUBMIT",
-    height * 0.65,
-    250
-  );
+    campaignLives++;
 
-  actionButton(
-    "CANCEL",
-    height * 0.75,
-    250
-  );
+  }
+
+  campaignLives =
+    Math.min(
+      campaignLives,
+      MAX_LIVES
+    );
+
+  lives =
+    campaignLives;
+
+  saveGame();
+
 }
 
+// ================================================================
+// LEVEL HELPERS
+// ================================================================
+
+function isDragonLevel(n) {
+
+  return DRAGON_LEVELS.includes(n);
+
+}
+
+function difficulty() {
+
+  return (
+    1 +
+    (level - 1) *
+    0.055
+  );
+
+}
+
+function shipPower() {
+
+  return SHIPS[
+    selectedShip
+  ].power;
+
+}
 
 // ================================================================
 // START LEVEL
 // ================================================================
 
-function startLevel(level) {
+function startLevel(n) {
 
-  currentLevel =
-    constrain(
-      level,
+  level =
+    constrainInt(
+      n,
       1,
       TOTAL_LEVELS
     );
 
   score = 0;
   levelScore = 0;
-  lives = 3;
+
+  lives =
+    campaignLives;
 
   levelDuration =
-    levelTime(
-      currentLevel
+    40000 +
+    (level - 1) *
+    5500;
+
+  levelTarget =
+    Math.floor(
+
+      450 +
+
+      (level - 1) *
+      175 +
+
+      Math.pow(
+        level,
+        1.25
+      ) *
+      25
+
     );
 
-  targetScore =
-    levelTarget(
-      currentLevel
-    );
-
-  levelStart =
+  levelStartedAt =
     millis();
 
-  lastAlienSpawn =
+  lastEnemySpawn =
     millis();
 
-  lastPowerSpawn =
+  lastDropSpawn =
     millis();
 
-  lastShot = 0;
+  lastFire = 0;
+
+  // POWER IS READY AT START
+  specialReadyAt =
+    millis();
+
+  powerPressedUntil = 0;
 
   bullets = [];
-  aliens = [];
+  enemies = [];
   enemyShots = [];
-  powerUps = [];
+  drops = [];
   particles = [];
 
   boss = null;
-
   bossActive = false;
   bossDefeated = false;
 
   resetPowers();
 
-  player =
-    new Player();
+  shipPlayer =
+    new SpacePlayer();
 
-  resetControls();
+  clearPointers();
 
-  powerReadyAt =
-    millis() + 3000;
-
-  gameState =
+  state =
     "PLAYING";
+
 }
 
+// ================================================================
+// RESET POWERS
+// ================================================================
+
+function resetPowers() {
+
+  powers.MULTI = 0;
+  powers.SHIELD = 0;
+  powers.BERSERKER = 0;
+  powers.CRYO = 0;
+  powers.CELESTIAL = 0;
+
+}
 
 // ================================================================
 // PLAYER
 // ================================================================
 
-class Player {
+class SpacePlayer {
 
   constructor() {
 
@@ -1891,75 +610,56 @@ class Player {
       width / 2;
 
     this.y =
-      height * 0.67;
+      height * 0.63;
 
     this.angle =
-      -HALF_PI;
+      -HALFPI;
 
-    this.radius = 17;
+    this.r = 17;
 
     this.invincibleUntil = 0;
+
   }
 
   update() {
 
-    // No automatic movement.
-    // Movement happens ONLY through joystick.
-
-    // Horizontal wrapping.
-
-    if (
-      this.x < -40
-    ) {
-
-      this.x =
-        width + 40;
+    if (this.x < -35) {
+      this.x = width + 35;
     }
 
-    if (
-      this.x >
-      width + 40
-    ) {
-
-      this.x = -40;
+    if (this.x > width + 35) {
+      this.x = -35;
     }
 
-    // Vertical wrapping.
-
-    if (
-      this.y < -40
-    ) {
-
-      this.y =
-        height + 40;
+    if (this.y < -35) {
+      this.y = height + 35;
     }
 
-    if (
-      this.y >
-      height + 40
-    ) {
-
-      this.y = -40;
+    if (this.y > height + 35) {
+      this.y = -35;
     }
+
   }
 
-  display() {
+  draw() {
 
     if (
+
       millis() <
       this.invincibleUntil &&
-      floor(
-        millis() / 120
+
+      Math.floor(
+        millis() / 110
       ) % 2 === 0
+
     ) {
 
       return;
+
     }
 
-    let ship =
-      SHIPS[
-        selectedShip
-      ];
+    const ship =
+      SHIPS[selectedShip];
 
     push();
 
@@ -1970,31 +670,37 @@ class Player {
 
     rotate(
       this.angle +
-      HALF_PI
+      HALFPI
     );
 
-    stroke(ship.edge);
+    stroke(
+      ship.edge
+    );
 
     strokeWeight(2.3);
 
-    fill(ship.body);
+    fill(
+      ship.body
+    );
 
     beginShape();
 
-    vertex(0, -32);
-    vertex(-11, -9);
+    vertex(0, -31);
+    vertex(-11, -8);
     vertex(-29, 17);
     vertex(-9, 12);
     vertex(0, 23);
     vertex(9, 12);
     vertex(29, 17);
-    vertex(11, -9);
+    vertex(11, -8);
 
     endShape(CLOSE);
 
     noStroke();
 
-    fill(ship.core);
+    fill(
+      ship.core
+    );
 
     ellipse(
       0,
@@ -2003,7 +709,9 @@ class Player {
       16
     );
 
-    fill(ship.edge);
+    fill(
+      ship.edge
+    );
 
     triangle(
       -5,
@@ -2016,119 +724,27 @@ class Player {
 
     pop();
 
-    if (hasShield()) {
+    if (
+      millis() <
+      powers.SHIELD
+    ) {
 
       drawShield(
         this.x,
         this.y
       );
+
     }
-  }
-}
 
+  }
+
+}
 
 // ================================================================
-// SHIP POWER
+// PLAYER POWER
 // ================================================================
 
-function shipPower() {
-
-  return SHIPS[
-    selectedShip
-  ].power;
-}
-
-
-function damageMultiplier() {
-
-  let multiplier = 1;
-
-  if (
-    shipPower() ===
-    "BURN SHOT"
-  ) {
-
-    multiplier = 1.12;
-  }
-
-  if (
-    shipPower() ===
-    "DRAGON RAGE" &&
-    bossActive
-  ) {
-
-    multiplier = 1.75;
-  }
-
-  if (
-    shipPower() ===
-    "TITAN CORE"
-  ) {
-
-    multiplier = 1.65;
-  }
-
-  if (
-    shipPower() ===
-    "REALITY BREAK"
-  ) {
-
-    multiplier = 2.1;
-  }
-
-  if (
-    millis() <
-    powerEnds.BERSERKER
-  ) {
-
-    multiplier *= 1.55;
-  }
-
-  return multiplier;
-}
-
-
-function fireDelay() {
-
-  let delay = 155;
-
-  if (
-    shipPower() ===
-    "QUANTUM DASH"
-  ) {
-
-    delay = 85;
-  }
-
-  if (
-    shipPower() ===
-    "TITAN CORE"
-  ) {
-
-    delay = 105;
-  }
-
-  if (
-    shipPower() ===
-    "REALITY BREAK"
-  ) {
-
-    delay = 75;
-  }
-
-  if (
-    millis() <
-    powerEnds.BERSERKER
-  ) {
-
-    delay = 70;
-  }
-
-  return delay;
-}
-
-
-function moveSpeed() {
+function playerSpeed() {
 
   let speed = 5;
 
@@ -2138,6 +754,7 @@ function moveSpeed() {
   ) {
 
     speed *= 1.35;
+
   }
 
   if (
@@ -2146,29 +763,112 @@ function moveSpeed() {
   ) {
 
     speed *= 0.9;
+
   }
 
   return speed;
+
 }
 
+function damageMultiplier() {
 
-// ================================================================
-// SHIELD
-// ================================================================
+  let damage = 1;
 
-function hasShield() {
+  if (
+    shipPower() ===
+    "BURN SHOT"
+  ) {
 
-  return (
+    damage *= 1.12;
+
+  }
+
+  if (
+    shipPower() ===
+    "DRAGON RAGE" &&
+    bossActive
+  ) {
+
+    damage *= 1.8;
+
+  }
+
+  if (
+    shipPower() ===
+    "TITAN CORE"
+  ) {
+
+    damage *= 1.6;
+
+  }
+
+  if (
+    shipPower() ===
+    "REALITY BREAK"
+  ) {
+
+    damage *= 2;
+
+  }
+
+  if (
     millis() <
-    powerEnds.SHIELD
-  );
+    powers.BERSERKER
+  ) {
+
+    damage *= 1.55;
+
+  }
+
+  return damage;
+
 }
 
+function fireDelay() {
 
-function drawShield(
-  x,
-  y
-) {
+  let delay = 150;
+
+  if (
+    shipPower() ===
+    "QUANTUM DASH"
+  ) {
+
+    delay = 90;
+
+  }
+
+  if (
+    shipPower() ===
+    "TITAN CORE"
+  ) {
+
+    delay = 105;
+
+  }
+
+  if (
+    shipPower() ===
+    "REALITY BREAK"
+  ) {
+
+    delay = 75;
+
+  }
+
+  if (
+    millis() <
+    powers.BERSERKER
+  ) {
+
+    delay = 68;
+
+  }
+
+  return delay;
+
+}
+
+function drawShield(x, y) {
 
   noFill();
 
@@ -2176,7 +876,7 @@ function drawShield(
     70,
     210,
     245,
-    150
+    160
   );
 
   strokeWeight(2);
@@ -2184,13 +884,13 @@ function drawShield(
   circle(
     x,
     y,
-    66 +
-    sin(
+    64 +
+    Math.sin(
       frameCount * 0.08
     ) * 4
   );
-}
 
+}
 
 // ================================================================
 // GAME LOOP
@@ -2200,84 +900,212 @@ function runGame() {
 
   updateShake();
 
-  handleJoystickMovement();
+  updateJoystickMovement();
 
-  player.update();
+  if (fireHeld) {
+    shoot();
+  }
+
+  shipPlayer.update();
 
   updateBullets();
-
-  updateAliens();
-
+  updateEnemies();
   updateEnemyShots();
-
-  updatePowerUps();
-
+  updateDrops();
   updateParticles();
 
   if (bossActive) {
     updateBoss();
   }
 
-  collideBulletsAliens();
+  spawnEnemies();
+  spawnDrops();
+  checkBossSpawn();
 
-  collideShipAliens();
-
+  collideBulletsEnemies();
+  collideShipEnemies();
   collideShipShots();
-
   collideBulletsBoss();
-
-  spawnAliens();
-
-  spawnPowerUps();
-
-  checkBoss();
 
   checkLevelComplete();
 
   drawHUD();
-
   drawControls();
 
-  player.display();
+  shipPlayer.draw();
+
 }
 
-
 // ================================================================
-// SHAKE
+// ENEMY SPAWN
 // ================================================================
 
-function startShake(amount) {
+function spawnEnemies() {
 
-  shakeAmount =
-    max(
-      shakeAmount,
-      amount
-    );
-}
-
-
-function updateShake() {
-
-  if (
-    shakeAmount <= 0
-  ) {
-
+  if (bossActive) {
     return;
   }
 
-  shakeAmount *= 0.86;
+  const delay =
+    Math.max(
+      450,
+      1050 -
+      level * 28
+    );
 
   if (
-    shakeAmount < 0.25
+    millis() -
+    lastEnemySpawn <
+    delay
   ) {
 
-    shakeAmount = 0;
+    return;
+
   }
+
+  const count =
+    (
+      level >= 12 &&
+      Math.random() < 0.15
+    )
+      ? 2
+      : 1;
+
+  for (
+    let i = 0;
+    i < count;
+    i++
+  ) {
+
+    enemies.push(
+      new Enemy()
+    );
+
+  }
+
+  lastEnemySpawn =
+    millis();
+
 }
 
+// ================================================================
+// BOSS SPAWN
+// ================================================================
+
+function checkBossSpawn() {
+
+  if (
+    !isDragonLevel(level) ||
+    bossActive ||
+    bossDefeated
+  ) {
+
+    return;
+
+  }
+
+  if (
+    millis() -
+    levelStartedAt >=
+    levelDuration * 0.58
+  ) {
+
+    boss =
+      new DragonBoss();
+
+    bossActive = true;
+
+    enemies = [];
+    drops = [];
+
+    shake = 14;
+
+  }
+
+}
 
 // ================================================================
-// BULLET
+// LEVEL COMPLETE
+// ================================================================
+
+function checkLevelComplete() {
+
+  const elapsed =
+    millis() -
+    levelStartedAt;
+
+  const timeDone =
+    elapsed >=
+    levelDuration;
+
+  const scoreDone =
+    levelScore >=
+    levelTarget;
+
+  const bossDone =
+    !isDragonLevel(level) ||
+    bossDefeated;
+
+  if (
+    timeDone &&
+    scoreDone &&
+    bossDone
+  ) {
+
+    completeLevel();
+
+  }
+
+}
+
+function completeLevel() {
+
+  if (
+    state !==
+    "PLAYING"
+  ) {
+
+    return;
+
+  }
+
+  clearPointers();
+
+  if (
+    isDragonLevel(level)
+  ) {
+
+    awardDragonLife();
+
+  }
+
+  if (
+    level <
+    TOTAL_LEVELS
+  ) {
+
+    unlockedLevel =
+      Math.max(
+        unlockedLevel,
+        level + 1
+      );
+
+  }
+
+  saveGame();
+
+  createCelebration();
+
+  levelClearAt =
+    millis();
+
+  state =
+    "LEVELUP";
+
+}
+
+// ================================================================
+// BULLETS
 // ================================================================
 
 class Bullet {
@@ -2291,328 +1119,127 @@ class Bullet {
 
     this.x = x;
     this.y = y;
-
     this.angle = angle;
     this.power = power;
 
-    this.speed =
-      11 +
-      power * 0.8;
+    this.speed = 11;
 
-    this.radius =
+    this.r =
       4 + power;
 
     this.life = 110;
+
   }
 
   update() {
 
     this.x +=
-      cos(this.angle) *
+      Math.cos(this.angle) *
       this.speed;
 
     this.y +=
-      sin(this.angle) *
+      Math.sin(this.angle) *
       this.speed;
 
     this.life--;
+
   }
 
-  display() {
+  draw() {
 
-    let edge =
-      SHIPS[
-        selectedShip
-      ].edge;
+    const ship =
+      SHIPS[selectedShip];
 
-    stroke(edge);
+    stroke(
+      ship.edge
+    );
 
     strokeWeight(
-      2.5 +
-      this.power
+      2.5 + this.power
     );
 
     line(
+
       this.x,
       this.y,
+
       this.x -
-      cos(this.angle) * 15,
+      Math.cos(this.angle) *
+      15,
+
       this.y -
-      sin(this.angle) * 15
+      Math.sin(this.angle) *
+      15
+
     );
+
   }
 
   dead() {
 
     return (
+
       this.life <= 0 ||
+
       this.x < -80 ||
       this.x > width + 80 ||
+
       this.y < -80 ||
       this.y > height + 80
+
     );
+
   }
+
 }
-
-
-// ================================================================
-// AUDIO
-// ================================================================
-
-function initAudio() {
-
-  if (!soundOn) {
-    return;
-  }
-
-  if (!audioCtx) {
-
-    let AudioClass =
-      window.AudioContext ||
-      window.webkitAudioContext;
-
-    if (AudioClass) {
-
-      try {
-
-        audioCtx =
-          new AudioClass();
-
-      } catch (e) {
-
-        audioCtx = null;
-      }
-    }
-  }
-
-  if (
-    audioCtx &&
-    audioCtx.state ===
-    "suspended"
-  ) {
-
-    audioCtx.resume();
-  }
-}
-
-
-function playFireSound() {
-
-  if (!soundOn) return;
-
-  if (!audioCtx) {
-    initAudio();
-  }
-
-  if (!audioCtx) return;
-
-  try {
-
-    let now =
-      audioCtx.currentTime;
-
-    let oscillator =
-      audioCtx.createOscillator();
-
-    let gain =
-      audioCtx.createGain();
-
-    oscillator.type =
-      "sawtooth";
-
-    oscillator.frequency.setValueAtTime(
-      760,
-      now
-    );
-
-    oscillator.frequency.exponentialRampToValueAtTime(
-      170,
-      now + 0.075
-    );
-
-    gain.gain.setValueAtTime(
-      0.0001,
-      now
-    );
-
-    gain.gain.exponentialRampToValueAtTime(
-      0.055,
-      now + 0.008
-    );
-
-    gain.gain.exponentialRampToValueAtTime(
-      0.0001,
-      now + 0.085
-    );
-
-    oscillator.connect(gain);
-
-    gain.connect(
-      audioCtx.destination
-    );
-
-    oscillator.start(now);
-
-    oscillator.stop(
-      now + 0.09
-    );
-
-  } catch (e) {}
-}
-
-
-function playPowerSound() {
-
-  if (!soundOn) return;
-
-  if (!audioCtx) {
-    initAudio();
-  }
-
-  if (!audioCtx) return;
-
-  try {
-
-    let now =
-      audioCtx.currentTime;
-
-    let oscillator =
-      audioCtx.createOscillator();
-
-    let gain =
-      audioCtx.createGain();
-
-    oscillator.type =
-      "triangle";
-
-    oscillator.frequency.setValueAtTime(
-      260,
-      now
-    );
-
-    oscillator.frequency.exponentialRampToValueAtTime(
-      720,
-      now + 0.18
-    );
-
-    gain.gain.setValueAtTime(
-      0.0001,
-      now
-    );
-
-    gain.gain.exponentialRampToValueAtTime(
-      0.07,
-      now + 0.015
-    );
-
-    gain.gain.exponentialRampToValueAtTime(
-      0.0001,
-      now + 0.24
-    );
-
-    oscillator.connect(gain);
-
-    gain.connect(
-      audioCtx.destination
-    );
-
-    oscillator.start(now);
-
-    oscillator.stop(
-      now + 0.25
-    );
-
-  } catch (e) {}
-}
-
-
-// ================================================================
-// SHOOT
-// ================================================================
 
 function shoot() {
 
   if (
-    gameState !==
+    state !==
     "PLAYING"
   ) {
 
     return;
+
   }
 
-  let now =
-    millis();
-
   if (
-    now -
-    lastShot <
+    millis() -
+    lastFire <
     fireDelay()
   ) {
 
     return;
+
   }
 
-  lastShot = now;
+  lastFire =
+    millis();
 
   playFireSound();
 
-  let offsets = [0];
-
-  if (
-    now <
-    powerEnds.TRINITY
-  ) {
-
-    offsets =
-      [-22, 0, 22];
-
-  } else if (
-    now <
-    powerEnds.TWIN
-  ) {
-
-    offsets =
-      [-17, 17];
-  }
-
   let angles = [
-    player.angle
+    shipPlayer.angle
   ];
 
   if (
-    now <
-    powerEnds.MULTI
+    millis() <
+    powers.MULTI
   ) {
 
     angles = [
 
-      player.angle -
-      radians(12),
+      shipPlayer.angle -
+      sdRadians(12),
 
-      player.angle,
+      shipPlayer.angle,
 
-      player.angle +
-      radians(12)
-
-    ];
-  }
-
-  if (
-    shipPower() ===
-    "TITAN CORE"
-  ) {
-
-    angles = [
-
-      player.angle -
-      radians(8),
-
-      player.angle,
-
-      player.angle +
-      radians(8)
+      shipPlayer.angle +
+      sdRadians(12)
 
     ];
+
   }
 
   if (
@@ -2622,74 +1249,46 @@ function shoot() {
 
     angles = [
 
-      player.angle -
-      radians(20),
+      -0.35,
+      -0.18,
+      0,
+      0.18,
+      0.35
 
-      player.angle -
-      radians(10),
+    ].map(
+      a =>
+        shipPlayer.angle + a
+    );
 
-      player.angle,
-
-      player.angle +
-      radians(10),
-
-      player.angle +
-      radians(20)
-
-    ];
   }
 
   for (
-    let offset of offsets
+    const angle of angles
   ) {
 
-    let sx =
-      player.x +
-      cos(
-        player.angle +
-        HALF_PI
-      ) *
-      offset;
+    bullets.push(
 
-    let sy =
-      player.y +
-      sin(
-        player.angle +
-        HALF_PI
-      ) *
-      offset;
+      new Bullet(
 
-    for (
-      let bulletAngle of angles
-    ) {
+        shipPlayer.x +
+        Math.cos(angle) *
+        27,
 
-      bullets.push(
-        new Bullet(
+        shipPlayer.y +
+        Math.sin(angle) *
+        27,
 
-          sx +
-          cos(
-            bulletAngle
-          ) * 27,
+        angle,
 
-          sy +
-          sin(
-            bulletAngle
-          ) * 27,
+        damageMultiplier()
 
-          bulletAngle,
+      )
 
-          damageMultiplier()
+    );
 
-        )
-      );
-    }
   }
+
 }
-
-
-// ================================================================
-// BULLETS UPDATE
-// ================================================================
 
 function updateBullets() {
 
@@ -2700,13 +1299,10 @@ function updateBullets() {
     i--
   ) {
 
-    let bullet =
-      bullets[i];
-
-    bullet.update();
+    bullets[i].update();
 
     if (
-      bullet.dead()
+      bullets[i].dead()
     ) {
 
       bullets.splice(
@@ -2716,104 +1312,105 @@ function updateBullets() {
 
     } else {
 
-      bullet.display();
+      bullets[i].draw();
+
     }
+
   }
+
 }
 
-
 // ================================================================
-// ALIEN
+// ENEMY
 // ================================================================
 
-class Alien {
+class Enemy {
 
   constructor() {
 
     this.type =
-      random([
-
+      [
         "SCOUT",
         "INTERCEPTOR",
         "HUNTER",
         "HEAVY",
         "ELITE"
-
-      ]);
+      ][
+        Math.floor(
+          Math.random() * 5
+        )
+      ];
 
     if (
-      currentLevel <= 3
+      level <= 3
     ) {
 
       this.type =
-        random([
-          "SCOUT",
-          "INTERCEPTOR"
-        ]);
+        Math.random() < 0.65
+          ? "SCOUT"
+          : "INTERCEPTOR";
+
     }
 
-    let side =
-      floor(
-        random(4)
+    const side =
+      Math.floor(
+        Math.random() * 4
       );
 
     if (side === 0) {
 
       this.x =
-        random(width);
+        Math.random() * width;
 
-      this.y = -70;
+      this.y = -60;
 
     } else if (side === 1) {
 
       this.x =
-        width + 70;
+        width + 60;
 
       this.y =
-        random(
-          height * 0.17,
-          height * 0.70
-        );
+        130 +
+        Math.random() *
+        height * 0.55;
 
     } else if (side === 2) {
 
       this.x =
-        random(width);
+        Math.random() * width;
 
       this.y =
-        height + 70;
+        height + 60;
 
     } else {
 
-      this.x = -70;
+      this.x = -60;
 
       this.y =
-        random(
-          height * 0.17,
-          height * 0.70
-        );
+        130 +
+        Math.random() *
+        height * 0.55;
+
     }
 
-    this.radius = 22;
-
+    this.r = 22;
     this.hp = 1;
 
-    if (
-      this.type ===
-      "INTERCEPTOR"
-    ) {
-
-      this.radius = 20;
-      this.hp = 1;
-    }
+    this.speed =
+      (
+        1.3 +
+        Math.random() * 0.9
+      ) *
+      difficulty();
 
     if (
       this.type ===
       "HUNTER"
     ) {
 
-      this.radius = 24;
+      this.r = 25;
       this.hp = 2;
+
     }
 
     if (
@@ -2821,8 +1418,11 @@ class Alien {
       "HEAVY"
     ) {
 
-      this.radius = 32;
+      this.r = 32;
       this.hp = 4;
+
+      this.speed *= 0.65;
+
     }
 
     if (
@@ -2830,17 +1430,48 @@ class Alien {
       "ELITE"
     ) {
 
-      this.radius = 29;
+      this.r = 29;
       this.hp = 3;
+
+      this.speed *= 0.9;
+
     }
 
-    this.speed =
-      random(
-        1.35,
-        2.15
-      ) *
-      difficulty(
-        currentLevel
+    if (
+      this.type ===
+      "INTERCEPTOR"
+    ) {
+
+      this.speed *= 1.3;
+
+    }
+
+    this.phase =
+      Math.random() *
+      PI2;
+
+    this.rot =
+      Math.random() *
+      PI2;
+
+    this.lastShot =
+      millis() +
+      1200 +
+      Math.random() * 1800;
+
+  }
+
+  update() {
+
+    let angle =
+      Math.atan2(
+
+        shipPlayer.y -
+        this.y,
+
+        shipPlayer.x -
+        this.x
+
       );
 
     if (
@@ -2848,52 +1479,26 @@ class Alien {
       "INTERCEPTOR"
     ) {
 
-      this.speed *= 1.35;
+      angle +=
+        Math.sin(
+          frameCount * 0.045 +
+          this.phase
+        ) * 0.55;
+
     }
 
     if (
       this.type ===
-      "HEAVY"
+      "HUNTER"
     ) {
 
-      this.speed *= 0.65;
+      angle +=
+        Math.sin(
+          frameCount * 0.025 +
+          this.phase
+        ) * 0.18;
+
     }
-
-    this.phase =
-      random(TWO_PI);
-
-    this.rotation =
-      random(TWO_PI);
-
-    this.rotationSpeed =
-      random(
-        -0.025,
-        0.025
-      );
-
-    this.lastShot =
-      millis() +
-      random(
-        1200,
-        3000
-      );
-  }
-
-  update() {
-
-    let dx =
-      player.x -
-      this.x;
-
-    let dy =
-      player.y -
-      this.y;
-
-    let angle =
-      atan2(
-        dy,
-        dx
-      );
 
     let speed =
       this.speed;
@@ -2903,7 +1508,8 @@ class Alien {
       "GRAVITY PULSE"
     ) {
 
-      speed *= 0.35;
+      speed *= 0.38;
+
     }
 
     if (
@@ -2911,119 +1517,89 @@ class Alien {
       "TIME FREEZE"
     ) {
 
-      speed *= 0.28;
+      speed *= 0.3;
+
     }
 
     if (
       millis() <
-      powerEnds.CRYO
+      powers.CRYO
     ) {
 
       speed *= 0.45;
-    }
 
-    if (
-      this.type ===
-      "INTERCEPTOR"
-    ) {
-
-      angle +=
-        sin(
-          frameCount *
-          0.045 +
-          this.phase
-        ) *
-        0.55;
-    }
-
-    if (
-      this.type ===
-      "HUNTER"
-    ) {
-
-      angle +=
-        sin(
-          frameCount *
-          0.025 +
-          this.phase
-        ) *
-        0.18;
-    }
-
-    if (
-      this.type ===
-      "ELITE"
-    ) {
-
-      angle +=
-        sin(
-          frameCount *
-          0.035 +
-          this.phase
-        ) *
-        0.28;
     }
 
     this.x +=
-      cos(angle) *
+      Math.cos(angle) *
       speed;
 
     this.y +=
-      sin(angle) *
+      Math.sin(angle) *
       speed;
 
-    this.rotation +=
-      this.rotationSpeed;
+    this.rot += 0.02;
 
     if (
-      this.type ===
-      "HUNTER" ||
-      this.type ===
-      "ELITE"
+
+      (
+        this.type === "HUNTER" ||
+        this.type === "ELITE"
+      ) &&
+
+      millis() -
+      this.lastShot >
+
+      Math.max(
+        1200,
+        2600 -
+        level * 25
+      )
+
     ) {
 
-      if (
-        millis() -
-        this.lastShot >
-        max(
-          1500,
-          2700 -
-          currentLevel * 28
-        )
-      ) {
+      this.fire();
 
-        this.fire();
+      this.lastShot =
+        millis();
 
-        this.lastShot =
-          millis();
-      }
     }
+
   }
 
   fire() {
 
-    let angle =
-      atan2(
-        player.y -
+    const angle =
+      Math.atan2(
+
+        shipPlayer.y -
         this.y,
-        player.x -
+
+        shipPlayer.x -
         this.x
+
       );
 
     enemyShots.push(
+
       new EnemyShot(
+
         this.x,
         this.y,
         angle,
+
         this.type ===
         "ELITE"
-          ? 4.2
-          : 3.0
+          ? 4.1
+          : 3
+
       )
+
     );
+
   }
 
-  display() {
+  draw() {
 
     push();
 
@@ -3033,7 +1609,7 @@ class Alien {
     );
 
     rotate(
-      this.rotation
+      this.rot
     );
 
     if (
@@ -3041,104 +1617,85 @@ class Alien {
       "SCOUT"
     ) {
 
-      alienScout();
+      drawScout();
 
     } else if (
       this.type ===
       "INTERCEPTOR"
     ) {
 
-      alienInterceptor();
+      drawInterceptor();
 
     } else if (
       this.type ===
       "HUNTER"
     ) {
 
-      alienHunter();
+      drawHunter();
 
     } else if (
       this.type ===
       "HEAVY"
     ) {
 
-      alienHeavy();
+      drawHeavy();
 
     } else {
 
-      alienElite();
+      drawElite();
+
     }
 
     pop();
+
   }
 
   dead() {
 
     return (
 
-      this.x < -160 ||
-      this.x >
-      width + 160 ||
-      this.y < -160 ||
-      this.y >
-      height + 160
+      this.x < -140 ||
+      this.x > width + 140 ||
+
+      this.y < -140 ||
+      this.y > height + 140
 
     );
+
   }
+
 }
 
-
 // ================================================================
-// ALIEN VISUALS
+// ENEMY ART
 // ================================================================
 
-function alienScout() {
+function drawScout() {
 
   stroke("#65dff5");
-
   strokeWeight(2);
-
   fill("#183f58");
 
-  ellipse(
-    0,
-    5,
-    48,
-    20
-  );
-
-  ellipse(
-    0,
-    -2,
-    28,
-    18
-  );
+  ellipse(0, 5, 48, 20);
+  ellipse(0, -2, 28, 18);
 
   noStroke();
 
   fill("#c8fbff");
-
-  ellipse(
-    0,
-    -3,
-    10,
-    7
-  );
+  ellipse(0, -3, 10, 7);
 
   fill("#4de5ff");
 
   circle(-15, 6, 4);
   circle(0, 9, 4);
   circle(15, 6, 4);
+
 }
 
-
-function alienInterceptor() {
+function drawInterceptor() {
 
   stroke("#ef5dce");
-
   strokeWeight(2);
-
   fill("#42143f");
 
   beginShape();
@@ -3160,21 +1717,14 @@ function alienInterceptor() {
 
   fill("#ffe0f8");
 
-  ellipse(
-    0,
-    -2,
-    9,
-    14
-  );
+  ellipse(0, -2, 9, 14);
+
 }
 
-
-function alienHunter() {
+function drawHunter() {
 
   stroke("#ffad43");
-
   strokeWeight(2.2);
-
   fill("#572b14");
 
   beginShape();
@@ -3198,21 +1748,14 @@ function alienHunter() {
 
   fill("#fff0c7");
 
-  ellipse(
-    0,
-    -2,
-    13,
-    18
-  );
+  ellipse(0, -2, 13, 18);
+
 }
 
-
-function alienHeavy() {
+function drawHeavy() {
 
   stroke("#ff5757");
-
   strokeWeight(2.5);
-
   fill("#4b1518");
 
   beginShape();
@@ -3234,21 +1777,14 @@ function alienHeavy() {
 
   fill("#ffb4b4");
 
-  ellipse(
-    0,
-    -4,
-    15,
-    20
-  );
+  ellipse(0, -4, 15, 20);
+
 }
 
-
-function alienElite() {
+function drawElite() {
 
   stroke("#b879ff");
-
   strokeWeight(2.5);
-
   fill("#32184d");
 
   beginShape();
@@ -3272,105 +1808,45 @@ function alienElite() {
 
   fill("#f3d9ff");
 
-  ellipse(
-    0,
-    -5,
-    12,
-    18
-  );
+  ellipse(0, -5, 12, 18);
+
 }
 
-
-// ================================================================
-// ALIEN SPAWN
-// ================================================================
-
-function spawnAliens() {
-
-  if (bossActive)
-    return;
-
-  let delay =
-    max(
-      470,
-      1100 -
-      currentLevel * 32
-    );
-
-  if (
-    millis() -
-    lastAlienSpawn >
-    delay
-  ) {
-
-    let count = 1;
-
-    if (
-      currentLevel >= 7 &&
-      random() < 0.17
-    ) {
-
-      count = 2;
-    }
-
-    if (
-      currentLevel >= 14 &&
-      random() < 0.12
-    ) {
-
-      count = 3;
-    }
-
-    for (
-      let i = 0;
-      i < count;
-      i++
-    ) {
-
-      aliens.push(
-        new Alien()
-      );
-    }
-
-    lastAlienSpawn =
-      millis();
-  }
-}
-
-
-function updateAliens() {
+function updateEnemies() {
 
   for (
     let i =
-      aliens.length - 1;
+      enemies.length - 1;
     i >= 0;
     i--
   ) {
 
-    let alien =
-      aliens[i];
+    const enemy =
+      enemies[i];
 
-    alien.update();
+    enemy.update();
 
     if (
-      alien.dead()
+      enemy.dead()
     ) {
 
-      aliens.splice(
+      enemies.splice(
         i,
         1
       );
 
     } else {
 
-      alien.display();
+      enemy.draw();
+
     }
+
   }
+
 }
 
-
 // ================================================================
-// ENEMY SHOT
+// ENEMY SHOTS
 // ================================================================
 
 class EnemyShot {
@@ -3384,60 +1860,67 @@ class EnemyShot {
 
     this.x = x;
     this.y = y;
-
     this.angle = angle;
     this.speed = speed;
 
-    this.radius = 7;
-
+    this.r = 7;
     this.life = 220;
+
   }
 
   update() {
 
     this.x +=
-      cos(this.angle) *
+      Math.cos(this.angle) *
       this.speed;
 
     this.y +=
-      sin(this.angle) *
+      Math.sin(this.angle) *
       this.speed;
 
     this.life--;
+
   }
 
-  display() {
+  draw() {
 
-    stroke(
-      255,
-      70,
-      90
-    );
-
+    stroke("#ff5265");
     strokeWeight(3);
 
     line(
+
       this.x,
       this.y,
+
       this.x -
-      cos(this.angle) * 11,
+      Math.cos(this.angle) *
+      11,
+
       this.y -
-      sin(this.angle) * 11
+      Math.sin(this.angle) *
+      11
+
     );
+
   }
 
   dead() {
 
     return (
+
       this.life <= 0 ||
+
       this.x < -100 ||
       this.x > width + 100 ||
+
       this.y < -100 ||
       this.y > height + 100
-    );
-  }
-}
 
+    );
+
+  }
+
+}
 
 function updateEnemyShots() {
 
@@ -3448,7 +1931,7 @@ function updateEnemyShots() {
     i--
   ) {
 
-    let shot =
+    const shot =
       enemyShots[i];
 
     shot.update();
@@ -3464,701 +1947,48 @@ function updateEnemyShots() {
 
     } else {
 
-      shot.display();
-    }
-  }
-}
+      shot.draw();
 
-
-// ================================================================
-// COLLISION: BULLET -> ALIEN
-// ================================================================
-
-function collideBulletsAliens() {
-
-  for (
-    let i =
-      aliens.length - 1;
-    i >= 0;
-    i--
-  ) {
-
-    let alien =
-      aliens[i];
-
-    for (
-      let j =
-        bullets.length - 1;
-      j >= 0;
-      j--
-    ) {
-
-      let bullet =
-        bullets[j];
-
-      if (
-        dist(
-          alien.x,
-          alien.y,
-          bullet.x,
-          bullet.y
-        ) <
-        alien.radius +
-        bullet.radius
-      ) {
-
-        alien.hp -=
-          bullet.power;
-
-        bullets.splice(
-          j,
-          1
-        );
-
-        createExplosion(
-          bullet.x,
-          bullet.y,
-          4,
-          SHIPS[
-            selectedShip
-          ].edge
-        );
-
-        if (
-          alien.hp <= 0
-        ) {
-
-          let points = 30;
-
-          if (
-            alien.type ===
-            "HUNTER"
-          )
-            points = 45;
-
-          if (
-            alien.type ===
-            "HEAVY"
-          )
-            points = 70;
-
-          if (
-            alien.type ===
-            "ELITE"
-          )
-            points = 100;
-
-          score += points;
-          levelScore += points;
-
-          createExplosion(
-            alien.x,
-            alien.y,
-            alien.type ===
-            "HEAVY"
-              ? 32
-              : 22,
-            SHIPS[
-              selectedShip
-            ].edge
-          );
-
-          startShake(
-            alien.type ===
-            "HEAVY"
-              ? 7
-              : 3
-          );
-
-          aliens.splice(
-            i,
-            1
-          );
-        }
-
-        break;
-      }
-    }
-  }
-}
-
-
-// ================================================================
-// COLLISION: PLAYER -> ALIEN
-// FIXED:
-// • Enemy is removed first.
-// • Player receives invulnerability.
-// • No player deletion.
-// • No multiple collision chain.
-// ================================================================
-
-function collideShipAliens() {
-
-  if (
-    millis() <
-    player.invincibleUntil
-  ) {
-
-    return;
-  }
-
-  for (
-    let i =
-      aliens.length - 1;
-    i >= 0;
-    i--
-  ) {
-
-    let alien =
-      aliens[i];
-
-    let d =
-      dist(
-        player.x,
-        player.y,
-        alien.x,
-        alien.y
-      );
-
-    if (
-      d <
-      player.radius +
-      alien.radius * 0.72
-    ) {
-
-      // Shield collision
-
-      if (hasShield()) {
-
-        createExplosion(
-          alien.x,
-          alien.y,
-          28,
-          "#00cfff"
-        );
-
-        aliens.splice(
-          i,
-          1
-        );
-
-        startShake(5);
-
-        return;
-      }
-
-      // PHASE DODGE
-
-      if (
-        shipPower() ===
-        "PHASE DODGE" &&
-        random() < 0.65
-      ) {
-
-        player.invincibleUntil =
-          millis() + 500;
-
-        return;
-      }
-
-      // IMPORTANT:
-      // Remove enemy before damaging player.
-      // This prevents the visual overlap glitch.
-
-      createExplosion(
-        alien.x,
-        alien.y,
-        28,
-        SHIPS[
-          selectedShip
-        ].edge
-      );
-
-      aliens.splice(
-        i,
-        1
-      );
-
-      damagePlayer();
-
-      return;
-    }
-  }
-}
-
-
-// ================================================================
-// COLLISION: PLAYER -> ENEMY BULLET
-// ================================================================
-
-function collideShipShots() {
-
-  if (
-    millis() <
-    player.invincibleUntil
-  ) {
-
-    return;
-  }
-
-  for (
-    let i =
-      enemyShots.length - 1;
-    i >= 0;
-    i--
-  ) {
-
-    let shot =
-      enemyShots[i];
-
-    if (
-      dist(
-        player.x,
-        player.y,
-        shot.x,
-        shot.y
-      ) <
-      player.radius +
-      shot.radius
-    ) {
-
-      if (hasShield()) {
-
-        enemyShots.splice(
-          i,
-          1
-        );
-
-        createExplosion(
-          shot.x,
-          shot.y,
-          8,
-          "#00cfff"
-        );
-
-        startShake(4);
-
-        return;
-      }
-
-      enemyShots.splice(
-        i,
-        1
-      );
-
-      damagePlayer();
-
-      return;
-    }
-  }
-}
-
-
-// ================================================================
-// PLAYER DAMAGE
-// ================================================================
-
-function damagePlayer() {
-
-  lives--;
-
-  createExplosion(
-    player.x,
-    player.y,
-    35,
-    "#ff5968"
-  );
-
-  player.invincibleUntil =
-    millis() + 1800;
-
-  startShake(11);
-
-  if (
-    lives <= 0
-  ) {
-
-    // Clear active objects so Game Over cannot
-    // draw a conflicting collision frame.
-
-    bullets = [];
-    enemyShots = [];
-    aliens = [];
-    powerUps = [];
-
-    gameState =
-      "GAMEOVER";
-  }
-}
-
-
-// ================================================================
-// POWER UPS
-// ================================================================
-
-class PowerUp {
-
-  constructor() {
-
-    this.type =
-      random([
-
-        "MULTI",
-        "SHIELD",
-        "TWIN",
-        "TRINITY",
-        "NOVA",
-        "PHANTOM",
-        "BERSERKER",
-        "CRYO",
-        "CELESTIAL"
-
-      ]);
-
-    this.x =
-      random(
-        55,
-        width - 55
-      );
-
-    this.y =
-      random(
-        145,
-        height -
-        safeBottom -
-        50
-      );
-
-    this.radius = 22;
-
-    this.life = 850;
-
-    this.rotation = 0;
-  }
-
-  update() {
-
-    this.rotation +=
-      0.035;
-
-    this.life--;
-  }
-
-  display() {
-
-    let cfg =
-      powerConfig(
-        this.type
-      );
-
-    push();
-
-    translate(
-      this.x,
-      this.y
-    );
-
-    rotate(
-      this.rotation
-    );
-
-    stroke(cfg.color);
-
-    strokeWeight(2);
-
-    fill(
-      20,
-      30,
-      40,
-      100
-    );
-
-    circle(
-      0,
-      0,
-      44
-    );
-
-    plainText(
-      cfg.label,
-      0,
-      0,
-      9,
-      "#f2f5f6",
-      CENTER,
-      CENTER,
-      BOLD
-    );
-
-    pop();
-  }
-}
-
-
-function powerConfig(type) {
-
-  const data = {
-
-    MULTI: {
-      color: "#ffe600",
-      label: "M"
-    },
-
-    SHIELD: {
-      color: "#00cfff",
-      label: "S"
-    },
-
-    TWIN: {
-      color: "#b66cff",
-      label: "2X"
-    },
-
-    TRINITY: {
-      color: "#ff4db8",
-      label: "3X"
-    },
-
-    NOVA: {
-      color: "#ffffff",
-      label: "N"
-    },
-
-    PHANTOM: {
-      color: "#d66cff",
-      label: "PH"
-    },
-
-    BERSERKER: {
-      color: "#ff3455",
-      label: "BR"
-    },
-
-    CRYO: {
-      color: "#9eefff",
-      label: "CR"
-    },
-
-    CELESTIAL: {
-      color: "#fff176",
-      label: "CX"
     }
 
-  };
+  }
 
-  return data[type];
 }
-
-
-function spawnPowerUps() {
-
-  if (
-    millis() -
-    lastPowerSpawn <
-    max(
-      7000,
-      9500 -
-      currentLevel * 90
-    )
-  ) {
-
-    return;
-  }
-
-  if (
-    powerUps.length < 1
-  ) {
-
-    powerUps.push(
-      new PowerUp()
-    );
-  }
-
-  lastPowerSpawn =
-    millis();
-}
-
-
-function updatePowerUps() {
-
-  for (
-    let i =
-      powerUps.length - 1;
-    i >= 0;
-    i--
-  ) {
-
-    let power =
-      powerUps[i];
-
-    power.update();
-
-    if (
-      power.life <= 0
-    ) {
-
-      powerUps.splice(
-        i,
-        1
-      );
-
-    } else {
-
-      power.display();
-    }
-  }
-
-  for (
-    let i =
-      powerUps.length - 1;
-    i >= 0;
-    i--
-  ) {
-
-    let power =
-      powerUps[i];
-
-    if (
-      dist(
-        player.x,
-        player.y,
-        power.x,
-        power.y
-      ) <
-      player.radius +
-      power.radius
-    ) {
-
-      activatePower(
-        power.type
-      );
-
-      createExplosion(
-        power.x,
-        power.y,
-        22,
-        powerConfig(
-          power.type
-        ).color
-      );
-
-      score += 50;
-      levelScore += 50;
-
-      powerUps.splice(
-        i,
-        1
-      );
-
-      break;
-    }
-  }
-}
-
-
-function activatePower(type) {
-
-  playPowerSound();
-
-  let duration = {
-
-    MULTI: 9000,
-    SHIELD: 9000,
-    TWIN: 9000,
-    TRINITY: 8500,
-    PHANTOM: 8000,
-    BERSERKER: 7500,
-    CRYO: 8500,
-    CELESTIAL: 7000
-
-  }[type] || 7000;
-
-  powerEnds[type] =
-    millis() +
-    duration;
-
-  if (
-    type ===
-    "NOVA"
-  ) {
-
-    for (
-      let i =
-        aliens.length - 1;
-      i >= 0;
-      i--
-    ) {
-
-      createExplosion(
-        aliens[i].x,
-        aliens[i].y,
-        18
-      );
-
-      aliens.splice(
-        i,
-        1
-      );
-
-      score += 20;
-      levelScore += 20;
-    }
-
-    startShake(14);
-  }
-
-  if (
-    type ===
-    "TWIN"
-  ) {
-
-    powerEnds.TRINITY = 0;
-  }
-
-  if (
-    type ===
-    "TRINITY"
-  ) {
-
-    powerEnds.TWIN = 0;
-  }
-}
-
 
 // ================================================================
-// BOSS
+// DRAGON BOSS
 // ================================================================
 
-class Boss {
+class DragonBoss {
 
   constructor() {
 
     this.x =
       width / 2;
 
-    this.y = -120;
+    this.y = -100;
 
     this.targetY =
-      max(
-        130,
+      Math.max(
+        125,
         height * 0.18
       );
 
-    this.radius = 82;
+    this.r = 82;
 
     this.maxHp =
       900 +
-      currentLevel * 170;
+      level * 170;
 
     this.hp =
       this.maxHp;
 
     this.phase = 1;
-
-    this.motion = 0;
+    this.t = 0;
 
     this.lastAttack =
       millis();
+
   }
 
   update() {
@@ -4171,9 +2001,10 @@ class Boss {
       this.y += 1.2;
 
       return;
+
     }
 
-    let ratio =
+    const ratio =
       this.hp /
       this.maxHp;
 
@@ -4184,25 +2015,23 @@ class Boss {
           ? 2
           : 3;
 
-    this.motion +=
+    this.t +=
       this.phase === 3
         ? 0.021
         : 0.014;
 
     this.x =
       width / 2 +
-      sin(
-        this.motion
-      ) *
+      Math.sin(this.t) *
       width *
       0.28;
 
-    let delay =
+    const delay =
       this.phase === 1
-        ? 2300
+        ? 2200
         : this.phase === 2
-          ? 1650
-          : 1150;
+          ? 1500
+          : 1050;
 
     if (
       millis() -
@@ -4214,61 +2043,63 @@ class Boss {
 
       this.lastAttack =
         millis();
+
     }
+
   }
 
   attack() {
 
-    let base =
-      atan2(
-        player.y -
+    const base =
+      Math.atan2(
+
+        shipPlayer.y -
         this.y,
-        player.x -
+
+        shipPlayer.x -
         this.x
+
       );
 
-    let spread =
+    const spread =
       this.phase === 1
         ? [0]
         : this.phase === 2
           ? [-16, 0, 16]
-          : [
-              -30,
-              -15,
-              0,
-              15,
-              30
-            ];
+          : [-30, -15, 0, 15, 30];
 
     for (
-      let degrees of spread
+      const degree of spread
     ) {
 
       enemyShots.push(
+
         new EnemyShot(
+
           this.x,
           this.y + 35,
+
           base +
-          radians(degrees),
+          sdRadians(degree),
+
           this.phase === 3
             ? 4.2
             : 3.2
+
         )
+
       );
+
     }
+
   }
 
-  display() {
+  draw() {
 
-    let edge =
+    const edge =
       this.phase === 3
         ? "#ff304d"
         : "#ff8238";
-
-    let body =
-      this.phase === 3
-        ? "#65101b"
-        : "#52180e";
 
     push();
 
@@ -4278,10 +2109,13 @@ class Boss {
     );
 
     stroke(edge);
-
     strokeWeight(3.5);
 
-    fill(body);
+    fill(
+      this.phase === 3
+        ? "#65101b"
+        : "#52180e"
+    );
 
     beginShape();
 
@@ -4310,17 +2144,6 @@ class Boss {
       120
     );
 
-    beginShape();
-
-    vertex(0, -75);
-    vertex(-38, -38);
-    vertex(-28, 10);
-    vertex(0, 31);
-    vertex(28, 10);
-    vertex(38, -38);
-
-    endShape(CLOSE);
-
     noStroke();
 
     fill(
@@ -4333,69 +2156,32 @@ class Boss {
     ellipse(14, -34, 11, 8);
 
     pop();
+
   }
+
 }
-
-
-function checkBoss() {
-
-  if (
-    !bossLevel(
-      currentLevel
-    ) ||
-    bossActive ||
-    bossDefeated
-  ) {
-
-    return;
-  }
-
-  let elapsed =
-    millis() -
-    levelStart;
-
-  if (
-    elapsed >
-    levelDuration *
-    0.55
-  ) {
-
-    boss =
-      new Boss();
-
-    bossActive = true;
-
-    aliens = [];
-
-    powerUps = [];
-
-    startShake(15);
-  }
-}
-
 
 function updateBoss() {
 
-  if (!boss)
+  if (!boss) {
     return;
+  }
 
   boss.update();
+  boss.draw();
 
-  boss.display();
-
-  drawBossHealth();
+  drawBossBar();
 
   if (
     boss.hp <= 0
   ) {
 
-    score +=
+    const reward =
       1000 +
-      currentLevel * 100;
+      level * 100;
 
-    levelScore +=
-      1000 +
-      currentLevel * 100;
+    score += reward;
+    levelScore += reward;
 
     createExplosion(
       boss.x,
@@ -4404,37 +2190,38 @@ function updateBoss() {
       "#ff6735"
     );
 
-    startShake(24);
-
     enemyShots = [];
 
     boss = null;
 
     bossActive = false;
-
     bossDefeated = true;
+
+    shake = 24;
+
   }
+
 }
 
+function drawBossBar() {
 
-function drawBossHealth() {
-
-  if (!boss)
+  if (!boss) {
     return;
+  }
 
-  let w =
-    min(
+  const w =
+    Math.min(
       330,
       width * 0.74
     );
 
-  let x =
+  const x =
     width / 2 -
     w / 2;
 
-  let y = 113;
+  const y = 112;
 
-  let ratio =
+  const ratio =
     constrain(
       boss.hp /
       boss.maxHp,
@@ -4442,16 +2229,17 @@ function drawBossHealth() {
       1
     );
 
-  plainText(
+  label(
     "METEOR DRAGON  •  PHASE " +
     boss.phase,
+
     width / 2,
-    y - 7,
-    12,
+    y - 12,
+    11,
     "#e8a08a",
     CENTER,
-    BOTTOM,
-    BOLD
+    CENTER,
+    true
   );
 
   noStroke();
@@ -4471,11 +2259,7 @@ function drawBossHealth() {
     4
   );
 
-  fill(
-    235,
-    70,
-    55
-  );
+  fill("#eb4637");
 
   rect(
     x,
@@ -4484,8 +2268,125 @@ function drawBossHealth() {
     9,
     4
   );
+
 }
 
+// ================================================================
+// COLLISIONS
+// ================================================================
+
+function collideBulletsEnemies() {
+
+  for (
+    let i =
+      enemies.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    const enemy =
+      enemies[i];
+
+    for (
+      let j =
+        bullets.length - 1;
+      j >= 0;
+      j--
+    ) {
+
+      const bullet =
+        bullets[j];
+
+      if (
+
+        sdDist(
+          enemy.x,
+          enemy.y,
+          bullet.x,
+          bullet.y
+        ) <
+
+        enemy.r +
+        bullet.r
+
+      ) {
+
+        enemy.hp -=
+          bullet.power;
+
+        bullets.splice(
+          j,
+          1
+        );
+
+        createExplosion(
+          bullet.x,
+          bullet.y,
+          4,
+          SHIPS[selectedShip].edge
+        );
+
+        if (
+          enemy.hp <= 0
+        ) {
+
+          let points = 30;
+
+          if (
+            enemy.type === "HUNTER"
+          ) {
+            points = 45;
+          }
+
+          if (
+            enemy.type === "HEAVY"
+          ) {
+            points = 70;
+          }
+
+          if (
+            enemy.type === "ELITE"
+          ) {
+            points = 100;
+          }
+
+          score += points;
+          levelScore += points;
+
+          createExplosion(
+
+            enemy.x,
+            enemy.y,
+
+            enemy.type === "HEAVY"
+              ? 28
+              : 18,
+
+            SHIPS[selectedShip].edge
+
+          );
+
+          shake =
+            enemy.type === "HEAVY"
+              ? 7
+              : 3;
+
+          enemies.splice(
+            i,
+            1
+          );
+
+        }
+
+        break;
+
+      }
+
+    }
+
+  }
+
+}
 
 function collideBulletsBoss() {
 
@@ -4495,6 +2396,7 @@ function collideBulletsBoss() {
   ) {
 
     return;
+
   }
 
   for (
@@ -4504,21 +2406,25 @@ function collideBulletsBoss() {
     i--
   ) {
 
-    let bullet =
+    const bullet =
       bullets[i];
 
     if (
-      dist(
+
+      sdDist(
         bullet.x,
         bullet.y,
         boss.x,
         boss.y
       ) <
-      boss.radius +
-      bullet.radius
+
+      boss.r +
+      bullet.r
+
     ) {
 
       boss.hp -=
+
         (
           10 +
           bullet.power * 8
@@ -4537,1191 +2443,687 @@ function collideBulletsBoss() {
         "#ff9a40"
       );
 
-      startShake(1.5);
     }
+
   }
+
 }
 
-
-// ================================================================
-// LEVEL COMPLETE
-// ================================================================
-
-function checkLevelComplete() {
-
-  let elapsed =
-    millis() -
-    levelStart;
-
-  let timeDone =
-    elapsed >=
-    levelDuration;
-
-  let scoreDone =
-    levelScore >=
-    targetScore;
-
-  let bossDone =
-    !bossLevel(
-      currentLevel
-    ) ||
-    bossDefeated;
+function collideShipEnemies() {
 
   if (
-    timeDone &&
-    scoreDone &&
-    bossDone
-  ) {
-
-    completeLevel();
-  }
-}
-
-
-function completeLevel() {
-
-  if (
-    gameState !==
-    "PLAYING"
+    millis() <
+    shipPlayer.invincibleUntil
   ) {
 
     return;
+
   }
 
-  gameState =
-    "LEVELUP";
-
-  levelClearTime =
-    millis();
-
-  if (
-    currentLevel <
-    TOTAL_LEVELS
+  for (
+    let i =
+      enemies.length - 1;
+    i >= 0;
+    i--
   ) {
 
-    unlockedLevel =
-      max(
-        unlockedLevel,
-        currentLevel + 1
-      );
-
-    saveGame();
-  }
-
-  createCelebration();
-}
-
-
-// ================================================================
-// LEVEL UP
-// ================================================================
-
-function drawLevelUp() {
-
-  noStroke();
-
-  fill(
-    2,
-    6,
-    20,
-    238
-  );
-
-  rect(
-    0,
-    0,
-    width,
-    height
-  );
-
-  plainText(
-    currentLevel ===
-    TOTAL_LEVELS
-      ? "CAMPAIGN COMPLETE!"
-      : "LEVEL " +
-        currentLevel +
-        " CLEARED!",
-    width / 2,
-    height * 0.30,
-    min(
-      33,
-      width * 0.082
-    ),
-    "#ead34c",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "SCORE  " +
-    score,
-    width / 2,
-    height * 0.40,
-    18,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  if (
-    currentLevel <
-    TOTAL_LEVELS
-  ) {
-
-    plainText(
-      "NEW LEVEL UNLOCKED",
-      width / 2,
-      height * 0.49,
-      15,
-      "#78b2c7",
-      CENTER,
-      CENTER,
-      BOLD
-    );
-
-    plainText(
-      "LEVEL " +
-      (
-        currentLevel + 1
-      ),
-      width / 2,
-      height * 0.55,
-      22,
-      "#edf7ff",
-      CENTER,
-      CENTER,
-      BOLD
-    );
-
-    plainText(
-      LEVEL_NAMES[
-        currentLevel
-      ],
-      width / 2,
-      height * 0.61,
-      14,
-      "#ead34c",
-      CENTER,
-      CENTER,
-      BOLD
-    );
-
-  } else {
-
-    plainText(
-      "You conquered the Multiverse.",
-      width / 2,
-      height * 0.53,
-      16,
-      "#aab8be"
-    );
-  }
-
-  if (
-    millis() -
-    levelClearTime >
-    3200
-  ) {
+    const enemy =
+      enemies[i];
 
     if (
-      currentLevel <
-      TOTAL_LEVELS
+
+      sdDist(
+
+        shipPlayer.x,
+        shipPlayer.y,
+
+        enemy.x,
+        enemy.y
+
+      ) <
+
+      shipPlayer.r +
+      enemy.r * 0.72
+
     ) {
 
-      startLevel(
-        currentLevel + 1
+      if (
+        millis() <
+        powers.SHIELD
+      ) {
+
+        enemies.splice(
+          i,
+          1
+        );
+
+        createExplosion(
+          enemy.x,
+          enemy.y,
+          25,
+          "#00cfff"
+        );
+
+        shake = 5;
+
+        return;
+
+      }
+
+      if (
+
+        shipPower() ===
+        "PHASE DODGE" &&
+
+        Math.random() < 0.65
+
+      ) {
+
+        shipPlayer.invincibleUntil =
+          millis() + 600;
+
+        return;
+
+      }
+
+      enemies.splice(
+        i,
+        1
+      );
+
+      damagePlayer();
+
+      return;
+
+    }
+
+  }
+
+}
+
+function collideShipShots() {
+
+  if (
+    millis() <
+    shipPlayer.invincibleUntil
+  ) {
+
+    return;
+
+  }
+
+  for (
+    let i =
+      enemyShots.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    const shot =
+      enemyShots[i];
+
+    if (
+
+      sdDist(
+
+        shipPlayer.x,
+        shipPlayer.y,
+
+        shot.x,
+        shot.y
+
+      ) <
+
+      shipPlayer.r +
+      shot.r
+
+    ) {
+
+      if (
+        millis() <
+        powers.SHIELD
+      ) {
+
+        enemyShots.splice(
+          i,
+          1
+        );
+
+        createExplosion(
+          shot.x,
+          shot.y,
+          8,
+          "#00cfff"
+        );
+
+        shake = 4;
+
+        return;
+
+      }
+
+      enemyShots.splice(
+        i,
+        1
+      );
+
+      damagePlayer();
+
+      return;
+
+    }
+
+  }
+
+}
+
+function damagePlayer() {
+
+  lives--;
+
+  createExplosion(
+    shipPlayer.x,
+    shipPlayer.y,
+    35,
+    "#ff5968"
+  );
+
+  shipPlayer.invincibleUntil =
+    millis() + 1800;
+
+  shake = 11;
+
+  if (
+    lives <= 0
+  ) {
+
+    clearPointers();
+
+    state =
+      "GAMEOVER";
+
+  }
+
+}
+
+// ================================================================
+// POWER DROPS
+// ================================================================
+
+class Drop {
+
+  constructor() {
+
+    this.type =
+      [
+        "MULTI",
+        "SHIELD",
+        "NOVA",
+        "BERSERKER",
+        "CRYO"
+      ][
+        Math.floor(
+          Math.random() * 5
+        )
+      ];
+
+    this.x =
+      55 +
+      Math.random() *
+      (width - 110);
+
+    this.y =
+      145 +
+      Math.random() *
+      Math.max(
+        80,
+        height - 300
+      );
+
+    this.r = 22;
+    this.life = 800;
+    this.rot = 0;
+
+  }
+
+  update() {
+
+    this.rot += 0.04;
+    this.life--;
+
+  }
+
+  draw() {
+
+    const colors = {
+
+      MULTI: "#ffe600",
+      SHIELD: "#00cfff",
+      NOVA: "#ffffff",
+      BERSERKER: "#ff3455",
+      CRYO: "#9eefff"
+
+    };
+
+    const colorValue =
+      colors[this.type];
+
+    push();
+
+    translate(
+      this.x,
+      this.y
+    );
+
+    rotate(
+      this.rot
+    );
+
+    stroke(colorValue);
+    strokeWeight(2);
+
+    fill(
+      20,
+      30,
+      40,
+      100
+    );
+
+    circle(
+      0,
+      0,
+      44
+    );
+
+    pop();
+
+    let textValue = "CR";
+
+    if (
+      this.type === "BERSERKER"
+    ) {
+
+      textValue = "BR";
+
+    } else if (
+      this.type === "SHIELD"
+    ) {
+
+      textValue = "S";
+
+    } else if (
+      this.type === "MULTI"
+    ) {
+
+      textValue = "M";
+
+    } else if (
+      this.type === "NOVA"
+    ) {
+
+      textValue = "N";
+
+    }
+
+    label(
+      textValue,
+      this.x,
+      this.y,
+      9,
+      "#ffffff",
+      CENTER,
+      CENTER,
+      true
+    );
+
+  }
+
+}
+
+function spawnDrops() {
+
+  if (
+
+    millis() -
+    lastDropSpawn <
+
+    Math.max(
+      7000,
+      9500 -
+      level * 80
+    )
+
+  ) {
+
+    return;
+
+  }
+
+  if (
+    drops.length < 1
+  ) {
+
+    drops.push(
+      new Drop()
+    );
+
+  }
+
+  lastDropSpawn =
+    millis();
+
+}
+
+function updateDrops() {
+
+  for (
+    let i =
+      drops.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    const drop =
+      drops[i];
+
+    drop.update();
+
+    if (
+      drop.life <= 0
+    ) {
+
+      drops.splice(
+        i,
+        1
       );
 
     } else {
 
-      gameState =
-        "HOME";
+      drop.draw();
+
     }
+
   }
-}
-
-
-// ================================================================
-// HUD
-// ================================================================
-
-function drawHUD() {
-
-  drawingContext.shadowBlur = 0;
-  drawingContext.shadowColor =
-    "rgba(0,0,0,0)";
-  drawingContext.shadowOffsetX = 0;
-  drawingContext.shadowOffsetY = 0;
-
-  plainText(
-    "SCORE  " +
-    score,
-    14,
-    12,
-    14,
-    "#edf2f3",
-    LEFT,
-    TOP,
-    BOLD
-  );
-
-  plainText(
-    "LEVEL " +
-    currentLevel,
-    width / 2,
-    12,
-    14,
-    "#edf2f3",
-    CENTER,
-    TOP,
-    BOLD
-  );
-
-  plainText(
-    "LIVES  " +
-    lives,
-    width - 14,
-    12,
-    14,
-    "#edf2f3",
-    RIGHT,
-    TOP,
-    BOLD
-  );
-
-  plainText(
-    LEVEL_NAMES[
-      currentLevel - 1
-    ],
-    width / 2,
-    32,
-    9,
-    "#9daab0",
-    CENTER,
-    TOP
-  );
-
-  let w =
-    min(
-      300,
-      width * 0.72
-    );
-
-  let x =
-    width / 2 -
-    w / 2;
-
-  let y = 56;
-
-  let elapsed =
-    millis() -
-    levelStart;
-
-  let timeRatio =
-    constrain(
-      elapsed /
-      levelDuration,
-      0,
-      1
-    );
-
-  let scoreRatio =
-    constrain(
-      levelScore /
-      targetScore,
-      0,
-      1
-    );
-
-  noStroke();
-
-  fill(
-    255,
-    255,
-    255,
-    28
-  );
-
-  rect(
-    x,
-    y,
-    w,
-    7,
-    3
-  );
-
-  fill(
-    75,
-    160,
-    190
-  );
-
-  rect(
-    x,
-    y,
-    w * timeRatio,
-    7,
-    3
-  );
-
-  fill(
-    255,
-    255,
-    255,
-    28
-  );
-
-  rect(
-    x,
-    y + 18,
-    w,
-    7,
-    3
-  );
-
-  fill(
-    205,
-    175,
-    55
-  );
-
-  rect(
-    x,
-    y + 18,
-    w * scoreRatio,
-    7,
-    3
-  );
-
-  plainText(
-    "SURVIVAL  " +
-    floor(
-      min(
-        elapsed / 1000,
-        levelDuration / 1000
-      )
-    ) +
-    " / " +
-    floor(
-      levelDuration / 1000
-    ) +
-    " SEC",
-    width / 2,
-    y + 37,
-    9,
-    "#87999f"
-  );
-
-  plainText(
-    "SCORE  " +
-    levelScore +
-    " / " +
-    targetScore,
-    width / 2,
-    y + 51,
-    9,
-    "#87999f"
-  );
-
-  // Proper symmetrical buttons
-
-  drawPauseIconButton(
-    pauseButton.x,
-    pauseButton.y
-  );
-
-  drawHomeIconButton(
-    homeButton.x,
-    homeButton.y
-  );
-}
-
-
-// ================================================================
-// PAUSE ICON
-// ================================================================
-
-function drawPauseIconButton(
-  x,
-  y
-) {
-
-  stroke("#468ea8");
-
-  strokeWeight(1.5);
-
-  fill(
-    5,
-    22,
-    36,
-    235
-  );
-
-  circle(
-    x,
-    y,
-    44
-  );
-
-  noStroke();
-
-  fill("#edf7ff");
-
-  rect(
-    x - 5,
-    y,
-    4,
-    15,
-    1
-  );
-
-  rect(
-    x + 5,
-    y,
-    4,
-    15,
-    1
-  );
-}
-
-
-// ================================================================
-// HOME ICON
-// ================================================================
-
-function drawHomeIconButton(
-  x,
-  y
-) {
-
-  stroke("#468ea8");
-
-  strokeWeight(1.5);
-
-  fill(
-    5,
-    22,
-    36,
-    235
-  );
-
-  circle(
-    x,
-    y,
-    44
-  );
-
-  stroke("#edf7ff");
-
-  strokeWeight(2.2);
-
-  noFill();
-
-  beginShape();
-
-  vertex(
-    x - 9,
-    y - 1
-  );
-
-  vertex(
-    x,
-    y - 9
-  );
-
-  vertex(
-    x + 9,
-    y - 1
-  );
-
-  vertex(
-    x + 7,
-    y - 1
-  );
-
-  vertex(
-    x + 7,
-    y + 8
-  );
-
-  vertex(
-    x - 7,
-    y + 8
-  );
-
-  vertex(
-    x - 7,
-    y - 1
-  );
-
-  endShape(CLOSE);
-}
-
-
-// ================================================================
-// CONTROLS
-// ================================================================
-
-function resetControls() {
-
-  let moveX =
-    swappedControls
-      ? width - 96
-      : 96;
-
-  let fireX =
-    swappedControls
-      ? 96
-      : width - 96;
-
-  joystick.baseX =
-    moveX;
-
-  joystick.baseY =
-    height -
-    safeBottom;
-
-  joystick.knobX =
-    moveX;
-
-  joystick.knobY =
-    joystick.baseY;
-
-  joystick.active = false;
-
-  fireButton.x =
-    fireX;
-
-  fireButton.y =
-    height -
-    safeBottom;
-
-  powerButton.x =
-    width / 2;
-
-  powerButton.y =
-    height -
-    safeBottom;
-}
-
-
-// ================================================================
-// JOYSTICK-ONLY MOVEMENT
-// ================================================================
-//
-// THIS IS THE IMPORTANT FIX.
-//
-// A touch must START inside the joystick.
-// Touching anywhere else on the gameplay screen does NOTHING.
-// ================================================================
-
-function handleJoystickMovement() {
-
-  if (
-    !joystickTouchActive
-  ) {
-
-    resetJoystickVisual();
-
-    return;
-  }
-
-  if (
-    touches.length === 0
-  ) {
-
-    joystickTouchActive =
-      false;
-
-    resetJoystickVisual();
-
-    return;
-  }
-
-  // Find the touch closest to the joystick's current
-  // controlled position. This allows simultaneous fire touch.
-
-  let chosen = null;
-
-  let bestDistance =
-    Infinity;
 
   for (
-    let touch of touches
+    let i =
+      drops.length - 1;
+    i >= 0;
+    i--
   ) {
 
-    let d =
-      dist(
-        touch.x,
-        touch.y,
-        joystickLastX,
-        joystickLastY
-      );
+    const drop =
+      drops[i];
 
     if (
-      d < bestDistance
+
+      sdDist(
+
+        shipPlayer.x,
+        shipPlayer.y,
+
+        drop.x,
+        drop.y
+
+      ) <
+
+      shipPlayer.r +
+      drop.r
+
     ) {
 
-      bestDistance = d;
-
-      chosen = touch;
-    }
-  }
-
-  if (!chosen)
-    return;
-
-  joystickLastX =
-    chosen.x;
-
-  joystickLastY =
-    chosen.y;
-
-  let dx =
-    chosen.x -
-    joystickStartX;
-
-  let dy =
-    chosen.y -
-    joystickStartY;
-
-  let distance =
-    sqrt(
-      dx * dx +
-      dy * dy
-    );
-
-  if (
-    distance >
-    joystick.radius
-  ) {
-
-    let angle =
-      atan2(
-        dy,
-        dx
+      activatePower(
+        drop.type
       );
 
-    dx =
-      cos(angle) *
-      joystick.radius;
+      score += 50;
+      levelScore += 50;
 
-    dy =
-      sin(angle) *
-      joystick.radius;
-
-    distance =
-      joystick.radius;
-  }
-
-  joystick.knobX =
-    joystickStartX +
-    dx;
-
-  joystick.knobY =
-    joystickStartY +
-    dy;
-
-  // 360 degree movement
-
-  if (
-    distance > 5
-  ) {
-
-    let angle =
-      atan2(
-        dy,
-        dx
+      createExplosion(
+        drop.x,
+        drop.y,
+        20,
+        "#ffe15b"
       );
 
-    player.angle =
-      angle;
-
-    let strength =
-      constrain(
-        distance /
-        joystick.radius,
-        0,
+      drops.splice(
+        i,
         1
       );
 
-    let speed =
-      moveSpeed();
+    }
 
-    player.x +=
-      cos(angle) *
-      speed *
-      strength;
-
-    player.y +=
-      sin(angle) *
-      speed *
-      strength;
   }
+
 }
 
+function activatePower(type) {
 
-function resetJoystickVisual() {
+  playPowerSound();
 
-  let x =
-    swappedControls
-      ? width - 96
-      : 96;
-
-  joystick.baseX =
-    x;
-
-  joystick.baseY =
-    height -
-    safeBottom;
-
-  joystick.knobX =
-    x;
-
-  joystick.knobY =
-    joystick.baseY;
-
-  joystick.active = false;
-}
-
-
-// ================================================================
-// CONTROL DRAW
-// ================================================================
-
-function drawControls() {
-
-  let y =
-    height -
-    safeBottom;
-
-  // JOYSTICK
-
-  stroke(
-    70,
-    180,
-    210,
-    120
-  );
-
-  strokeWeight(1.5);
-
-  fill(
-    0,
-    120,
-    170,
-    20
-  );
-
-  circle(
-    joystick.baseX,
-    y,
-    joystick.radius * 2
-  );
-
-  fill(
-    70,
-    190,
-    220,
-    90
-  );
-
-  circle(
-    joystick.knobX,
-    joystick.knobY,
-    46
-  );
-
-  // FIRE
-
-  stroke(
-    230,
-    75,
-    90,
-    170
-  );
-
-  fill(
-    180,
-    30,
-    50,
-    35
-  );
-
-  circle(
-    fireButton.x,
-    y,
-    fireButton.radius * 2
-  );
-
-  plainText(
-    "FIRE",
-    fireButton.x,
-    y,
-    13,
-    "#f0f3f4",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  // POWER
+  const end =
+    millis() + 7000;
 
   if (
-    powerReadyAt <=
-    millis()
+    type === "MULTI"
   ) {
 
-    stroke(
-      220,
-      185,
-      55,
-      160
-    );
+    powers.MULTI = end;
 
-    fill(
-      200,
-      150,
-      20,
-      30
-    );
+  } else if (
+    type === "SHIELD"
+  ) {
 
-    circle(
-      powerButton.x,
-      y,
-      powerButton.radius * 2
-    );
+    powers.SHIELD = end;
 
-    plainText(
-      "POWER",
-      powerButton.x,
-      y,
-      10,
-      "#f0f3f4",
-      CENTER,
-      CENTER,
-      BOLD
-    );
+  } else if (
+    type === "BERSERKER"
+  ) {
+
+    powers.BERSERKER = end;
+
+  } else if (
+    type === "CRYO"
+  ) {
+
+    powers.CRYO = end;
+
+  } else if (
+    type === "NOVA"
+  ) {
+
+    for (
+      let i =
+        enemies.length - 1;
+      i >= 0;
+      i--
+    ) {
+
+      createExplosion(
+        enemies[i].x,
+        enemies[i].y,
+        15
+      );
+
+      enemies.splice(
+        i,
+        1
+      );
+
+      score += 20;
+      levelScore += 20;
+
+    }
+
+    shake = 14;
+
   }
+
+  specialReadyAt =
+    millis() + 12000;
+
 }
 
-
 // ================================================================
-// BOTTOM HOME BUTTON
-// ================================================================
-
-function homeBottomButton() {
-
-  let y =
-    height -
-    safeBottom +
-    22;
-
-  let w =
-    min(
-      190,
-      width * 0.55
-    );
-
-  rectMode(CENTER);
-
-  stroke("#468ea8");
-
-  strokeWeight(1.5);
-
-  fill("#051522");
-
-  rect(
-    width / 2,
-    y,
-    w,
-    48,
-    12
-  );
-
-  plainText(
-    "HOME",
-    width / 2,
-    y,
-    14,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-}
-
-
-// ================================================================
-// ACTION BUTTON
+// SHIP SPECIAL / POWER BUTTON
 // ================================================================
 
-function actionButton(
-  label,
-  y,
-  w
-) {
-
-  rectMode(CENTER);
-
-  stroke("#468ea8");
-
-  strokeWeight(1.5);
-
-  fill("#051723");
-
-  rect(
-    width / 2,
-    y,
-    min(
-      w,
-      width * 0.80
-    ),
-    52,
-    12
-  );
-
-  plainText(
-    label,
-    width / 2,
-    y,
-    14,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-}
-
-
-// ================================================================
-// PAUSE
-// ================================================================
-
-function pauseGame() {
+function useSpecial() {
 
   if (
-    gameState ===
+    state !==
     "PLAYING"
   ) {
 
-    joystickTouchActive =
-      false;
+    return;
 
-    resetJoystickVisual();
-
-    gameState =
-      "PAUSED";
   }
-}
 
+  const now =
+    millis();
 
-function resumeGame() {
-
+  // Still refilling
   if (
-    gameState !==
-    "PAUSED"
+    now <
+    specialReadyAt
   ) {
 
     return;
+
   }
 
-  resetJoystickVisual();
+  // Visual press feedback
+  powerPressedUntil =
+    now + 280;
 
-  gameState =
-    "PLAYING";
-}
+  playPowerSound();
 
+  const power =
+    shipPower();
 
-// ================================================================
-// FROZEN GAME
-// ================================================================
-
-function drawFrozenGame() {
-
-  // IMPORTANT:
-  // Never draw a dying player during GAMEOVER.
-  // This eliminates final-frame flicker.
+  // ------------------------------------------------------------
+  // BALANCED / BURN SHOT / DRAGON RAGE / TITAN CORE
+  // Extra combat power
+  // ------------------------------------------------------------
 
   if (
-    gameState !==
-    "GAMEOVER"
+    power === "BALANCED" ||
+    power === "BURN SHOT" ||
+    power === "DRAGON RAGE" ||
+    power === "TITAN CORE"
   ) {
 
-    if (player)
-      player.display();
+    powers.BERSERKER =
+      now + 6000;
+
   }
 
-  for (
-    let alien of aliens
+  // ------------------------------------------------------------
+  // GRAVITY PULSE / TIME FREEZE
+  // Extra slow effect
+  // ------------------------------------------------------------
+
+  else if (
+
+    power === "GRAVITY PULSE" ||
+    power === "TIME FREEZE"
+
   ) {
 
-    alien.display();
+    powers.CRYO =
+      now + 6500;
+
   }
 
-  for (
-    let bullet of bullets
+  // ------------------------------------------------------------
+  // PHASE DODGE / QUANTUM DASH
+  // Temporary invincibility
+  // ------------------------------------------------------------
+
+  else if (
+
+    power === "PHASE DODGE" ||
+    power === "QUANTUM DASH"
+
   ) {
 
-    bullet.display();
+    shipPlayer.invincibleUntil =
+      now + 4500;
+
   }
 
-  for (
-    let power of powerUps
+  // ------------------------------------------------------------
+  // HOLY SHIELD
+  // ------------------------------------------------------------
+
+  else if (
+    power === "HOLY SHIELD"
   ) {
 
-    power.display();
+    powers.SHIELD =
+      now + 7000;
+
   }
 
-  for (
-    let shot of enemyShots
+  // ------------------------------------------------------------
+  // REALITY BREAK
+  // ------------------------------------------------------------
+
+  else if (
+    power === "REALITY BREAK"
   ) {
 
-    shot.display();
+    powers.SHIELD =
+      now + 6500;
+
+    powers.BERSERKER =
+      now + 6500;
+
+    for (
+      let i =
+        enemies.length - 1;
+      i >= 0;
+      i--
+    ) {
+
+      createExplosion(
+        enemies[i].x,
+        enemies[i].y,
+        15
+      );
+
+      enemies.splice(
+        i,
+        1
+      );
+
+      score += 35;
+      levelScore += 35;
+
+    }
+
+    if (
+      boss
+    ) {
+
+      boss.hp -=
+        boss.maxHp * 0.12;
+
+    }
+
+    shake = 18;
+
   }
 
-  if (boss)
-    boss.display();
+  // ------------------------------------------------------------
+  // IMPORTANT:
+  // Power button now needs REFILL TIME after every use.
+  // ------------------------------------------------------------
 
-  drawHUD();
+  specialReadyAt =
+    now + 15000;
 
-  updateParticles();
 }
-
-
-// ================================================================
-// PAUSE SCREEN
-// ================================================================
-
-function drawPause() {
-
-  noStroke();
-
-  fill(
-    0,
-    0,
-    0,
-    205
-  );
-
-  rect(
-    0,
-    0,
-    width,
-    height
-  );
-
-  plainText(
-    "PAUSED",
-    width / 2,
-    height * 0.30,
-    38,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "LEVEL " +
-    currentLevel +
-    "  •  " +
-    LEVEL_NAMES[
-      currentLevel - 1
-    ],
-    width / 2,
-    height * 0.38,
-    14,
-    "#89adbb"
-  );
-
-  actionButton(
-    "RESUME",
-    height * 0.53,
-    270
-  );
-
-  actionButton(
-    "HOME",
-    height * 0.64,
-    240
-  );
-}
-
-
-// ================================================================
-// GAME OVER
-// ================================================================
-
-function drawGameOver() {
-
-  noStroke();
-
-  fill(
-    0,
-    0,
-    0,
-    225
-  );
-
-  rect(
-    0,
-    0,
-    width,
-    height
-  );
-
-  plainText(
-    "MISSION LOST",
-    width / 2,
-    height * 0.28,
-    36,
-    "#ef5963",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    "LEVEL " +
-    currentLevel,
-    width / 2,
-    height * 0.38,
-    17,
-    "#edf7ff",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  plainText(
-    LEVEL_NAMES[
-      currentLevel - 1
-    ],
-    width / 2,
-    height * 0.43,
-    14,
-    "#d9c65a",
-    CENTER,
-    CENTER,
-    BOLD
-  );
-
-  actionButton(
-    "RETRY LEVEL",
-    height * 0.55,
-    280
-  );
-
-  actionButton(
-    "HOME",
-    height * 0.66,
-    240
-  );
-}
-
 
 // ================================================================
 // PARTICLES
@@ -5732,70 +3134,66 @@ class Particle {
   constructor(
     x,
     y,
-    tint
+    colorValue
   ) {
+
+    const angle =
+      Math.random() *
+      PI2;
+
+    const speed =
+      1 +
+      Math.random() * 5;
 
     this.x = x;
     this.y = y;
 
-    let angle =
-      random(TWO_PI);
-
-    let speed =
-      random(
-        1,
-        6
-      );
-
     this.vx =
-      cos(angle) *
+      Math.cos(angle) *
       speed;
 
     this.vy =
-      sin(angle) *
+      Math.sin(angle) *
       speed;
 
-    this.life = 230;
+    this.life = 220;
 
     this.size =
-      random(
-        2,
-        6
-      );
+      2 +
+      Math.random() * 5;
 
-    this.tint =
-      tint ||
+    this.color =
+      colorValue ||
       "#ff8a30";
+
   }
 
   update() {
 
-    this.x +=
-      this.vx;
-
-    this.y +=
-      this.vy;
+    this.x += this.vx;
+    this.y += this.vy;
 
     this.vx *= 0.97;
     this.vy *= 0.97;
 
     this.life -= 7;
+
   }
 
-  display() {
+  draw() {
 
-    let c =
-      color(
-        this.tint
-      );
+    const c =
+      color(this.color);
 
     noStroke();
 
     fill(
+
       red(c),
       green(c),
       blue(c),
       this.life
+
     );
 
     circle(
@@ -5803,33 +3201,37 @@ class Particle {
       this.y,
       this.size
     );
-  }
-}
 
+  }
+
+}
 
 function createExplosion(
   x,
   y,
-  count,
-  tint
+  amount,
+  colorValue
 ) {
 
   for (
     let i = 0;
-    i < count;
+    i < amount;
     i++
   ) {
 
     particles.push(
+
       new Particle(
         x,
         y,
-        tint
+        colorValue
       )
-    );
-  }
-}
 
+    );
+
+  }
+
+}
 
 function updateParticles() {
 
@@ -5840,1125 +3242,2205 @@ function updateParticles() {
     i--
   ) {
 
-    let particle =
-      particles[i];
-
-    particle.update();
-
-    particle.display();
+    particles[i].update();
+    particles[i].draw();
 
     if (
-      particle.life <= 0
+      particles[i].life <= 0
     ) {
 
       particles.splice(
         i,
         1
       );
-    }
-  }
-}
 
+    }
+
+  }
+
+}
 
 function createCelebration() {
 
+  const colors = [
+
+    "#ffe600",
+    "#00ddff",
+    "#ff4dcc",
+    "#ffffff"
+
+  ];
+
   for (
     let i = 0;
-    i < 80;
+    i < 90;
     i++
   ) {
 
     particles.push(
+
       new Particle(
 
-        random(width),
+        Math.random() *
+        width,
 
-        random(
-          height * 0.25,
-          height
-        ),
+        Math.random() *
+        height,
 
-        random([
+        colors[
+          Math.floor(
+            Math.random() *
+            colors.length
+          )
+        ]
 
-          "#ffe600",
-          "#00ddff",
-          "#ff4dcc",
-          "#ffffff"
-
-        ])
       )
+
     );
+
   }
+
 }
 
-
 // ================================================================
-// SPECIAL POWER
+// SHAKE
 // ================================================================
 
-function useSpecial() {
+function updateShake() {
 
   if (
-    powerReadyAt >
-    millis()
+    shake <= 0
   ) {
 
     return;
+
   }
 
-  let power =
-    shipPower();
-
-  playPowerSound();
+  shake *= 0.86;
 
   if (
-    power ===
-    "BURN SHOT"
+    shake < 0.2
   ) {
 
-    powerEnds.BERSERKER =
-      millis() + 5000;
+    shake = 0;
 
-  } else if (
-    power ===
-    "GRAVITY PULSE"
+  }
+
+}
+
+// ================================================================
+// CONTROLS
+// ================================================================
+
+function updateLayout() {
+
+  pauseBtn.x = 38;
+  pauseBtn.y = 92;
+
+  homeBtn.x =
+    width - 38;
+
+  homeBtn.y = 92;
+
+  const y =
+    height - 105;
+
+  joy.x =
+    swappedControls
+      ? width - 90
+      : 90;
+
+  joy.y = y;
+
+  joy.knobX =
+    joy.x;
+
+  joy.knobY =
+    joy.y;
+
+  fireBtn.x =
+    swappedControls
+      ? 90
+      : width - 90;
+
+  fireBtn.y = y;
+
+  powerBtn.x =
+    width / 2;
+
+  powerBtn.y = y;
+
+}
+
+function updateJoystick(
+  x,
+  y
+) {
+
+  let dx =
+    x - joy.x;
+
+  let dy =
+    y - joy.y;
+
+  let distance =
+    Math.sqrt(
+      dx * dx +
+      dy * dy
+    );
+
+  if (
+    distance >
+    joy.r
   ) {
 
-    powerEnds.CRYO =
-      millis() + 4500;
-
-  } else if (
-    power ===
-    "TIME FREEZE"
-  ) {
-
-    powerEnds.CRYO =
-      millis() + 6500;
-
-  } else if (
-    power ===
-    "PHASE DODGE"
-  ) {
-
-    player.invincibleUntil =
-      millis() + 4500;
-
-  } else if (
-    power ===
-    "DRAGON RAGE"
-  ) {
-
-    powerEnds.BERSERKER =
-      millis() + 6500;
-
-  } else if (
-    power ===
-    "QUANTUM DASH"
-  ) {
-
-    player.invincibleUntil =
-      millis() + 2200;
-
-    powerEnds.BERSERKER =
-      millis() + 5000;
-
-  } else if (
-    power ===
-    "HOLY SHIELD"
-  ) {
-
-    powerEnds.SHIELD =
-      millis() + 7000;
-
-  } else if (
-    power ===
-    "TITAN CORE"
-  ) {
-
-    powerEnds.BERSERKER =
-      millis() + 6500;
-
-  } else if (
-    power ===
-    "REALITY BREAK"
-  ) {
-
-    powerEnds.CELESTIAL =
-      millis() + 6500;
-
-    powerEnds.SHIELD =
-      millis() + 6500;
-
-    for (
-      let i =
-        aliens.length - 1;
-      i >= 0;
-      i--
-    ) {
-
-      createExplosion(
-        aliens[i].x,
-        aliens[i].y,
-        15
+    const angle =
+      Math.atan2(
+        dy,
+        dx
       );
 
-      aliens.splice(
-        i,
+    dx =
+      Math.cos(angle) *
+      joy.r;
+
+    dy =
+      Math.sin(angle) *
+      joy.r;
+
+    distance =
+      joy.r;
+
+  }
+
+  joy.knobX =
+    joy.x + dx;
+
+  joy.knobY =
+    joy.y + dy;
+
+  if (
+    distance > 5
+  ) {
+
+    joyAngle =
+      Math.atan2(
+        dy,
+        dx
+      );
+
+    joyStrength =
+      constrain(
+        distance /
+        joy.r,
+        0,
         1
       );
 
-      score += 35;
-      levelScore += 35;
-    }
+    shipPlayer.angle =
+      joyAngle;
 
-    if (boss) {
-
-      boss.hp -=
-        boss.maxHp *
-        0.12;
-    }
-
-    startShake(18);
-
-  } else {
-
-    powerEnds.MULTI =
-      millis() + 6000;
   }
 
-  powerReadyAt =
-    millis() + 15000;
 }
 
+function updateJoystickMovement() {
 
-// ================================================================
-// RESET POWERS
-// ================================================================
-
-function resetPowers() {
-
-  for (
-    let powerName in
-    powerEnds
+  if (
+    moveId === null &&
+    !mouseMoving
   ) {
 
-    powerEnds[
-      powerName
-    ] = 0;
+    joyStrength = 0;
+
+    return;
+
   }
+
+  if (
+    joyStrength > 0
+  ) {
+
+    const speed =
+      playerSpeed() *
+      joyStrength;
+
+    shipPlayer.x +=
+      Math.cos(joyAngle) *
+      speed;
+
+    shipPlayer.y +=
+      Math.sin(joyAngle) *
+      speed;
+
+  }
+
 }
 
+function resetJoy() {
+
+  joy.knobX =
+    joy.x;
+
+  joy.knobY =
+    joy.y;
+
+  joyStrength = 0;
+
+}
+
+function clearPointers() {
+
+  moveId = null;
+  fireId = null;
+
+  fireHeld = false;
+
+  mouseMoving = false;
+  mouseFiring = false;
+
+  resetJoy();
+
+}
 
 // ================================================================
-// TOUCH START
+// POINTER EVENTS
 // ================================================================
 
-function touchStarted() {
+function installPointerEvents() {
+
+  const canvas =
+    document.querySelector(
+      "canvas"
+    );
+
+  if (!canvas) {
+    return;
+  }
+
+  canvas.style.touchAction =
+    "none";
+
+  canvas.style.userSelect =
+    "none";
+
+  canvas.addEventListener(
+    "pointerdown",
+    onPointerDown,
+    { passive: false }
+  );
+
+  canvas.addEventListener(
+    "pointermove",
+    onPointerMove,
+    { passive: false }
+  );
+
+  canvas.addEventListener(
+    "pointerup",
+    onPointerUp,
+    { passive: false }
+  );
+
+  canvas.addEventListener(
+    "pointercancel",
+    onPointerUp,
+    { passive: false }
+  );
+
+}
+
+function pointerPos(event) {
+
+  const rect =
+    event.currentTarget
+      .getBoundingClientRect();
+
+  return {
+
+    x:
+      (
+        event.clientX -
+        rect.left
+      ) *
+      (
+        width /
+        rect.width
+      ),
+
+    y:
+      (
+        event.clientY -
+        rect.top
+      ) *
+      (
+        height /
+        rect.height
+      )
+
+  };
+
+}
+
+function onPointerDown(event) {
+
+  event.preventDefault();
+
+  suppressMouseOnce = true;
 
   initAudio();
 
-  let x =
-    touches.length
-      ? touches[0].x
-      : mouseX;
+  const p =
+    pointerPos(event);
 
-  let y =
-    touches.length
-      ? touches[0].y
-      : mouseY;
-
-
-  // ============================================================
-  // ARCHIVE
-  // ============================================================
+  const x = p.x;
+  const y = p.y;
 
   if (
-    gameState ===
-    "ARCHIVE"
-  ) {
-
-    if (
-      touches.length === 0
-    ) {
-
-      return false;
-    }
-
-    let touch =
-      touches[0];
-
-    if (
-      isArchiveHomeButton(
-        touch.x,
-        touch.y
-      )
-    ) {
-
-      archiveTouching = false;
-      archiveDragging = false;
-      archiveDraggingScrollbar = false;
-
-      archiveScroll = 0;
-      archiveTargetScroll = 0;
-
-      gameState =
-        "HOME";
-
-      return false;
-    }
-
-    if (
-      isOnArchiveScrollbar(
-        touch.x,
-        touch.y
-      )
-    ) {
-
-      archiveTouching = true;
-      archiveDragging = true;
-      archiveDraggingScrollbar = true;
-
-      archiveStartX =
-        touch.x;
-
-      archiveStartY =
-        touch.y;
-
-      archiveLastX =
-        touch.x;
-
-      archiveLastY =
-        touch.y;
-
-      setArchiveScrollFromScrollbar(
-        touch.y
-      );
-
-      return false;
-    }
-
-    let g =
-      archiveGeometry();
-
-    if (
-      touch.y < g.top ||
-      touch.y > g.bottom
-    ) {
-
-      return false;
-    }
-
-    archiveTouching = true;
-    archiveDragging = false;
-    archiveDraggingScrollbar = false;
-
-    archiveStartX =
-      touch.x;
-
-    archiveStartY =
-      touch.y;
-
-    archiveLastX =
-      touch.x;
-
-    archiveLastY =
-      touch.y;
-
-    return false;
-  }
-
-
-  // ============================================================
-  // GAMEPLAY
-  // ============================================================
-
-  if (
-    gameState ===
+    state ===
     "PLAYING"
   ) {
 
-    // ----------------------------------------------------------
-    // IMPORTANT:
-    // First determine whether touch starts inside JOYSTICK.
-    // ----------------------------------------------------------
-
+    // POWER BUTTON HAS PRIORITY
     if (
-      isInsideJoystick(
-        x,
-        y
-      )
-    ) {
 
-      joystickTouchActive =
-        true;
-
-      joystick.active = true;
-
-      joystickStartX =
-        joystick.baseX;
-
-      joystickStartY =
-        joystick.baseY;
-
-      joystickLastX =
-        x;
-
-      joystickLastY =
-        y;
-
-      return false;
-    }
-
-    // ----------------------------------------------------------
-    // FIRE
-    // ----------------------------------------------------------
-
-    if (
-      dist(
+      sdDist(
         x,
         y,
-        fireButton.x,
-        fireButton.y
-      ) <
-      fireButton.radius +
-      20
-    ) {
+        powerBtn.x,
+        powerBtn.y
+      ) <=
+      powerBtn.r + 24
 
-      shoot();
-
-      return false;
-    }
-
-    // ----------------------------------------------------------
-    // POWER
-    // ----------------------------------------------------------
-
-    if (
-      dist(
-        x,
-        y,
-        powerButton.x,
-        powerButton.y
-      ) <
-      powerButton.radius +
-      15
     ) {
 
       useSpecial();
 
-      return false;
-    }
+      return;
 
-    // ----------------------------------------------------------
-    // PAUSE
-    // ----------------------------------------------------------
+    }
 
     if (
-      dist(
+
+      moveId === null &&
+
+      sdDist(
         x,
         y,
-        pauseButton.x,
-        pauseButton.y
-      ) < 34
+        joy.x,
+        joy.y
+      ) <=
+      joy.r + 20
+
     ) {
 
-      pauseGame();
+      moveId =
+        event.pointerId;
 
-      return false;
+      updateJoystick(
+        x,
+        y
+      );
+
+      return;
+
     }
-
-    // ----------------------------------------------------------
-    // HOME
-    // ----------------------------------------------------------
 
     if (
-      dist(
+
+      fireId === null &&
+
+      sdDist(
         x,
         y,
-        homeButton.x,
-        homeButton.y
-      ) < 34
+        fireBtn.x,
+        fireBtn.y
+      ) <=
+      fireBtn.r + 20
+
     ) {
 
-      joystickTouchActive =
-        false;
+      fireId =
+        event.pointerId;
 
-      gameState =
-        "HOME";
+      fireHeld = true;
 
-      return false;
+      shoot();
+
+      return;
+
     }
 
-    // ----------------------------------------------------------
-    // ANY OTHER SCREEN TOUCH = NOTHING
-    // ----------------------------------------------------------
+    if (
 
-    return false;
+      sdDist(
+        x,
+        y,
+        pauseBtn.x,
+        pauseBtn.y
+      ) <= 34
+
+    ) {
+
+      state = "PAUSED";
+
+      clearPointers();
+
+      return;
+
+    }
+
+    if (
+
+      sdDist(
+        x,
+        y,
+        homeBtn.x,
+        homeBtn.y
+      ) <= 34
+
+    ) {
+
+      state = "HOME";
+
+      clearPointers();
+
+      return;
+
+    }
+
+    return;
+
   }
 
+  if (
+    state ===
+    "ARCHIVE"
+  ) {
 
-  // ============================================================
-  // OTHER SCREENS
-  // ============================================================
+    archivePointerDown(
+      x,
+      y
+    );
+
+    return;
+
+  }
 
   handleTap(
     x,
     y
   );
 
-  return false;
 }
 
+function onPointerMove(event) {
 
-// ================================================================
-// TOUCH MOVE
-// ================================================================
+  event.preventDefault();
 
-function touchMoved() {
-
-  // --------------------------------------------------------------
-  // ARCHIVE
-  // --------------------------------------------------------------
+  const p =
+    pointerPos(event);
 
   if (
-    gameState ===
+
+    state ===
+    "PLAYING" &&
+
+    event.pointerId ===
+    moveId
+
+  ) {
+
+    updateJoystick(
+      p.x,
+      p.y
+    );
+
+  }
+
+  if (
+    state ===
     "ARCHIVE"
   ) {
 
-    if (
-      !archiveTouching ||
-      touches.length === 0
-    ) {
+    archivePointerMove(
+      p.x,
+      p.y
+    );
 
-      return false;
-    }
-
-    let touch =
-      touches[0];
-
-    if (
-      archiveDraggingScrollbar
-    ) {
-
-      setArchiveScrollFromScrollbar(
-        touch.y
-      );
-
-      archiveLastX =
-        touch.x;
-
-      archiveLastY =
-        touch.y;
-
-      return false;
-    }
-
-    let movement =
-      dist(
-        archiveStartX,
-        archiveStartY,
-        touch.x,
-        touch.y
-      );
-
-    if (
-      movement > 10
-    ) {
-
-      archiveDragging =
-        true;
-    }
-
-    let deltaY =
-      archiveLastY -
-      touch.y;
-
-    if (
-      archiveDragging
-    ) {
-
-      let g =
-        archiveGeometry();
-
-      archiveTargetScroll +=
-        deltaY * 1.15;
-
-      archiveTargetScroll =
-        constrain(
-          archiveTargetScroll,
-          0,
-          g.maxScroll
-        );
-    }
-
-    archiveLastX =
-      touch.x;
-
-    archiveLastY =
-      touch.y;
-
-    return false;
   }
 
+}
 
-  // --------------------------------------------------------------
-  // GAMEPLAY
-  // --------------------------------------------------------------
+function onPointerUp(event) {
+
+  event.preventDefault();
+
+  const p =
+    pointerPos(event);
 
   if (
-    gameState ===
+    state ===
     "PLAYING"
   ) {
 
-    // If movement did not start in joystick,
-    // movement remains disabled.
+    if (
+      event.pointerId ===
+      moveId
+    ) {
 
-    return false;
+      moveId = null;
+
+      resetJoy();
+
+    }
+
+    if (
+      event.pointerId ===
+      fireId
+    ) {
+
+      fireId = null;
+
+      fireHeld = false;
+
+    }
+
+    return;
+
   }
 
-  return false;
-}
-
-
-// ================================================================
-// TOUCH END
-// ================================================================
-
-function touchEnded() {
-
-  // --------------------------------------------------------------
-  // JOYSTICK
-  // --------------------------------------------------------------
-
   if (
-    gameState ===
-    "PLAYING"
-  ) {
-
-    joystickTouchActive =
-      false;
-
-    resetJoystickVisual();
-
-    return false;
-  }
-
-
-  // --------------------------------------------------------------
-  // ARCHIVE
-  // --------------------------------------------------------------
-
-  if (
-    gameState ===
+    state ===
     "ARCHIVE"
   ) {
 
-    if (
-      !archiveTouching
-    ) {
+    archivePointerUp(
+      p.x,
+      p.y
+    );
 
-      return false;
-    }
-
-    let wasScrollbar =
-      archiveDraggingScrollbar;
-
-    let movement =
-      dist(
-        archiveStartX,
-        archiveStartY,
-        archiveLastX,
-        archiveLastY
-      );
-
-    let wasTap =
-      movement < 14 &&
-      !archiveDragging &&
-      !archiveDraggingScrollbar;
-
-    archiveTouching = false;
-    archiveDragging = false;
-    archiveDraggingScrollbar = false;
-
-    if (
-      isArchiveHomeButton(
-        archiveLastX,
-        archiveLastY
-      )
-    ) {
-
-      gameState =
-        "HOME";
-
-      archiveScroll = 0;
-      archiveTargetScroll = 0;
-
-      return false;
-    }
-
-    if (
-      wasScrollbar
-    ) {
-
-      clampArchiveScroll();
-
-      return false;
-    }
-
-    if (
-      wasTap
-    ) {
-
-      handleArchiveTap(
-        archiveStartX,
-        archiveStartY
-      );
-    }
-
-    clampArchiveScroll();
-
-    return false;
   }
 
-  return false;
 }
 
-
 // ================================================================
-// JOYSTICK HIT
-// ================================================================
-
-function isInsideJoystick(
-  x,
-  y
-) {
-
-  return (
-    dist(
-      x,
-      y,
-      joystick.baseX,
-      joystick.baseY
-    ) <=
-    joystick.radius + 12
-  );
-}
-
-
-// ================================================================
-// ARCHIVE HOME
-// ================================================================
-
-function isArchiveHomeButton(
-  x,
-  y
-) {
-
-  let homeY =
-    height -
-    safeBottom +
-    22;
-
-  return insideRect(
-    x,
-    y,
-    width / 2,
-    homeY,
-    min(
-      220,
-      width * 0.65
-    ),
-    70
-  );
-}
-
-
-// ================================================================
-// MOUSE WHEEL
-// ================================================================
-
-function mouseWheel(event) {
-
-  if (
-    gameState ===
-    "ARCHIVE"
-  ) {
-
-    let g =
-      archiveGeometry();
-
-    archiveTargetScroll +=
-      event.delta;
-
-    archiveTargetScroll =
-      constrain(
-        archiveTargetScroll,
-        0,
-        g.maxScroll
-      );
-
-    return false;
-  }
-
-  return true;
-}
-
-
-// ================================================================
-// MOUSE PRESS
+// DESKTOP MOUSE FALLBACK
 // ================================================================
 
 function mousePressed() {
 
-  initAudio();
-
   if (
-    gameState ===
-    "ARCHIVE"
+    suppressMouseOnce
   ) {
 
-    if (
-      isArchiveHomeButton(
-        mouseX,
-        mouseY
-      )
-    ) {
-
-      gameState =
-        "HOME";
-
-      archiveScroll = 0;
-      archiveTargetScroll = 0;
-
-      return false;
-    }
-
-    if (
-      isOnArchiveScrollbar(
-        mouseX,
-        mouseY
-      )
-    ) {
-
-      archiveDraggingScrollbar =
-        true;
-
-      archiveTouching =
-        true;
-
-      archiveDragging =
-        true;
-
-      setArchiveScrollFromScrollbar(
-        mouseY
-      );
-
-      archiveLastX =
-        mouseX;
-
-      archiveLastY =
-        mouseY;
-
-      return false;
-    }
-
-    archiveTouching =
-      true;
-
-    archiveDragging =
-      false;
-
-    archiveDraggingScrollbar =
-      false;
-
-    archiveStartX =
-      mouseX;
-
-    archiveStartY =
-      mouseY;
-
-    archiveLastX =
-      mouseX;
-
-    archiveLastY =
-      mouseY;
+    suppressMouseOnce = false;
 
     return false;
+
   }
 
-
   if (
-    gameState ===
+    state ===
     "PLAYING"
   ) {
 
-    // Desktop joystick
-
     if (
-      isInsideJoystick(
-        mouseX,
-        mouseY
-      )
-    ) {
 
-      joystickTouchActive =
-        true;
-
-      joystick.active =
-        true;
-
-      joystickStartX =
-        joystick.baseX;
-
-      joystickStartY =
-        joystick.baseY;
-
-      joystickLastX =
-        mouseX;
-
-      joystickLastY =
-        mouseY;
-
-      return false;
-    }
-
-    if (
-      dist(
+      sdDist(
         mouseX,
         mouseY,
-        fireButton.x,
-        fireButton.y
-      ) <
-      fireButton.radius +
-      20
-    ) {
+        powerBtn.x,
+        powerBtn.y
+      ) <=
+      powerBtn.r + 24
 
-      shoot();
-
-      return false;
-    }
-
-    if (
-      dist(
-        mouseX,
-        mouseY,
-        powerButton.x,
-        powerButton.y
-      ) <
-      powerButton.radius +
-      15
     ) {
 
       useSpecial();
 
       return false;
+
     }
 
     if (
-      dist(
+
+      sdDist(
         mouseX,
         mouseY,
-        pauseButton.x,
-        pauseButton.y
-      ) < 34
+        joy.x,
+        joy.y
+      ) <=
+      joy.r + 20
+
     ) {
 
-      pauseGame();
+      mouseMoving = true;
 
-      return false;
-    }
-
-    if (
-      dist(
+      updateJoystick(
         mouseX,
-        mouseY,
-        homeButton.x,
-        homeButton.y
-      ) < 34
-    ) {
-
-      gameState =
-        "HOME";
-
-      return false;
-    }
-
-    // Other screen area does nothing.
-
-    return false;
-  }
-
-  handleTap(
-    mouseX,
-    mouseY
-  );
-
-  return false;
-}
-
-
-// ================================================================
-// MOUSE DRAGGED
-// ================================================================
-
-function mouseDragged() {
-
-  if (
-    gameState ===
-    "ARCHIVE"
-  ) {
-
-    if (
-      archiveDraggingScrollbar
-    ) {
-
-      setArchiveScrollFromScrollbar(
         mouseY
       );
 
       return false;
+
     }
 
     if (
-      archiveTouching
+
+      sdDist(
+        mouseX,
+        mouseY,
+        fireBtn.x,
+        fireBtn.y
+      ) <=
+      fireBtn.r + 20
+
     ) {
 
-      let deltaY =
-        archiveLastY -
-        mouseY;
+      mouseFiring = true;
+      fireHeld = true;
 
-      archiveTargetScroll +=
-        deltaY;
-
-      let g =
-        archiveGeometry();
-
-      archiveTargetScroll =
-        constrain(
-          archiveTargetScroll,
-          0,
-          g.maxScroll
-        );
-
-      archiveLastX =
-        mouseX;
-
-      archiveLastY =
-        mouseY;
-
-      archiveDragging =
-        true;
+      shoot();
 
       return false;
+
     }
-  }
-
-
-  if (
-    gameState ===
-    "PLAYING" &&
-    joystickTouchActive
-  ) {
-
-    joystickLastX =
-      mouseX;
-
-    joystickLastY =
-      mouseY;
-
-    let dx =
-      mouseX -
-      joystickStartX;
-
-    let dy =
-      mouseY -
-      joystickStartY;
-
-    let distance =
-      sqrt(
-        dx * dx +
-        dy * dy
-      );
 
     if (
-      distance >
-      joystick.radius
+
+      sdDist(
+        mouseX,
+        mouseY,
+        pauseBtn.x,
+        pauseBtn.y
+      ) <= 34
+
     ) {
 
-      let angle =
-        atan2(
-          dy,
-          dx
-        );
+      state = "PAUSED";
 
-      dx =
-        cos(angle) *
-        joystick.radius;
+      clearPointers();
 
-      dy =
-        sin(angle) *
-        joystick.radius;
+      return false;
+
     }
 
-    joystick.knobX =
-      joystickStartX +
-      dx;
+    if (
 
-    joystick.knobY =
-      joystickStartY +
-      dy;
+      sdDist(
+        mouseX,
+        mouseY,
+        homeBtn.x,
+        homeBtn.y
+      ) <= 34
 
-    return false;
+    ) {
+
+      state = "HOME";
+
+      clearPointers();
+
+      return false;
+
+    }
+
+  } else {
+
+    handleTap(
+      mouseX,
+      mouseY
+    );
+
   }
 
   return false;
+
 }
 
+function mouseDragged() {
 
-// ================================================================
-// MOUSE RELEASE
-// ================================================================
+  if (
+    state ===
+    "PLAYING" &&
+    mouseMoving
+  ) {
+
+    updateJoystick(
+      mouseX,
+      mouseY
+    );
+
+  }
+
+  return false;
+
+}
 
 function mouseReleased() {
 
-  if (
-    gameState ===
-    "PLAYING"
-  ) {
-
-    joystickTouchActive =
-      false;
-
-    resetJoystickVisual();
-
-    return false;
-  }
+  mouseMoving = false;
+  mouseFiring = false;
 
   if (
-    gameState ===
-    "ARCHIVE"
+    moveId === null
   ) {
 
-    archiveDraggingScrollbar =
-      false;
+    resetJoy();
 
-    archiveDragging =
-      false;
-
-    archiveTouching =
-      false;
-
-    clampArchiveScroll();
-
-    return false;
   }
+
+  fireHeld = false;
 
   return false;
+
 }
 
+// ================================================================
+// HOME
+// ================================================================
+
+function drawHome() {
+
+  label(
+    "SPACE DODGER",
+    width / 2,
+    height * 0.14,
+    42,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    "GALACTIC CAMPAIGN",
+    width / 2,
+    height * 0.195,
+    12,
+    "#8aa9b9"
+  );
+
+  const buttons = [
+
+    ["PLAY", 0.32],
+    ["SHIP ARCHIVE", 0.43],
+    ["ABOUT", 0.54],
+    ["SETTINGS", 0.65],
+    ["RATE US", 0.76]
+
+  ];
+
+  for (
+    const item of buttons
+  ) {
+
+    menuButton(
+      item[0],
+      height * item[1]
+    );
+
+  }
+
+  label(
+    "LEVEL " +
+    unlockedLevel +
+    " / " +
+    TOTAL_LEVELS +
+    " UNLOCKED",
+    width / 2,
+    height - 27,
+    11,
+    "#8b999f"
+  );
+
+}
+
+function menuButton(
+  textValue,
+  y
+) {
+
+  button(
+
+    textValue,
+
+    width / 2,
+    y,
+
+    Math.min(
+      320,
+      width * 0.82
+    ),
+
+    56
+
+  );
+
+}
 
 // ================================================================
-// UNIVERSAL TAP
+// LEVEL SELECT
+// ================================================================
+
+function drawLevels() {
+
+  label(
+    "SELECT LEVEL",
+    width / 2,
+    42,
+    27,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    "CURRENT RANK",
+    width / 2,
+    69,
+    11,
+    "#789aaa"
+  );
+
+  label(
+    LEVEL_NAMES[
+      unlockedLevel - 1
+    ],
+    width / 2,
+    91,
+    14,
+    "#ead75b",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  const cols = 4;
+  const gap = 9;
+
+  const size =
+    Math.min(
+      66,
+      (width - 48) /
+      cols
+    );
+
+  const startY = 140;
+
+  const total =
+    cols * size +
+    (cols - 1) * gap;
+
+  const startX =
+    width / 2 -
+    total / 2 +
+    size / 2;
+
+  for (
+    let n = 1;
+    n <= TOTAL_LEVELS;
+    n++
+  ) {
+
+    const col =
+      (n - 1) % cols;
+
+    const row =
+      Math.floor(
+        (n - 1) /
+        cols
+      );
+
+    const x =
+      startX +
+      col *
+      (size + gap);
+
+    const y =
+      startY +
+      row *
+      (size + 15);
+
+    const open =
+      n <= unlockedLevel;
+
+    const dragon =
+      isDragonLevel(n);
+
+    rectMode(CENTER);
+
+    stroke(
+      open
+        ? (
+          dragon
+            ? "#d76b58"
+            : "#469ab7"
+        )
+        : "#3b4045"
+    );
+
+    strokeWeight(1.5);
+
+    fill(
+      open
+        ? (
+          dragon
+            ? "#34191c"
+            : "#071e30"
+        )
+        : "#11151a"
+    );
+
+    rect(
+      x,
+      y,
+      size,
+      size,
+      10
+    );
+
+    label(
+
+      open
+        ? String(n)
+        : "LOCK",
+
+      x,
+      y - 4,
+
+      open
+        ? 17
+        : 10,
+
+      open
+        ? "#eef6f8"
+        : "#777d81",
+
+      CENTER,
+      CENTER,
+      true
+
+    );
+
+    if (open) {
+
+      label(
+
+        dragon
+          ? "DRAGON"
+          : "LEVEL",
+
+        x,
+        y + 19,
+
+        8,
+
+        dragon
+          ? "#ff9278"
+          : "#79aabd",
+
+        CENTER,
+        CENTER,
+        true
+
+      );
+
+    }
+
+  }
+
+  homeButton();
+
+}
+
+// ================================================================
+// ABOUT
+// ================================================================
+
+function drawAbout() {
+
+  label(
+    "ABOUT",
+    width / 2,
+    height * 0.13,
+    30,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    "Developed by",
+    width / 2,
+    height * 0.23,
+    14,
+    "#a0afb6"
+  );
+
+  label(
+    "Aazad S Rana",
+    width / 2,
+    height * 0.30,
+    23,
+    "#ead75b",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    "OUR MISSION",
+    width / 2,
+    height * 0.39,
+    13,
+    "#78b2c7",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  const mission = [
+
+    "Defend the galaxy from waves",
+    "of alien invaders, survive",
+    "increasingly dangerous battles,",
+    "defeat the mighty Dragon bosses,",
+    "and become the ultimate",
+    "Space Dodger."
+
+  ];
+
+  for (
+    let i = 0;
+    i < mission.length;
+    i++
+  ) {
+
+    label(
+
+      mission[i],
+
+      width / 2,
+
+      height *
+      (
+        0.45 +
+        i * 0.04
+      ),
+
+      12,
+
+      i ===
+      mission.length - 1
+        ? "#ead34c"
+        : "#d4dee2",
+
+      CENTER,
+      CENTER,
+
+      i ===
+      mission.length - 1
+
+    );
+
+  }
+
+  label(
+    "20 levels  •  Alien invasion  •  Boss battles",
+    width / 2,
+    height * 0.71,
+    10,
+    "#7e8f97"
+  );
+
+  homeButton();
+
+}
+
+// ================================================================
+// SETTINGS
+// ================================================================
+
+function drawSettings() {
+
+  label(
+    "SETTINGS",
+    width / 2,
+    height * 0.14,
+    29,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  settingBox(
+
+    "CONTROL LAYOUT",
+
+    swappedControls
+      ? "FIRE LEFT  •  MOVE RIGHT"
+      : "MOVE LEFT  •  FIRE RIGHT",
+
+    height * 0.32
+
+  );
+
+  settingBox(
+
+    "SOUND",
+
+    soundOn
+      ? "ON"
+      : "OFF",
+
+    height * 0.48
+
+  );
+
+  label(
+    "Tap a panel to change its setting.",
+    width / 2,
+    height * 0.62,
+    11,
+    "#7e9098"
+  );
+
+  homeButton();
+
+}
+
+function settingBox(
+  title,
+  value,
+  y
+) {
+
+  rectMode(CENTER);
+
+  stroke("#468ea8");
+  strokeWeight(1.5);
+  fill("#061622");
+
+  rect(
+
+    width / 2,
+    y,
+
+    Math.min(
+      340,
+      width * 0.84
+    ),
+
+    82,
+
+    14
+
+  );
+
+  label(
+    title,
+    width / 2,
+    y - 17,
+    11,
+    "#839ba6",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    value,
+    width / 2,
+    y + 14,
+    15,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+}
+
+// ================================================================
+// RATING
+// ================================================================
+
+function drawRating() {
+
+  label(
+    "RATE SPACE DODGER",
+    width / 2,
+    height * 0.24,
+    27,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    "HOW WAS YOUR EXPERIENCE?",
+    width / 2,
+    height * 0.32,
+    13,
+    "#9aabb2"
+  );
+
+  const gap =
+    Math.min(
+      53,
+      width * 0.13
+    );
+
+  const total =
+    gap * 4;
+
+  for (
+    let i = 1;
+    i <= 5;
+    i++
+  ) {
+
+    const x =
+      width / 2 -
+      total / 2 +
+      (i - 1) * gap;
+
+    label(
+      "★",
+      x,
+      height * 0.45,
+      39,
+      i <= rating
+        ? "#ead34c"
+        : "#555b60",
+      CENTER,
+      CENTER,
+      true
+    );
+
+  }
+
+  label(
+    rating + " / 5",
+    width / 2,
+    height * 0.55,
+    16,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  button(
+    "SUBMIT",
+    width / 2,
+    height * 0.65,
+    250,
+    52
+  );
+
+  button(
+    "CANCEL",
+    width / 2,
+    height * 0.75,
+    250,
+    52
+  );
+
+}
+
+// ================================================================
+// PAUSE
+// ================================================================
+
+function drawPaused() {
+
+  drawStaticGame();
+
+  overlay();
+
+  label(
+    "PAUSED",
+    width / 2,
+    height * 0.30,
+    38,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  button(
+    "RESUME",
+    width / 2,
+    height * 0.53,
+    270,
+    52
+  );
+
+  button(
+    "HOME",
+    width / 2,
+    height * 0.64,
+    240,
+    52
+  );
+
+}
+
+// ================================================================
+// GAME OVER
+// ================================================================
+
+function drawGameOver() {
+
+  overlay();
+
+  label(
+    "MISSION LOST",
+    width / 2,
+    height * 0.28,
+    36,
+    "#ef5963",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    "LEVEL " + level,
+    width / 2,
+    height * 0.38,
+    17,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    LEVEL_NAMES[level - 1],
+    width / 2,
+    height * 0.43,
+    14,
+    "#d9c65a",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    "SCORE  " + score,
+    width / 2,
+    height * 0.48,
+    13,
+    "#9eabb1"
+  );
+
+  label(
+    "CAMPAIGN LIVES  " +
+    campaignLives,
+    width / 2,
+    height * 0.53,
+    11,
+    "#789aa7"
+  );
+
+  button(
+    "RETRY LEVEL",
+    width / 2,
+    height * 0.61,
+    280,
+    52
+  );
+
+  button(
+    "HOME",
+    width / 2,
+    height * 0.72,
+    240,
+    52
+  );
+
+}
+
+// ================================================================
+// LEVEL UP
+// ================================================================
+
+function drawLevelUp() {
+
+  overlay();
+
+  const campaignComplete =
+    level === TOTAL_LEVELS;
+
+  label(
+
+    campaignComplete
+      ? "CAMPAIGN COMPLETE!"
+      : "LEVEL " +
+        level +
+        " CLEARED!",
+
+    width / 2,
+
+    height * 0.30,
+
+    Math.min(
+      33,
+      width * 0.082
+    ),
+
+    "#ead34c",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+  label(
+    "SCORE  " + score,
+    width / 2,
+    height * 0.40,
+    18,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  if (
+    isDragonLevel(level)
+  ) {
+
+    label(
+      "DRAGON DEFEATED",
+      width / 2,
+      height * 0.47,
+      14,
+      "#ff9278",
+      CENTER,
+      CENTER,
+      true
+    );
+
+    label(
+      "+1 CAMPAIGN LIFE",
+      width / 2,
+      height * 0.53,
+      20,
+      "#ead34c",
+      CENTER,
+      CENTER,
+      true
+    );
+
+    label(
+      "LIVES  " +
+      campaignLives,
+      width / 2,
+      height * 0.59,
+      14,
+      "#edf7ff"
+    );
+
+  } else if (
+    !campaignComplete
+  ) {
+
+    label(
+      "NEW LEVEL UNLOCKED",
+      width / 2,
+      height * 0.50,
+      15,
+      "#78b2c7",
+      CENTER,
+      CENTER,
+      true
+    );
+
+    label(
+      "LEVEL " +
+      (level + 1),
+      width / 2,
+      height * 0.56,
+      22,
+      "#edf7ff",
+      CENTER,
+      CENTER,
+      true
+    );
+
+  }
+
+  if (
+    millis() -
+    levelClearAt >
+    2800
+  ) {
+
+    if (
+      campaignComplete
+    ) {
+
+      state =
+        "HOME";
+
+    } else {
+
+      startLevel(
+        level + 1
+      );
+
+    }
+
+  }
+
+}
+
+// ================================================================
+// ARCHIVE
+// ================================================================
+
+let archiveScroll = 0;
+let archiveTarget = 0;
+
+let archiveTouch = false;
+let archiveDrag = false;
+let archiveBar = false;
+
+let archiveSY = 0;
+let archiveLY = 0;
+
+function archiveGeo() {
+
+  const top = 105;
+  const bottom = height - 125;
+
+  const vh =
+    bottom - top;
+
+  const cardH = 135;
+  const gap = 14;
+
+  const content =
+
+    25 +
+    SHIPS.length *
+    cardH +
+
+    (SHIPS.length - 1) *
+    gap +
+
+    55;
+
+  return {
+
+    top,
+    bottom,
+    vh,
+    cardH,
+    gap,
+    content,
+
+    max:
+      Math.max(
+        0,
+        content - vh
+      )
+
+  };
+
+}
+
+function drawArchive() {
+
+  const g =
+    archiveGeo();
+
+  archiveTarget =
+    constrain(
+      archiveTarget,
+      0,
+      g.max
+    );
+
+  archiveScroll =
+    lerp(
+      archiveScroll,
+      archiveTarget,
+      0.28
+    );
+
+  label(
+    "SHIP ARCHIVE",
+    width / 2,
+    35,
+    25,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  label(
+    "SWIPE TO BROWSE",
+    width / 2,
+    61,
+    11,
+    "#789aaa"
+  );
+
+  push();
+
+  drawingContext.save();
+
+  drawingContext.beginPath();
+
+  drawingContext.rect(
+    0,
+    g.top,
+    width,
+    g.vh
+  );
+
+  drawingContext.clip();
+
+  for (
+    let i = 0;
+    i < SHIPS.length;
+    i++
+  ) {
+
+    const y =
+
+      g.top +
+      25 +
+      g.cardH / 2 +
+
+      i *
+      (
+        g.cardH +
+        g.gap
+      ) -
+
+      archiveScroll;
+
+    drawShipCard(
+
+      SHIPS[i],
+      i,
+      y,
+
+      Math.min(
+        350,
+        width * 0.88
+      ),
+
+      g.cardH
+
+    );
+
+  }
+
+  drawingContext.restore();
+
+  pop();
+
+  drawScrollbar(g);
+
+  homeButton();
+
+}
+
+function drawShipCard(
+  ship,
+  index,
+  y,
+  w,
+  h
+) {
+
+  const open =
+    unlockedLevel >=
+    ship.unlock;
+
+  const selected =
+    selectedShip ===
+    index;
+
+  rectMode(CENTER);
+
+  stroke(
+
+    selected
+      ? "#ead34c"
+      : open
+        ? "#468fa9"
+        : "#44484c"
+
+  );
+
+  strokeWeight(
+    selected
+      ? 2.5
+      : 1.3
+  );
+
+  fill(
+    open
+      ? "#061421"
+      : "#11151a"
+  );
+
+  rect(
+    width / 2,
+    y,
+    w,
+    h,
+    14
+  );
+
+  drawMiniShip(
+
+    width / 2 -
+    w * 0.31,
+
+    y,
+
+    index,
+
+    open
+      ? 0.75
+      : 0.6
+
+  );
+
+  if (open) {
+
+    label(
+      ship.name,
+      width / 2 -
+      w * 0.05,
+      y - 35,
+      13,
+      "#eef7fa",
+      LEFT,
+      CENTER,
+      true
+    );
+
+    label(
+      ship.power,
+      width / 2 -
+      w * 0.05,
+      y - 9,
+      10,
+      "#e4cc55",
+      LEFT,
+      CENTER,
+      true
+    );
+
+    label(
+      selected
+        ? "SELECTED"
+        : "TAP TO SELECT",
+      width / 2 -
+      w * 0.05,
+      y + 30,
+      9,
+      selected
+        ? "#ead34c"
+        : "#78b1c6",
+      LEFT,
+      CENTER,
+      true
+    );
+
+  } else {
+
+    label(
+      "LOCKED  •  LEVEL " +
+      ship.unlock,
+      width / 2,
+      y + 45,
+      10,
+      "#858b8f",
+      CENTER,
+      CENTER,
+      true
+    );
+
+  }
+
+}
+
+function drawMiniShip(
+  x,
+  y,
+  index,
+  scaleValue
+) {
+
+  const ship =
+    SHIPS[index];
+
+  push();
+
+  translate(
+    x,
+    y
+  );
+
+  scale(
+    scaleValue
+  );
+
+  stroke(ship.edge);
+  strokeWeight(2.5);
+  fill(ship.body);
+
+  beginShape();
+
+  vertex(0, -42);
+  vertex(-13, -17);
+  vertex(-40, -5);
+  vertex(-24, 11);
+  vertex(-14, 27);
+  vertex(0, 18);
+  vertex(14, 27);
+  vertex(24, 11);
+  vertex(40, -5);
+  vertex(13, -17);
+
+  endShape(CLOSE);
+
+  noStroke();
+
+  fill(ship.core);
+
+  ellipse(
+    0,
+    -4,
+    12,
+    20
+  );
+
+  pop();
+
+}
+
+function drawScrollbar(g) {
+
+  if (!g.max) {
+    return;
+  }
+
+  const trackHeight =
+    g.vh;
+
+  const thumbHeight =
+    Math.max(
+      55,
+      trackHeight *
+      (g.vh / g.content)
+    );
+
+  const travel =
+    trackHeight -
+    thumbHeight;
+
+  const ratio =
+    archiveScroll /
+    g.max;
+
+  const y =
+
+    g.top +
+    thumbHeight / 2 +
+    travel * ratio;
+
+  noStroke();
+
+  fill(
+    255,
+    255,
+    255,
+    25
+  );
+
+  rect(
+    width - 10,
+    g.top +
+    trackHeight / 2,
+    4,
+    trackHeight,
+    2
+  );
+
+  fill(
+    55,
+    165,
+    200,
+    225
+  );
+
+  rect(
+    width - 10,
+    y,
+    11,
+    thumbHeight,
+    5
+  );
+
+}
+
+function archivePointerDown(
+  x,
+  y
+) {
+
+  const g =
+    archiveGeo();
+
+  if (
+    y >
+    height - 95
+  ) {
+
+    state =
+      "HOME";
+
+    return;
+
+  }
+
+  archiveTouch = true;
+  archiveDrag = false;
+
+  archiveBar =
+    x >
+    width - 45;
+
+  archiveSY = y;
+  archiveLY = y;
+
+  if (
+    archiveBar
+  ) {
+
+    setArchiveFromY(y);
+
+  }
+
+}
+
+function archivePointerMove(
+  x,
+  y
+) {
+
+  if (!archiveTouch) {
+    return;
+  }
+
+  if (
+    archiveBar
+  ) {
+
+    setArchiveFromY(y);
+
+    return;
+
+  }
+
+  if (
+    Math.abs(
+      y -
+      archiveSY
+    ) > 8
+  ) {
+
+    archiveDrag = true;
+
+  }
+
+  if (
+    archiveDrag
+  ) {
+
+    archiveTarget =
+      constrain(
+
+        archiveTarget +
+        (
+          archiveLY -
+          y
+        ) * 1.2,
+
+        0,
+        archiveGeo().max
+
+      );
+
+  }
+
+  archiveLY = y;
+
+}
+
+function archivePointerUp(
+  x,
+  y
+) {
+
+  if (!archiveTouch) {
+    return;
+  }
+
+  const tap =
+
+    !archiveDrag &&
+    !archiveBar &&
+
+    Math.abs(
+      y -
+      archiveSY
+    ) < 15;
+
+  archiveTouch = false;
+  archiveDrag = false;
+  archiveBar = false;
+
+  if (!tap) {
+    return;
+  }
+
+  const g =
+    archiveGeo();
+
+  for (
+    let i = 0;
+    i < SHIPS.length;
+    i++
+  ) {
+
+    const cy =
+
+      g.top +
+      25 +
+      g.cardH / 2 +
+
+      i *
+      (
+        g.cardH +
+        g.gap
+      ) -
+
+      archiveScroll;
+
+    if (
+
+      inside(
+
+        x,
+        y,
+
+        width / 2,
+        cy,
+
+        Math.min(
+          360,
+          width * 0.9
+        ),
+
+        g.cardH + 8
+
+      )
+
+    ) {
+
+      if (
+        unlockedLevel >=
+        SHIPS[i].unlock
+      ) {
+
+        selectedShip = i;
+
+        saveGame();
+
+      }
+
+      return;
+
+    }
+
+  }
+
+}
+
+function setArchiveFromY(y) {
+
+  const g =
+    archiveGeo();
+
+  if (!g.max) {
+    return;
+  }
+
+  const thumbHeight =
+    Math.max(
+      55,
+      g.vh *
+      g.vh /
+      g.content
+    );
+
+  const travel =
+    g.vh -
+    thumbHeight;
+
+  const center =
+    constrain(
+
+      y,
+
+      g.top +
+      thumbHeight / 2,
+
+      g.top +
+      g.vh -
+      thumbHeight / 2
+
+    );
+
+  archiveTarget =
+
+    (
+      center -
+      (
+        g.top +
+        thumbHeight / 2
+      )
+    ) /
+    travel *
+    g.max;
+
+  archiveScroll =
+    archiveTarget;
+
+}
+
+// ================================================================
+// TAP ROUTER
 // ================================================================
 
 function handleTap(
@@ -6966,251 +5448,277 @@ function handleTap(
   y
 ) {
 
-  // ============================================================
-  // HOME
-  // ============================================================
-
   if (
-    gameState ===
+    state ===
     "HOME"
   ) {
 
-    let buttonYs = [
-
-      height * 0.32,
-      height * 0.43,
-      height * 0.54,
-      height * 0.65,
-      height * 0.76
-
+    const ys = [
+      0.32,
+      0.43,
+      0.54,
+      0.65,
+      0.76
     ];
 
     for (
       let i = 0;
-      i < buttonYs.length;
+      i < ys.length;
       i++
     ) {
 
       if (
-        insideRect(
+
+        inside(
+
           x,
           y,
+
           width / 2,
-          buttonYs[i],
-          min(
-            320,
-            width * 0.80
+          height * ys[i],
+
+          Math.min(
+            340,
+            width * 0.86
           ),
-          70
+
+          75
+
         )
+
       ) {
 
         if (i === 0) {
 
-          gameState =
+          state =
             "LEVELS";
 
         } else if (i === 1) {
 
-          gameState =
-            "ARCHIVE";
-
           archiveScroll = 0;
-          archiveTargetScroll = 0;
+          archiveTarget = 0;
+
+          state =
+            "ARCHIVE";
 
         } else if (i === 2) {
 
-          gameState =
+          state =
             "ABOUT";
 
         } else if (i === 3) {
 
-          gameState =
+          state =
             "SETTINGS";
 
-        } else if (i === 4) {
+        } else {
 
           rating = 0;
 
-          gameState =
+          state =
             "RATING";
+
         }
 
         return;
+
       }
+
     }
 
     return;
+
   }
 
-
-  // ============================================================
-  // MENU HOME
-  // ============================================================
-
   if (
-    gameState === "LEVELS" ||
-    gameState === "ABOUT" ||
-    gameState === "SETTINGS"
-  ) {
-
-    let homeY =
-      height -
-      safeBottom +
-      22;
-
-    if (
-      insideRect(
-        x,
-        y,
-        width / 2,
-        homeY,
-        min(
-          210,
-          width * 0.60
-        ),
-        68
-      )
-    ) {
-
-      gameState =
-        "HOME";
-
-      return;
-    }
-  }
-
-
-  // ============================================================
-  // LEVEL SELECT
-  // ============================================================
-
-  if (
-    gameState ===
+    state ===
     "LEVELS"
   ) {
 
-    let cols = 4;
-    let gap = 9;
+    if (
 
-    let size =
-      min(
+      inside(
+
+        x,
+        y,
+
+        width / 2,
+        height - 58,
+
+        230,
+        70
+
+      )
+
+    ) {
+
+      state =
+        "HOME";
+
+      return;
+
+    }
+
+    const cols = 4;
+    const gap = 9;
+
+    const size =
+      Math.min(
         66,
         (width - 48) /
         cols
       );
 
-    let startY = 140;
+    const startY = 140;
 
-    let totalWidth =
+    const total =
       cols * size +
       (cols - 1) * gap;
 
-    let startX =
+    const startX =
       width / 2 -
-      totalWidth / 2 +
+      total / 2 +
       size / 2;
 
     for (
-      let level = 1;
-      level <= TOTAL_LEVELS;
-      level++
+      let n = 1;
+      n <= TOTAL_LEVELS;
+      n++
     ) {
 
-      let col =
-        (level - 1) %
-        cols;
+      const col =
+        (n - 1) % cols;
 
-      let row =
-        floor(
-          (level - 1) /
+      const row =
+        Math.floor(
+          (n - 1) /
           cols
         );
 
-      let bx =
+      const bx =
         startX +
         col *
         (size + gap);
 
-      let by =
+      const by =
         startY +
         row *
         (size + 15);
 
       if (
-        insideRect(
+
+        inside(
+
           x,
           y,
+
           bx,
           by,
+
           size + 12,
           size + 12
+
         )
+
       ) {
 
         if (
-          level <=
-          unlockedLevel
+          n <= unlockedLevel
         ) {
 
-          startLevel(
-            level
-          );
+          startLevel(n);
+
         }
 
         return;
+
       }
+
     }
 
     return;
+
   }
 
+  if (
+    state ===
+    "ABOUT"
+  ) {
 
-  // ============================================================
-  // SETTINGS
-  // ============================================================
+    if (
+
+      inside(
+
+        x,
+        y,
+
+        width / 2,
+        height - 58,
+
+        230,
+        70
+
+      )
+
+    ) {
+
+      state =
+        "HOME";
+
+    }
+
+    return;
+
+  }
 
   if (
-    gameState ===
+    state ===
     "SETTINGS"
   ) {
 
     if (
-      insideRect(
+
+      inside(
+
         x,
         y,
+
         width / 2,
-        height * 0.33,
-        min(
-          350,
-          width * 0.88
-        ),
-        100
+        height * 0.32,
+
+        360,
+        115
+
       )
+
     ) {
 
       swappedControls =
         !swappedControls;
 
-      resetControls();
+      updateLayout();
 
       saveGame();
 
       return;
+
     }
 
     if (
-      insideRect(
+
+      inside(
+
         x,
         y,
+
         width / 2,
-        height * 0.49,
-        min(
-          350,
-          width * 0.88
-        ),
-        100
+        height * 0.48,
+
+        360,
+        115
+
       )
+
     ) {
 
       soundOn =
@@ -7218,33 +5726,58 @@ function handleTap(
 
       saveGame();
 
-      if (soundOn) {
+      if (
+        soundOn
+      ) {
+
         initAudio();
+
+        playPowerSound();
+
       }
 
       return;
+
+    }
+
+    if (
+
+      inside(
+
+        x,
+        y,
+
+        width / 2,
+        height - 58,
+
+        230,
+        70
+
+      )
+
+    ) {
+
+      state =
+        "HOME";
+
     }
 
     return;
+
   }
 
-
-  // ============================================================
-  // RATING
-  // ============================================================
-
   if (
-    gameState ===
+    state ===
     "RATING"
   ) {
 
-    let gap =
-      min(
+    const gap =
+      Math.min(
         53,
         width * 0.13
       );
 
-    let total =
+    const total =
       gap * 4;
 
     for (
@@ -7253,258 +5786,308 @@ function handleTap(
       i++
     ) {
 
-      let starX =
+      const starX =
+
         width / 2 -
         total / 2 +
         (i - 1) *
         gap;
 
       if (
-        dist(
+
+        sdDist(
+
           x,
           y,
+
           starX,
           height * 0.45
-        ) < 35
+
+        ) < 42
+
       ) {
 
         rating = i;
 
         return;
+
       }
+
     }
 
     if (
-      insideRect(
+
+      inside(
+
         x,
         y,
+
         width / 2,
         height * 0.65,
+
         280,
-        68
+        75
+
       )
+
     ) {
 
-      gameState =
+      try {
+
+        localStorage.setItem(
+          "spaceDodgerRating",
+          String(rating)
+        );
+
+      } catch (error) {}
+
+      state =
         "HOME";
 
       return;
+
     }
 
     if (
-      insideRect(
+
+      inside(
+
         x,
         y,
+
         width / 2,
         height * 0.75,
+
         280,
-        68
+        75
+
       )
+
     ) {
 
-      gameState =
+      state =
         "HOME";
 
       return;
+
     }
 
-    return;
   }
 
-
-  // ============================================================
-  // PAUSED
-  // ============================================================
-
   if (
-    gameState ===
+    state ===
     "PAUSED"
   ) {
 
     if (
-      insideRect(
+
+      inside(
+
         x,
         y,
+
         width / 2,
         height * 0.53,
-        300,
-        70
+
+        310,
+        75
+
       )
+
     ) {
 
-      resumeGame();
+      state =
+        "PLAYING";
 
       return;
+
     }
 
     if (
-      insideRect(
+
+      inside(
+
         x,
         y,
+
         width / 2,
         height * 0.64,
-        270,
-        70
+
+        280,
+        75
+
       )
+
     ) {
 
-      gameState =
+      state =
         "HOME";
 
       return;
+
     }
 
-    return;
   }
 
-
-  // ============================================================
-  // GAME OVER
-  // ============================================================
-
   if (
-    gameState ===
+    state ===
     "GAMEOVER"
   ) {
 
     if (
-      insideRect(
+
+      inside(
+
         x,
         y,
+
         width / 2,
-        height * 0.55,
-        300,
-        70
+        height * 0.61,
+
+        310,
+        75
+
       )
+
     ) {
 
-      startLevel(
-        currentLevel
-      );
+      startLevel(level);
 
       return;
+
     }
 
     if (
-      insideRect(
+
+      inside(
+
         x,
         y,
+
         width / 2,
-        height * 0.66,
-        270,
-        70
+        height * 0.72,
+
+        280,
+        75
+
       )
+
     ) {
 
-      gameState =
+      state =
         "HOME";
 
       return;
+
     }
+
   }
+
 }
 
-
 // ================================================================
-// ARCHIVE TAP
+// UI
 // ================================================================
 
-function handleArchiveTap(
+function label(
+  textValue,
   x,
-  y
+  y,
+  size,
+  colorValue,
+  alignX = CENTER,
+  alignY = CENTER,
+  bold = false
 ) {
 
-  if (
-    isArchiveHomeButton(
-      x,
-      y
-    )
-  ) {
+  noStroke();
 
-    gameState =
-      "HOME";
+  fill(colorValue);
 
-    archiveScroll = 0;
-    archiveTargetScroll = 0;
+  textSize(size);
 
-    return;
-  }
+  textAlign(
+    alignX,
+    alignY
+  );
 
-  let g =
-    archiveGeometry();
+  textStyle(
+    bold
+      ? BOLD
+      : NORMAL
+  );
 
-  if (
-    y < g.top ||
-    y > g.bottom
-  ) {
+  text(
+    textValue,
+    x,
+    y
+  );
 
-    return;
-  }
-
-  if (
-    x >
-    width - 38
-  ) {
-
-    return;
-  }
-
-  let cardWidth =
-    min(
-      355,
-      width * 0.89
-    );
-
-  for (
-    let i = 0;
-    i < SHIPS.length;
-    i++
-  ) {
-
-    let cardY =
-      g.top +
-      g.topPadding +
-      g.cardHeight / 2 +
-      i *
-      (
-        g.cardHeight +
-        g.gap
-      ) -
-      archiveScroll;
-
-    if (
-      insideRect(
-        x,
-        y,
-        width / 2,
-        cardY,
-        cardWidth + 12,
-        g.cardHeight + 12
-      )
-    ) {
-
-      if (
-        unlockedLevel >=
-        SHIPS[i].unlock
-      ) {
-
-        selectedShip =
-          i;
-
-        saveGame();
-      }
-
-      return;
-    }
-  }
 }
 
+function button(
+  textValue,
+  x,
+  y,
+  w,
+  h
+) {
 
-// ================================================================
-// HIT TEST
-// ================================================================
+  rectMode(CENTER);
 
-function insideRect(
+  stroke("#468ea8");
+  strokeWeight(1.5);
+  fill("#061622");
+
+  rect(
+    x,
+    y,
+    w,
+    h,
+    12
+  );
+
+  label(
+
+    textValue,
+
+    x,
+    y,
+
+    14,
+
+    "#edf7ff",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+}
+
+function homeButton() {
+
+  button(
+
+    "HOME",
+
+    width / 2,
+
+    height - 58,
+
+    Math.min(
+      190,
+      width * 0.55
+    ),
+
+    48
+
+  );
+
+}
+
+function inside(
   px,
   py,
   cx,
@@ -7528,8 +6111,763 @@ function insideRect(
     cy + h / 2
 
   );
+
 }
 
+// ================================================================
+// HUD
+// ================================================================
+
+function drawHUD() {
+
+  label(
+    "SCORE  " + score,
+    14,
+    12,
+    14,
+    "#edf2f3",
+    LEFT,
+    TOP,
+    true
+  );
+
+  label(
+    "LEVEL " + level,
+    width / 2,
+    12,
+    14,
+    "#edf2f3",
+    CENTER,
+    TOP,
+    true
+  );
+
+  label(
+    "LIVES  " + lives,
+    width - 14,
+    12,
+    14,
+    "#edf2f3",
+    RIGHT,
+    TOP,
+    true
+  );
+
+  label(
+    LEVEL_NAMES[level - 1],
+    width / 2,
+    32,
+    9,
+    "#9daab0"
+  );
+
+  const w =
+    Math.min(
+      300,
+      width * 0.72
+    );
+
+  const x =
+    width / 2 -
+    w / 2;
+
+  const y = 56;
+
+  const elapsed =
+    millis() -
+    levelStartedAt;
+
+  noStroke();
+
+  fill(
+    255,
+    255,
+    255,
+    28
+  );
+
+  rect(
+    x,
+    y,
+    w,
+    7,
+    3
+  );
+
+  fill("#4ba0be");
+
+  rect(
+
+    x,
+    y,
+
+    w *
+    constrain(
+      elapsed /
+      levelDuration,
+      0,
+      1
+    ),
+
+    7,
+    3
+
+  );
+
+  fill(
+    255,
+    255,
+    255,
+    28
+  );
+
+  rect(
+    x,
+    y + 18,
+    w,
+    7,
+    3
+  );
+
+  fill("#cdb037");
+
+  rect(
+
+    x,
+    y + 18,
+
+    w *
+    constrain(
+      levelScore /
+      levelTarget,
+      0,
+      1
+    ),
+
+    7,
+    3
+
+  );
+
+  label(
+    "SCORE  " +
+    levelScore +
+    " / " +
+    levelTarget,
+
+    width / 2,
+    y + 37,
+
+    9,
+    "#87999f"
+  );
+
+  drawPause();
+  drawHomeIcon();
+
+}
+
+// ================================================================
+// GAME CONTROLS DISPLAY
+// ================================================================
+
+function drawControls() {
+
+  // JOYSTICK
+
+  stroke(
+    70,
+    180,
+    210,
+    120
+  );
+
+  strokeWeight(1.5);
+
+  fill(
+    0,
+    120,
+    170,
+    20
+  );
+
+  circle(
+    joy.x,
+    joy.y,
+    joy.r * 2
+  );
+
+  fill(
+    70,
+    190,
+    220,
+    90
+  );
+
+  circle(
+    joy.knobX,
+    joy.knobY,
+    46
+  );
+
+  // FIRE
+
+  stroke(
+    230,
+    75,
+    90,
+    170
+  );
+
+  fill(
+    180,
+    30,
+    50,
+    35
+  );
+
+  circle(
+    fireBtn.x,
+    fireBtn.y,
+    fireBtn.r * 2
+  );
+
+  label(
+    "FIRE",
+    fireBtn.x,
+    fireBtn.y,
+    13,
+    "#f0f3f4",
+    CENTER,
+    CENTER,
+    true
+  );
+
+  // ============================================================
+  // POWER BUTTON
+  // ============================================================
+
+  const now =
+    millis();
+
+  const ready =
+    now >=
+    specialReadyAt;
+
+  const pressed =
+    now <
+    powerPressedUntil;
+
+  if (
+    pressed
+  ) {
+
+    stroke("#ffffff");
+    strokeWeight(3);
+
+    fill(
+      255,
+      220,
+      70,
+      85
+    );
+
+  } else if (
+    ready
+  ) {
+
+    stroke(
+      220,
+      185,
+      55,
+      210
+    );
+
+    strokeWeight(2);
+
+    fill(
+      200,
+      150,
+      20,
+      45
+    );
+
+  } else {
+
+    stroke(
+      130,
+      125,
+      90,
+      110
+    );
+
+    strokeWeight(1.5);
+
+    fill(
+      90,
+      85,
+      45,
+      28
+    );
+
+  }
+
+  circle(
+    powerBtn.x,
+    powerBtn.y,
+    powerBtn.r * 2
+  );
+
+  if (
+    ready
+  ) {
+
+    label(
+      "POWER",
+      powerBtn.x,
+      powerBtn.y,
+      9,
+      "#f0f3f4",
+      CENTER,
+      CENTER,
+      true
+    );
+
+  } else {
+
+    const remaining =
+      Math.max(
+
+        0,
+
+        Math.ceil(
+
+          (
+            specialReadyAt -
+            now
+          ) / 1000
+
+        )
+
+      );
+
+    label(
+      remaining + "s",
+      powerBtn.x,
+      powerBtn.y,
+      11,
+      "#bdb7a0",
+      CENTER,
+      CENTER,
+      true
+    );
+
+  }
+
+}
+
+function drawPause() {
+
+  stroke("#468ea8");
+  strokeWeight(1.5);
+
+  fill(
+    5,
+    22,
+    36,
+    235
+  );
+
+  circle(
+    pauseBtn.x,
+    pauseBtn.y,
+    44
+  );
+
+  noStroke();
+
+  fill("#edf7ff");
+
+  rect(
+    pauseBtn.x - 5,
+    pauseBtn.y,
+    4,
+    15,
+    1
+  );
+
+  rect(
+    pauseBtn.x + 5,
+    pauseBtn.y,
+    4,
+    15,
+    1
+  );
+
+}
+
+function drawHomeIcon() {
+
+  stroke("#468ea8");
+  strokeWeight(1.5);
+
+  fill(
+    5,
+    22,
+    36,
+    235
+  );
+
+  circle(
+    homeBtn.x,
+    homeBtn.y,
+    44
+  );
+
+  stroke("#edf7ff");
+  strokeWeight(2.2);
+
+  noFill();
+
+  beginShape();
+
+  vertex(
+    homeBtn.x - 9,
+    homeBtn.y - 1
+  );
+
+  vertex(
+    homeBtn.x,
+    homeBtn.y - 9
+  );
+
+  vertex(
+    homeBtn.x + 9,
+    homeBtn.y - 1
+  );
+
+  vertex(
+    homeBtn.x + 7,
+    homeBtn.y - 1
+  );
+
+  vertex(
+    homeBtn.x + 7,
+    homeBtn.y + 8
+  );
+
+  vertex(
+    homeBtn.x - 7,
+    homeBtn.y + 8
+  );
+
+  vertex(
+    homeBtn.x - 7,
+    homeBtn.y - 1
+  );
+
+  endShape(CLOSE);
+
+}
+
+function drawStaticGame() {
+
+  for (
+    const enemy of enemies
+  ) {
+
+    enemy.draw();
+
+  }
+
+  for (
+    const bullet of bullets
+  ) {
+
+    bullet.draw();
+
+  }
+
+  for (
+    const drop of drops
+  ) {
+
+    drop.draw();
+
+  }
+
+  for (
+    const shot of enemyShots
+  ) {
+
+    shot.draw();
+
+  }
+
+  if (boss) {
+    boss.draw();
+  }
+
+  drawHUD();
+  drawControls();
+
+  shipPlayer.draw();
+
+}
+
+function overlay() {
+
+  noStroke();
+
+  fill(
+    0,
+    0,
+    0,
+    190
+  );
+
+  rect(
+    0,
+    0,
+    width,
+    height
+  );
+
+}
+
+// ================================================================
+// AUDIO
+// ================================================================
+
+function initAudio() {
+
+  if (!soundOn) {
+    return;
+  }
+
+  if (!audioCtx) {
+
+    const AudioClass =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (AudioClass) {
+
+      try {
+
+        audioCtx =
+          new AudioClass();
+
+      } catch (error) {
+
+        audioCtx = null;
+
+      }
+
+    }
+
+  }
+
+  if (
+
+    audioCtx &&
+
+    audioCtx.state ===
+    "suspended"
+
+  ) {
+
+    audioCtx.resume();
+
+  }
+
+}
+
+function tone(
+  frequency1,
+  frequency2,
+  duration,
+  volume,
+  type = "triangle"
+) {
+
+  if (!soundOn) {
+    return;
+  }
+
+  initAudio();
+
+  if (!audioCtx) {
+    return;
+  }
+
+  try {
+
+    const now =
+      audioCtx.currentTime;
+
+    const oscillator =
+      audioCtx.createOscillator();
+
+    const gain =
+      audioCtx.createGain();
+
+    oscillator.type =
+      type;
+
+    oscillator.frequency.setValueAtTime(
+      frequency1,
+      now
+    );
+
+    oscillator.frequency.exponentialRampToValueAtTime(
+      frequency2,
+      now + duration
+    );
+
+    gain.gain.setValueAtTime(
+      0.0001,
+      now
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+      volume,
+      now + 0.01
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      now + duration
+    );
+
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    oscillator.start(now);
+
+    oscillator.stop(
+      now +
+      duration +
+      0.01
+    );
+
+  } catch (error) {}
+
+}
+
+function playFireSound() {
+
+  tone(
+    760,
+    170,
+    0.08,
+    0.045,
+    "sawtooth"
+  );
+
+}
+
+function playPowerSound() {
+
+  tone(
+    260,
+    720,
+    0.23,
+    0.065,
+    "triangle"
+  );
+
+}
+
+// ================================================================
+// BACKGROUND
+// ================================================================
+
+function createStars() {
+
+  stars = [];
+
+  for (
+    let i = 0;
+    i < 145;
+    i++
+  ) {
+
+    stars.push({
+
+      x:
+        Math.random() *
+        width,
+
+      y:
+        Math.random() *
+        height,
+
+      s:
+        0.8 +
+        Math.random() * 1.8,
+
+      v:
+        0.15 +
+        Math.random() * 0.75,
+
+      a:
+        90 +
+        Math.random() * 120
+
+    });
+
+  }
+
+}
+
+function drawStars() {
+
+  noStroke();
+
+  for (
+    const star of stars
+  ) {
+
+    if (
+      state ===
+      "PLAYING"
+    ) {
+
+      star.y +=
+        star.v;
+
+      if (
+        star.y >
+        height
+      ) {
+
+        star.y = -4;
+
+        star.x =
+          Math.random() *
+          width;
+
+      }
+
+    }
+
+    fill(
+      185,
+      220,
+      255,
+      star.a
+    );
+
+    circle(
+      star.x,
+      star.y,
+      star.s
+    );
+
+  }
+
+}
 
 // ================================================================
 // RESIZE
@@ -7546,5 +6884,99 @@ function windowResized() {
 
   updateLayout();
 
-  clampArchiveScroll();
 }
+
+// ================================================================
+// MOUSE WHEEL
+// ================================================================
+
+function mouseWheel(event) {
+
+  if (
+    state ===
+    "ARCHIVE"
+  ) {
+
+    const g =
+      archiveGeo();
+
+    archiveTarget =
+      constrain(
+
+        archiveTarget +
+        event.delta,
+
+        0,
+        g.max
+
+      );
+
+    return false;
+
+  }
+
+  return true;
+
+}
+
+// ================================================================
+// UTILS
+// ================================================================
+
+function constrainInt(
+  value,
+  minimum,
+  maximum
+) {
+
+  return Math.max(
+
+    minimum,
+
+    Math.min(
+
+      maximum,
+
+      Math.floor(
+        Number(value) ||
+        minimum
+      )
+
+    )
+
+  );
+
+}
+
+function sdDist(
+  ax,
+  ay,
+  bx,
+  by
+) {
+
+  return Math.hypot(
+
+    ax - bx,
+
+    ay - by
+
+  );
+
+}
+
+function sdRadians(
+  degrees
+) {
+
+  return (
+    degrees *
+    Math.PI /
+    180
+  );
+
+}
+
+// ================================================================
+// END
+// ================================================================
