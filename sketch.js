@@ -1,13 +1,15 @@
 /* ================================================================
-   SPACE DODGER - p5.js v3 GAMEPLAY / CONTROL FIX
+   SPACE DODGER - p5.js v3 STABLE GAMEPLAY / CONTROL FIX
    FULL REPLACEMENT FOR sketch.js
 
-   Main changes:
+   FIXES:
    - Enemies spawn from TOP only
    - Player starts near bottom
    - Player movement unlocks after first enemy kill
    - Fire works independently from movement
    - Robust mobile multitouch / pointer handling
+   - Pointer Events are the ONLY control system
+   - Removed conflicting p5 mouse handlers
    - Larger enemies reduced in size
    - Gameplay controls moved upward
    - Gameplay Home/Pause icons moved upward
@@ -70,12 +72,9 @@ let bossDefeated = false;
 // GAMEPLAY STATE
 // ================================================================
 
-// Player starts restricted to the bottom area.
-// Once the first alien is destroyed, free movement unlocks.
 let freeMovementUnlocked = false;
 let enemiesDestroyedThisLevel = 0;
 
-// Keep player initially in the lower zone.
 const INITIAL_PLAYER_Y_RATIO = 0.79;
 const INITIAL_MOVEMENT_MIN_Y_RATIO = 0.66;
 
@@ -102,10 +101,10 @@ let fireId = null;
 
 let fireHeld = false;
 
+// Desktop compatibility variables retained,
+// but NOT used by p5 mouse handlers.
 let mouseMoving = false;
 let mouseFiring = false;
-
-let suppressMouseOnce = false;
 
 // ================================================================
 // CONTROLS
@@ -143,10 +142,7 @@ const homeBtn = {
   r: 22
 };
 
-// Menu HOME buttons are intentionally higher than before.
 const MENU_HOME_OFFSET = 96;
-
-// Gameplay controls are intentionally higher from the bottom.
 const CONTROL_BOTTOM_OFFSET = 150;
 
 let joyAngle = -HALFPI;
@@ -616,8 +612,6 @@ function startLevel(n) {
   bossActive = false;
   bossDefeated = false;
 
-  // NEW GAMEPLAY RULE:
-  // Player begins restricted near bottom.
   freeMovementUnlocked = false;
   enemiesDestroyedThisLevel = 0;
 
@@ -952,21 +946,10 @@ function runGame() {
 
   updateJoystickMovement();
 
-  // IMPORTANT:
-  // Fire state is independent from movement state.
-  // Holding FIRE continues shooting even when joystick is released.
-  if (
-    fireId !== null ||
-    mouseFiring
-  ) {
-
-    fireHeld = true;
-
-  } else {
-
-    fireHeld = false;
-
-  }
+  // FIRE is controlled only by the fire pointer.
+  // Releasing joystick cannot cancel FIRE.
+  fireHeld =
+    fireId !== null;
 
   if (fireHeld) {
     shoot();
@@ -1418,11 +1401,7 @@ class Enemy {
 
     }
 
-    // ============================================================
-    // IMPORTANT:
-    // ALL NORMAL ALIEN SHIPS NOW ENTER FROM THE TOP.
-    // ============================================================
-
+    // ALL NORMAL ENEMIES ENTER FROM TOP
     this.x =
       40 +
       Math.random() *
@@ -1443,7 +1422,6 @@ class Enemy {
       ) *
       difficulty();
 
-    // Small enemies remain essentially unchanged.
     if (
       this.type ===
       "HUNTER"
@@ -1454,7 +1432,6 @@ class Enemy {
 
     }
 
-    // Larger enemy reduced.
     if (
       this.type ===
       "HEAVY"
@@ -1467,7 +1444,6 @@ class Enemy {
 
     }
 
-    // Larger enemy reduced.
     if (
       this.type ===
       "ELITE"
@@ -2395,10 +2371,6 @@ function collideBulletsEnemies() {
 
           score += points;
           levelScore += points;
-
-          // ======================================================
-          // FIRST KILL UNLOCKS FREE MOVEMENT
-          // ======================================================
 
           enemiesDestroyedThisLevel++;
 
@@ -3383,7 +3355,6 @@ function updateShake() {
 
 function updateLayout() {
 
-  // Top icons moved upward.
   pauseBtn.x = 38;
   pauseBtn.y = 76;
 
@@ -3392,7 +3363,6 @@ function updateLayout() {
 
   homeBtn.y = 76;
 
-  // Controls moved substantially upward from bottom.
   const y =
     Math.max(
       170,
@@ -3505,8 +3475,7 @@ function updateJoystick(
 function updateJoystickMovement() {
 
   if (
-    moveId === null &&
-    !mouseMoving
+    moveId === null
   ) {
 
     joyStrength = 0;
@@ -3530,13 +3499,6 @@ function updateJoystickMovement() {
     shipPlayer.y +=
       Math.sin(joyAngle) *
       speed;
-
-    // ============================================================
-    // BEFORE FIRST KILL:
-    // Keep player in lower portion of screen.
-    // AFTER FIRST KILL:
-    // Full-screen movement becomes available.
-    // ============================================================
 
     if (
       !freeMovementUnlocked
@@ -3678,12 +3640,6 @@ function onPointerDown(event) {
 
   event.preventDefault();
 
-  // ============================================================
-  // IMPORTANT MOBILE FIX:
-  // Capture each touch independently.
-  // This prevents releasing joystick from killing FIRE.
-  // ============================================================
-
   try {
 
     if (
@@ -3700,14 +3656,6 @@ function onPointerDown(event) {
 
   } catch (error) {}
 
-  if (
-    event.pointerType === "mouse"
-  ) {
-
-    suppressMouseOnce = true;
-
-  }
-
   initAudio();
 
   const p =
@@ -3720,6 +3668,46 @@ function onPointerDown(event) {
     state ===
     "PLAYING"
   ) {
+
+    // HOME FIRST
+    if (
+
+      sdDist(
+        x,
+        y,
+        homeBtn.x,
+        homeBtn.y
+      ) <= 34
+
+    ) {
+
+      state = "HOME";
+
+      clearPointers();
+
+      return;
+
+    }
+
+    // PAUSE
+    if (
+
+      sdDist(
+        x,
+        y,
+        pauseBtn.x,
+        pauseBtn.y
+      ) <= 34
+
+    ) {
+
+      state = "PAUSED";
+
+      clearPointers();
+
+      return;
+
+    }
 
     // POWER
     if (
@@ -3735,33 +3723,6 @@ function onPointerDown(event) {
     ) {
 
       useSpecial();
-
-      return;
-
-    }
-
-    // JOYSTICK
-    if (
-
-      moveId === null &&
-
-      sdDist(
-        x,
-        y,
-        joy.x,
-        joy.y
-      ) <=
-      joy.r + 20
-
-    ) {
-
-      moveId =
-        event.pointerId;
-
-      updateJoystick(
-        x,
-        y
-      );
 
       return;
 
@@ -3793,41 +3754,28 @@ function onPointerDown(event) {
 
     }
 
-    // PAUSE
+    // JOYSTICK
     if (
+
+      moveId === null &&
 
       sdDist(
         x,
         y,
-        pauseBtn.x,
-        pauseBtn.y
-      ) <= 34
+        joy.x,
+        joy.y
+      ) <=
+      joy.r + 20
 
     ) {
 
-      state = "PAUSED";
+      moveId =
+        event.pointerId;
 
-      clearPointers();
-
-      return;
-
-    }
-
-    // HOME
-    if (
-
-      sdDist(
+      updateJoystick(
         x,
-        y,
-        homeBtn.x,
-        homeBtn.y
-      ) <= 34
-
-    ) {
-
-      state = "HOME";
-
-      clearPointers();
+        y
+      );
 
       return;
 
@@ -3911,16 +3859,12 @@ function onPointerUp(event) {
   const p =
     pointerPos(event);
 
-  // ============================================================
-  // IMPORTANT:
-  // Only release the control belonging to THIS pointer.
-  // ============================================================
-
   if (
     state ===
     "PLAYING"
   ) {
 
+    // Release only the joystick pointer.
     if (
       event.pointerId ===
       moveId
@@ -3932,6 +3876,7 @@ function onPointerUp(event) {
 
     }
 
+    // Release only the FIRE pointer.
     if (
       event.pointerId ===
       fireId
@@ -3941,10 +3886,10 @@ function onPointerUp(event) {
 
     }
 
-    // Fire remains active if another fire pointer is still active.
+    // IMPORTANT:
+    // Joystick release does not affect FIRE.
     fireHeld =
-      fireId !== null ||
-      mouseFiring;
+      fireId !== null;
 
     try {
 
@@ -3977,187 +3922,6 @@ function onPointerUp(event) {
     );
 
   }
-
-}
-
-// ================================================================
-// DESKTOP MOUSE FALLBACK
-// ================================================================
-
-function mousePressed() {
-
-  if (
-    suppressMouseOnce
-  ) {
-
-    suppressMouseOnce = false;
-
-    return false;
-
-  }
-
-  if (
-    state ===
-    "PLAYING"
-  ) {
-
-    if (
-
-      sdDist(
-        mouseX,
-        mouseY,
-        powerBtn.x,
-        powerBtn.y
-      ) <=
-      powerBtn.r + 24
-
-    ) {
-
-      useSpecial();
-
-      return false;
-
-    }
-
-    if (
-
-      sdDist(
-        mouseX,
-        mouseY,
-        joy.x,
-        joy.y
-      ) <=
-      joy.r + 20
-
-    ) {
-
-      mouseMoving = true;
-
-      updateJoystick(
-        mouseX,
-        mouseY
-      );
-
-      return false;
-
-    }
-
-    if (
-
-      sdDist(
-        mouseX,
-        mouseY,
-        fireBtn.x,
-        fireBtn.y
-      ) <=
-      fireBtn.r + 20
-
-    ) {
-
-      mouseFiring = true;
-      fireHeld = true;
-
-      shoot();
-
-      return false;
-
-    }
-
-    if (
-
-      sdDist(
-        mouseX,
-        mouseY,
-        pauseBtn.x,
-        pauseBtn.y
-      ) <= 34
-
-    ) {
-
-      state = "PAUSED";
-
-      clearPointers();
-
-      return false;
-
-    }
-
-    if (
-
-      sdDist(
-        mouseX,
-        mouseY,
-        homeBtn.x,
-        homeBtn.y
-      ) <= 34
-
-    ) {
-
-      state = "HOME";
-
-      clearPointers();
-
-      return false;
-
-    }
-
-  } else {
-
-    handleTap(
-      mouseX,
-      mouseY
-    );
-
-  }
-
-  return false;
-
-}
-
-function mouseDragged() {
-
-  if (
-    state ===
-    "PLAYING" &&
-    mouseMoving
-  ) {
-
-    updateJoystick(
-      mouseX,
-      mouseY
-    );
-
-  }
-
-  return false;
-
-}
-
-function mouseReleased() {
-
-  // Mouse fallback ONLY.
-  // It no longer blindly kills mobile FIRE state.
-
-  mouseMoving = false;
-  mouseFiring = false;
-
-  if (
-    moveId === null
-  ) {
-
-    resetJoy();
-
-  }
-
-  if (
-    fireId === null
-  ) {
-
-    fireHeld = false;
-
-  }
-
-  return false;
 
 }
 
@@ -6467,9 +6231,7 @@ function drawHUD() {
 
 function drawControls() {
 
-  // ============================================================
   // JOYSTICK
-  // ============================================================
 
   stroke(
     70,
@@ -6506,9 +6268,7 @@ function drawControls() {
     46
   );
 
-  // ============================================================
   // FIRE
-  // ============================================================
 
   stroke(
     230,
@@ -6541,9 +6301,7 @@ function drawControls() {
     true
   );
 
-  // ============================================================
   // POWER
-  // ============================================================
 
   const now =
     millis();
@@ -7194,3 +6952,3350 @@ function sdRadians(
 // ================================================================
 // END
 // ================================================================
+/* ================================================================
+   SPACE DODGER V4 - COMPLETE FEATURE PATCH
+   ================================================================
+   PASTE THIS ENTIRE BLOCK AT THE VERY END OF sketch.js
+
+   IMPORTANT:
+   - This is ONE complete V4 patch.
+   - Do NOT paste the previous V4 patches.
+   - Paste only this block after the V3 code.
+
+   FIXES / FEATURES:
+   - CR / CRYO booster now gives strong visible empowerment
+   - CRYO frost aura around ship
+   - CRYO ACTIVE HUD indicator
+   - Stronger enemy slowdown during CRYO
+   - Special attachable weapons
+   - Plasma Cannon
+   - Void Beam
+   - Dragon Slayer
+   - Dragon Slayer guaranteed on Dragon stages
+   - Extra Dragon damage from special weapons
+   - Weapon pickup effects
+   - HELP / ARSENAL screen
+   - SETTINGS remains fully functional
+   - RATE US fixed
+   - SUBMIT -> THANK YOU screen
+   - CANCEL -> HOME
+   - Rating saved locally
+   - Level clear manual buttons
+   - PLAY AGAIN
+   - NEXT LEVEL
+   - Campaign Complete
+   - Confetti celebration
+   - Safe integration with V3 draw / handleTap
+================================================================ */
+
+
+/* ================================================================
+   V4 STATE
+================================================================ */
+
+let v4HelpReturnState = "HOME";
+
+let v4RatingThanksUntil = 0;
+
+let v4Weapon = null;
+let v4WeaponUntil = 0;
+let v4WeaponLastFire = 0;
+
+let v4WeaponDrops = [];
+
+let v4WeaponSpawned = false;
+let v4DragonWeaponGiven = false;
+
+let v4Celebration = [];
+
+let v4CelebrationActive = false;
+
+
+/* ================================================================
+   SPECIAL WEAPONS
+================================================================ */
+
+const V4_WEAPONS = [
+
+  {
+    id: "PLASMA_CANNON",
+    name: "PLASMA CANNON",
+    symbol: "P",
+    color: "#4de8ff",
+    power: 2.5,
+    dragon: 1.0,
+    rate: 170,
+    duration: 18000,
+    desc: "Twin plasma cannon attached to the ship.",
+    strength: "HIGH"
+  },
+
+  {
+    id: "VOID_BEAM",
+    name: "VOID BEAM",
+    symbol: "V",
+    color: "#d889ff",
+    power: 4.0,
+    dragon: 1.25,
+    rate: 260,
+    duration: 14000,
+    desc: "Heavy piercing beam with extreme damage.",
+    strength: "VERY HIGH"
+  },
+
+  {
+    id: "DRAGON_SLAYER",
+    name: "DRAGON SLAYER",
+    symbol: "D",
+    color: "#ff6a43",
+    power: 7.0,
+    dragon: 3.5,
+    rate: 220,
+    duration: 20000,
+    desc: "Dragon hunter cannon with massive boss damage.",
+    strength: "EXTREME"
+  }
+
+];
+
+
+function v4WeaponById(id) {
+
+  for (
+    const weapon of V4_WEAPONS
+  ) {
+
+    if (
+      weapon.id === id
+    ) {
+
+      return weapon;
+
+    }
+
+  }
+
+  return V4_WEAPONS[0];
+
+}
+
+
+function v4WeaponActive() {
+
+  return (
+
+    v4Weapon !== null &&
+
+    millis() <
+    v4WeaponUntil
+
+  );
+
+}
+
+
+function v4CurrentWeapon() {
+
+  if (
+    !v4WeaponActive()
+  ) {
+
+    return null;
+
+  }
+
+  return v4WeaponById(
+    v4Weapon
+  );
+
+}
+
+
+function v4ClearWeapon() {
+
+  v4Weapon = null;
+
+  v4WeaponUntil = 0;
+
+  v4WeaponLastFire = 0;
+
+}
+
+
+/* ================================================================
+   SAVE ORIGINAL V3 FUNCTIONS
+================================================================ */
+
+const V4_ORIGINAL_DRAW =
+  draw;
+
+const V4_ORIGINAL_HANDLE_TAP =
+  handleTap;
+
+const V4_ORIGINAL_SHOOT =
+  shoot;
+
+const V4_ORIGINAL_UPDATE_DROPS =
+  updateDrops;
+
+const V4_ORIGINAL_SPAWN_DROPS =
+  spawnDrops;
+
+const V4_ORIGINAL_START_LEVEL =
+  startLevel;
+
+const V4_ORIGINAL_COMPLETE_LEVEL =
+  completeLevel;
+
+const V4_ORIGINAL_COLLIDE_BOSS =
+  collideBulletsBoss;
+
+const V4_ORIGINAL_ACTIVATE_POWER =
+  activatePower;
+
+const V4_ORIGINAL_DRAW_HUD =
+  drawHUD;
+
+
+/* ================================================================
+   V4 DRAW ROUTER
+================================================================ */
+
+draw = function() {
+
+  if (
+    state ===
+    "HELP"
+  ) {
+
+    background(
+      2,
+      6,
+      17
+    );
+
+    drawStars();
+
+    v4DrawHelp();
+
+    return;
+
+  }
+
+
+  if (
+    state ===
+    "RATING_THANKS"
+  ) {
+
+    background(
+      2,
+      6,
+      17
+    );
+
+    drawStars();
+
+    v4DrawRatingThanks();
+
+    return;
+
+  }
+
+
+  /*
+     IMPORTANT:
+
+     Every existing V3 state including
+     SETTINGS, ARCHIVE, ABOUT, LEVELS,
+     RATING, PLAYING, PAUSED etc.
+     goes through the original V3 draw.
+  */
+
+  V4_ORIGINAL_DRAW();
+
+
+  if (
+    state ===
+    "PLAYING"
+  ) {
+
+    v4DrawWeaponDrops();
+
+    v4DrawAttachedWeapon();
+
+    v4DrawCryoEffect();
+
+  }
+
+};
+
+
+/* ================================================================
+   CRYO / CR BOOSTER UPGRADE
+================================================================ */
+
+const V4_ORIGINAL_ENEMY_UPDATE =
+  Enemy.prototype.update;
+
+
+Enemy.prototype.update =
+  function() {
+
+    V4_ORIGINAL_ENEMY_UPDATE.call(
+      this
+    );
+
+    /*
+       The original V3 already slows
+       enemies when CRYO is active.
+
+       V4 adds an additional strong
+       slowdown so CR actually feels
+       like a powerful booster.
+    */
+
+    if (
+      millis() <
+      powers.CRYO
+    ) {
+
+      /*
+         Correct the movement slightly
+         by reducing the effective
+         displacement after original
+         movement.
+
+         This makes CRYO substantially
+         stronger without changing
+         the rest of the enemy AI.
+      */
+
+      const freezeStrength =
+        0.48;
+
+      this.x =
+        shipPlayer.x +
+        (
+          this.x -
+          shipPlayer.x
+        ) *
+        (
+          1 -
+          freezeStrength
+        ) *
+        0.08;
+
+      this.y =
+        shipPlayer.y +
+        (
+          this.y -
+          shipPlayer.y
+        ) *
+        (
+          1 -
+          freezeStrength
+        ) *
+        0.08;
+
+    }
+
+  };
+
+
+/* ================================================================
+   CRYO ACTIVATION WRAPPER
+================================================================ */
+
+activatePower =
+  function(type) {
+
+    V4_ORIGINAL_ACTIVATE_POWER(
+      type
+    );
+
+
+    if (
+      type ===
+      "CRYO"
+    ) {
+
+      /*
+         Make CRYO stronger than the
+         normal V3 7 second effect.
+      */
+
+      powers.CRYO =
+        millis() + 8500;
+
+      powerPressedUntil =
+        millis() + 450;
+
+      shake = 5;
+
+    }
+
+  };
+
+
+/* ================================================================
+   CRYO VISUAL EFFECT
+================================================================ */
+
+function v4DrawCryoEffect() {
+
+  if (
+    !shipPlayer
+  ) {
+
+    return;
+
+  }
+
+
+  if (
+    millis() >=
+    powers.CRYO
+  ) {
+
+    return;
+
+  }
+
+
+  const remaining =
+    Math.max(
+
+      0,
+
+      Math.ceil(
+
+        (
+          powers.CRYO -
+          millis()
+        ) / 1000
+
+      )
+
+    );
+
+
+  /*
+     Outer frost rings
+  */
+
+  push();
+
+  noFill();
+
+  stroke(
+    130,
+    235,
+    255,
+    100
+  );
+
+  strokeWeight(2);
+
+  circle(
+    shipPlayer.x,
+    shipPlayer.y,
+    72 +
+    Math.sin(
+      frameCount * 0.10
+    ) * 7
+  );
+
+  stroke(
+    210,
+    250,
+    255,
+    75
+  );
+
+  circle(
+    shipPlayer.x,
+    shipPlayer.y,
+    92 +
+    Math.sin(
+      frameCount * 0.075
+    ) * 9
+  );
+
+
+  /*
+     Frost particles
+  */
+
+  for (
+    let i = 0;
+    i < 10;
+    i++
+  ) {
+
+    const angle =
+      frameCount *
+      0.018 +
+      i *
+      PI2 /
+      10;
+
+    const radius =
+      38 +
+      Math.sin(
+        frameCount *
+        0.05 +
+        i
+      ) *
+      8;
+
+    const x =
+      shipPlayer.x +
+      Math.cos(angle) *
+      radius;
+
+    const y =
+      shipPlayer.y +
+      Math.sin(angle) *
+      radius;
+
+    stroke(
+      220,
+      250,
+      255,
+      170
+    );
+
+    strokeWeight(1.4);
+
+    line(
+      x - 4,
+      y,
+      x + 4,
+      y
+    );
+
+    line(
+      x,
+      y - 4,
+      x,
+      y + 4
+    );
+
+  }
+
+  pop();
+
+
+  /*
+     CRYO ACTIVE indicator
+  */
+
+  rectMode(CENTER);
+
+  stroke(
+    "#9eefff"
+  );
+
+  strokeWeight(1.5);
+
+  fill(
+    8,
+    40,
+    55,
+    225
+  );
+
+  rect(
+    width / 2,
+    78,
+    150,
+    27,
+    9
+  );
+
+
+  label(
+    "❄ CRYO ACTIVE  " +
+    remaining +
+    "s",
+    width / 2,
+    78,
+    10,
+    "#bdf8ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+}
+
+
+/* ================================================================
+   HELP SCREEN
+================================================================ */
+
+function v4DrawHelp() {
+
+  label(
+    "HELP • ARSENAL",
+    width / 2,
+    38,
+    27,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+
+  label(
+    "WEAPONS & POWER BOOSTERS",
+    width / 2,
+    65,
+    10,
+    "#79aabd"
+  );
+
+
+  const weaponY = [
+    112,
+    185,
+    258
+  ];
+
+
+  for (
+    let i = 0;
+    i < V4_WEAPONS.length;
+    i++
+  ) {
+
+    v4HelpWeaponCard(
+      V4_WEAPONS[i],
+      width / 2,
+      weaponY[i]
+    );
+
+  }
+
+
+  label(
+    "POWER BOOSTERS",
+    width / 2,
+    330,
+    14,
+    "#ead34c",
+    CENTER,
+    CENTER,
+    true
+  );
+
+
+  const powersInfo = [
+
+    [
+      "M",
+      "MULTI",
+      "Triple shots for 7 seconds.",
+      "#ffe600"
+    ],
+
+    [
+      "S",
+      "SHIELD",
+      "Blocks enemy hits for 7 seconds.",
+      "#00cfff"
+    ],
+
+    [
+      "BR",
+      "BERSERKER",
+      "Boosts weapon damage.",
+      "#ff3455"
+    ],
+
+    [
+      "CR",
+      "CRYO",
+      "Massively slows alien movement.",
+      "#9eefff"
+    ],
+
+    [
+      "N",
+      "NOVA",
+      "Instantly destroys normal aliens.",
+      "#ffffff"
+    ]
+
+  ];
+
+
+  const start =
+    380;
+
+
+  for (
+    let i = 0;
+    i < powersInfo.length;
+    i++
+  ) {
+
+    const row =
+      i < 3
+        ? 0
+        : 1;
+
+    const col =
+      i < 3
+        ? i
+        : i - 3;
+
+    const x =
+      width *
+      (
+        row === 0
+          ? 0.22 + col * 0.28
+          : 0.36 + col * 0.28
+      );
+
+    const y =
+      start +
+      row * 88;
+
+
+    v4HelpPower(
+      powersInfo[i],
+      x,
+      y
+    );
+
+  }
+
+
+  label(
+    "Dragon stages: Dragon Slayer is guaranteed before the boss.",
+    width / 2,
+    height - 115,
+    9,
+    "#ff9278",
+    CENTER,
+    CENTER,
+    true
+  );
+
+
+  button(
+    "BACK",
+    width / 2,
+    height - MENU_HOME_OFFSET,
+    190,
+    48
+  );
+
+}
+
+
+function v4HelpWeaponCard(
+  weapon,
+  x,
+  y
+) {
+
+  const cardW =
+    Math.min(
+      350,
+      width * 0.9
+    );
+
+
+  rectMode(CENTER);
+
+  stroke(
+    weapon.color
+  );
+
+  strokeWeight(1.7);
+
+  fill(
+    6,
+    18,
+    30,
+    235
+  );
+
+  rect(
+    x,
+    y,
+    cardW,
+    62,
+    12
+  );
+
+
+  noFill();
+
+  stroke(
+    weapon.color
+  );
+
+  strokeWeight(2);
+
+  circle(
+    x -
+    cardW * 0.39,
+    y,
+    38
+  );
+
+
+  label(
+    weapon.symbol,
+    x -
+    cardW * 0.39,
+    y,
+    16,
+    weapon.color,
+    CENTER,
+    CENTER,
+    true
+  );
+
+
+  label(
+    weapon.name,
+    x -
+    cardW * 0.27,
+    y - 16,
+    11,
+    "#edf7ff",
+    LEFT,
+    CENTER,
+    true
+  );
+
+
+  label(
+    weapon.desc,
+    x -
+    cardW * 0.27,
+    y + 4,
+    8,
+    "#aab9bf",
+    LEFT,
+    CENTER
+  );
+
+
+  label(
+    weapon.strength,
+    x +
+    cardW * 0.35,
+    y + 17,
+    7,
+    weapon.color,
+    CENTER,
+    CENTER,
+    true
+  );
+
+}
+
+
+function v4HelpPower(
+  info,
+  x,
+  y
+) {
+
+  stroke(
+    info[3]
+  );
+
+  strokeWeight(1.5);
+
+  fill(
+    5,
+    20,
+    31,
+    220
+  );
+
+  circle(
+    x,
+    y,
+    40
+  );
+
+
+  label(
+    info[0],
+    x,
+    y - 1,
+    12,
+    info[3],
+    CENTER,
+    CENTER,
+    true
+  );
+
+
+  label(
+    info[1],
+    x,
+    y + 27,
+    7,
+    "#edf7ff",
+    CENTER,
+    CENTER,
+    true
+  );
+
+
+  label(
+    info[2],
+    x,
+    y + 40,
+    6,
+    "#8fa2aa",
+    CENTER,
+    CENTER
+  );
+
+}
+
+
+/* ================================================================
+   SPECIAL WEAPON DROP
+================================================================ */
+
+class V4WeaponDrop {
+
+  constructor(type) {
+
+    this.type =
+      type;
+
+    this.x =
+      width * 0.18 +
+      Math.random() *
+      width * 0.64;
+
+    this.y =
+      Math.max(
+        150,
+        height * 0.24
+      );
+
+    this.vy =
+      0.55;
+
+    this.r =
+      25;
+
+    this.life =
+      1100;
+
+    this.rot =
+      0;
+
+  }
+
+
+  update() {
+
+    this.y +=
+      this.vy;
+
+    this.rot +=
+      0.045;
+
+    this.life--;
+
+  }
+
+
+  dead() {
+
+    return (
+
+      this.life <= 0 ||
+
+      this.y >
+      height - 180
+
+    );
+
+  }
+
+
+  draw() {
+
+    const weapon =
+      v4WeaponById(
+        this.type
+      );
+
+
+    push();
+
+    translate(
+      this.x,
+      this.y
+    );
+
+    rotate(
+      this.rot
+    );
+
+
+    stroke(
+      weapon.color
+    );
+
+    strokeWeight(2.5);
+
+    fill(
+      8,
+      18,
+      28,
+      235
+    );
+
+    circle(
+      0,
+      0,
+      52
+    );
+
+
+    noFill();
+
+    stroke(
+      weapon.color
+    );
+
+    circle(
+      0,
+      0,
+      40 +
+      Math.sin(
+        frameCount *
+        0.12
+      ) * 4
+    );
+
+
+    label(
+      weapon.symbol,
+      0,
+      0,
+      18,
+      weapon.color,
+      CENTER,
+      CENTER,
+      true
+    );
+
+
+    pop();
+
+
+    label(
+      "GRAB",
+      this.x,
+      this.y + 35,
+      8,
+      weapon.color,
+      CENTER,
+      CENTER,
+      true
+    );
+
+  }
+
+}
+
+
+/* ================================================================
+   SPAWN WEAPON
+================================================================ */
+
+function v4SpawnWeapon(
+  forceDragon
+) {
+
+  if (
+    v4WeaponDrops.length > 0
+  ) {
+
+    return;
+
+  }
+
+
+  let type =
+    "PLASMA_CANNON";
+
+
+  if (
+    forceDragon
+  ) {
+
+    type =
+      "DRAGON_SLAYER";
+
+  } else {
+
+    const roll =
+      Math.random();
+
+
+    if (
+      roll < 0.45
+    ) {
+
+      type =
+        "PLASMA_CANNON";
+
+    } else if (
+      roll < 0.80
+    ) {
+
+      type =
+        "VOID_BEAM";
+
+    } else {
+
+      type =
+        "DRAGON_SLAYER";
+
+    }
+
+  }
+
+
+  v4WeaponDrops.push(
+    new V4WeaponDrop(
+      type
+    )
+  );
+
+
+  v4WeaponSpawned =
+    true;
+
+}
+
+
+/* ================================================================
+   WEAPON DROP UPDATE
+================================================================ */
+
+function v4UpdateWeaponDrops() {
+
+  for (
+    let i =
+      v4WeaponDrops.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    const drop =
+      v4WeaponDrops[i];
+
+
+    drop.update();
+
+
+    if (
+      drop.dead()
+    ) {
+
+      v4WeaponDrops.splice(
+        i,
+        1
+      );
+
+      continue;
+
+    }
+
+
+    if (
+
+      shipPlayer &&
+
+      sdDist(
+
+        shipPlayer.x,
+        shipPlayer.y,
+
+        drop.x,
+        drop.y
+
+      ) <
+
+      shipPlayer.r +
+      drop.r
+
+    ) {
+
+      const weapon =
+        v4WeaponById(
+          drop.type
+        );
+
+
+      v4Weapon =
+        weapon.id;
+
+
+      v4WeaponUntil =
+        millis() +
+        weapon.duration;
+
+
+      v4WeaponLastFire =
+        0;
+
+
+      createExplosion(
+        drop.x,
+        drop.y,
+        35,
+        weapon.color
+      );
+
+
+      shake = 8;
+
+      playPowerSound();
+
+
+      v4WeaponDrops.splice(
+        i,
+        1
+      );
+
+    }
+
+  }
+
+}
+
+
+/* ================================================================
+   DRAW WEAPON DROPS
+================================================================ */
+
+function v4DrawWeaponDrops() {
+
+  for (
+    const drop of
+      v4WeaponDrops
+  ) {
+
+    drop.draw();
+
+  }
+
+}
+
+
+/* ================================================================
+   ATTACHED WEAPON VISUAL
+================================================================ */
+
+function v4DrawAttachedWeapon() {
+
+  if (
+    !v4WeaponActive() ||
+    !shipPlayer
+  ) {
+
+    return;
+
+  }
+
+
+  const weapon =
+    v4CurrentWeapon();
+
+
+  push();
+
+  translate(
+    shipPlayer.x,
+    shipPlayer.y
+  );
+
+  rotate(
+    shipPlayer.angle +
+    HALFPI
+  );
+
+
+  stroke(
+    weapon.color
+  );
+
+  strokeWeight(3);
+
+  fill(
+    10,
+    25,
+    36
+  );
+
+
+  /*
+     LEFT CANNON
+  */
+
+  beginShape();
+
+  vertex(-18, -5);
+  vertex(-34, -2);
+  vertex(-39, 10);
+  vertex(-24, 10);
+
+  endShape(CLOSE);
+
+
+  /*
+     RIGHT CANNON
+  */
+
+  beginShape();
+
+  vertex(18, -5);
+  vertex(34, -2);
+  vertex(39, 10);
+  vertex(24, 10);
+
+  endShape(CLOSE);
+
+
+  noStroke();
+
+  fill(
+    weapon.color
+  );
+
+
+  circle(
+    -31,
+    4,
+    8
+  );
+
+  circle(
+    31,
+    4,
+    8
+  );
+
+
+  pop();
+
+
+  const remaining =
+    Math.max(
+
+      0,
+
+      Math.ceil(
+
+        (
+          v4WeaponUntil -
+          millis()
+        ) / 1000
+
+      )
+
+    );
+
+
+  rectMode(CENTER);
+
+  stroke(
+    weapon.color
+  );
+
+  strokeWeight(1.2);
+
+  fill(
+    4,
+    20,
+    30,
+    225
+  );
+
+  rect(
+    width / 2,
+    96,
+    180,
+    25,
+    8
+  );
+
+
+  label(
+    "⚡ " +
+    weapon.name +
+    "  " +
+    remaining +
+    "s",
+    width / 2,
+    96,
+    8.5,
+    weapon.color,
+    CENTER,
+    CENTER,
+    true
+  );
+
+}
+
+
+/* ================================================================
+   SPECIAL WEAPON SHOOT
+================================================================ */
+
+function v4WeaponShoot() {
+
+  if (
+    !v4WeaponActive()
+  ) {
+
+    return;
+
+  }
+
+
+  const weapon =
+    v4CurrentWeapon();
+
+
+  if (
+    millis() -
+    v4WeaponLastFire <
+    weapon.rate
+  ) {
+
+    return;
+
+  }
+
+
+  v4WeaponLastFire =
+    millis();
+
+
+  const base =
+    shipPlayer.angle;
+
+
+  if (
+    weapon.id ===
+    "PLASMA_CANNON"
+  ) {
+
+    v4CreateWeaponBullet(
+      -0.22,
+      base,
+      weapon
+    );
+
+    v4CreateWeaponBullet(
+      0.22,
+      base,
+      weapon
+    );
+
+  }
+
+
+  else if (
+    weapon.id ===
+    "VOID_BEAM"
+  ) {
+
+    v4CreateWeaponBullet(
+      -0.10,
+      base,
+      weapon
+    );
+
+    v4CreateWeaponBullet(
+      0.10,
+      base,
+      weapon
+    );
+
+  }
+
+
+  else {
+
+    v4CreateWeaponBullet(
+      -0.14,
+      base,
+      weapon
+    );
+
+    v4CreateWeaponBullet(
+      0,
+      base,
+      weapon
+    );
+
+    v4CreateWeaponBullet(
+      0.14,
+      base,
+      weapon
+    );
+
+  }
+
+
+  tone(
+    420,
+    120,
+    0.09,
+    0.055,
+    "square"
+  );
+
+}
+
+
+function v4CreateWeaponBullet(
+  side,
+  base,
+  weapon
+) {
+
+  const angle =
+    base + side;
+
+
+  const bullet =
+    new Bullet(
+
+      shipPlayer.x +
+      Math.cos(angle) *
+      33,
+
+      shipPlayer.y +
+      Math.sin(angle) *
+      33,
+
+      angle,
+
+      weapon.power
+
+    );
+
+
+  bullet.speed =
+    weapon.id ===
+    "VOID_BEAM"
+      ? 14
+      : 12.5;
+
+
+  bullet.r =
+    weapon.id ===
+    "VOID_BEAM"
+      ? 8
+      : 6;
+
+
+  bullet.life =
+    130;
+
+
+  bullet.v4Weapon =
+    weapon.id;
+
+
+  bullets.push(
+    bullet
+  );
+
+}
+
+
+/* ================================================================
+   SHOOT WRAPPER
+================================================================ */
+
+shoot =
+  function() {
+
+    if (
+      state !==
+      "PLAYING"
+    ) {
+
+      return;
+
+    }
+
+
+    V4_ORIGINAL_SHOOT();
+
+
+    if (
+      v4WeaponActive()
+    ) {
+
+      v4WeaponShoot();
+
+    }
+
+  };
+
+
+/* ================================================================
+   DRAGON BONUS DAMAGE
+================================================================ */
+
+collideBulletsBoss =
+  function() {
+
+    if (
+      !bossActive ||
+      !boss
+    ) {
+
+      return;
+
+    }
+
+
+    for (
+      let i =
+        bullets.length - 1;
+      i >= 0;
+      i--
+    ) {
+
+      const bullet =
+        bullets[i];
+
+
+      if (
+
+        sdDist(
+
+          bullet.x,
+          bullet.y,
+
+          boss.x,
+          boss.y
+
+        ) <
+
+        boss.r +
+        bullet.r
+
+      ) {
+
+        let dragonMultiplier =
+          1;
+
+
+        if (
+          bullet.v4Weapon
+        ) {
+
+          const weapon =
+            v4WeaponById(
+              bullet.v4Weapon
+            );
+
+
+          dragonMultiplier =
+            weapon.dragon;
+
+        }
+
+
+        boss.hp -=
+
+          (
+            10 +
+            bullet.power * 8
+          ) *
+
+          damageMultiplier() *
+
+          dragonMultiplier;
+
+
+        bullets.splice(
+          i,
+          1
+        );
+
+
+        createExplosion(
+
+          bullet.x,
+          bullet.y,
+
+          bullet.v4Weapon ===
+          "DRAGON_SLAYER"
+            ? 10
+            : 5,
+
+          bullet.v4Weapon
+            ? v4WeaponById(
+                bullet.v4Weapon
+              ).color
+            : "#ff9a40"
+
+        );
+
+      }
+
+    }
+
+  };
+
+
+/* ================================================================
+   DROP UPDATE WRAPPER
+================================================================ */
+
+updateDrops =
+  function() {
+
+    V4_ORIGINAL_UPDATE_DROPS();
+
+    v4UpdateWeaponDrops();
+
+  };
+
+
+/* ================================================================
+   WEAPON SPAWN WRAPPER
+================================================================ */
+
+spawnDrops =
+  function() {
+
+    /*
+       Keep all V3 boosters.
+    */
+
+    V4_ORIGINAL_SPAWN_DROPS();
+
+
+    if (
+      v4WeaponSpawned
+    ) {
+
+      return;
+
+    }
+
+
+    /*
+       DRAGON STAGE
+
+       Spawn Dragon Slayer shortly
+       before the Dragon appears.
+    */
+
+    if (
+      isDragonLevel(level)
+    ) {
+
+      const bossTime =
+        levelStartedAt +
+        levelDuration *
+        0.58;
+
+
+      if (
+
+        millis() >=
+        bossTime - 4200 &&
+
+        !v4DragonWeaponGiven
+
+      ) {
+
+        v4SpawnWeapon(
+          true
+        );
+
+
+        v4DragonWeaponGiven =
+          true;
+
+      }
+
+
+      return;
+
+    }
+
+
+    /*
+       NORMAL STAGES
+
+       One special weapon has a
+       small random chance to appear.
+    */
+
+    if (
+
+      millis() -
+      levelStartedAt >
+      4500 &&
+
+      Math.random() <
+      0.0028
+
+    ) {
+
+      v4SpawnWeapon(
+        false
+      );
+
+    }
+
+  };
+
+
+/* ================================================================
+   START LEVEL WRAPPER
+================================================================ */
+
+startLevel =
+  function(n) {
+
+    V4_ORIGINAL_START_LEVEL(
+      n
+    );
+
+
+    v4WeaponDrops =
+      [];
+
+    v4WeaponSpawned =
+      false;
+
+    v4DragonWeaponGiven =
+      false;
+
+    v4ClearWeapon();
+
+    v4Celebration =
+      [];
+
+    v4CelebrationActive =
+      false;
+
+  };
+
+
+/* ================================================================
+   COMPLETE LEVEL
+   Manual level-up screen
+================================================================ */
+
+completeLevel =
+  function() {
+
+    if (
+      state !==
+      "PLAYING"
+    ) {
+
+      return;
+
+    }
+
+
+    /*
+       Clean battlefield completely.
+    */
+
+    enemies = [];
+
+    enemyShots = [];
+
+    bullets = [];
+
+    drops = [];
+
+    v4WeaponDrops = [];
+
+    particles = [];
+
+    boss = null;
+
+    bossActive =
+      false;
+
+    bossDefeated =
+      isDragonLevel(level);
+
+
+    v4ClearWeapon();
+
+    clearPointers();
+
+
+    if (
+      isDragonLevel(level)
+    ) {
+
+      awardDragonLife();
+
+    }
+
+
+    if (
+      level <
+      TOTAL_LEVELS
+    ) {
+
+      unlockedLevel =
+        Math.max(
+          unlockedLevel,
+          level + 1
+        );
+
+    }
+
+
+    saveGame();
+
+
+    levelClearAt =
+      millis();
+
+
+    v4StartCelebration();
+
+
+    state =
+      "LEVELUP";
+
+  };
+
+
+/* ================================================================
+   LEVEL UP DRAW OVERRIDE
+================================================================ */
+
+const V4_ORIGINAL_DRAW_LEVELUP =
+  drawLevelUp;
+
+
+drawLevelUp =
+  function() {
+
+    v4DrawLevelUp();
+
+  };
+
+
+function v4DrawLevelUp() {
+
+  overlay();
+
+
+  const complete =
+    level ===
+    TOTAL_LEVELS;
+
+
+  const title =
+    complete
+      ? "CAMPAIGN COMPLETE!"
+      : "LEVEL " +
+        level +
+        " CLEARED!";
+
+
+  rectMode(CENTER);
+
+  stroke(
+    "#ead34c"
+  );
+
+  strokeWeight(2.5);
+
+  fill(
+    38,
+    30,
+    5,
+    240
+  );
+
+
+  rect(
+
+    width / 2,
+    height * 0.23,
+
+    Math.min(
+      350,
+      width * 0.9
+    ),
+
+    76,
+
+    18
+
+  );
+
+
+  label(
+    "✦  " +
+    title +
+    "  ✦",
+
+    width / 2,
+    height * 0.23,
+
+    Math.min(
+      26,
+      width * 0.072
+    ),
+
+    "#ffe65a",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+
+  label(
+    LEVEL_NAMES[
+      level - 1
+    ],
+
+    width / 2,
+    height * 0.32,
+
+    15,
+
+    "#ffffff",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+
+  label(
+    "TITLE EARNED",
+
+    width / 2,
+    height * 0.375,
+
+    10,
+
+    "#ffdc57",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+
+  label(
+    LEVEL_NAMES[
+      level - 1
+    ],
+
+    width / 2,
+    height * 0.42,
+
+    20,
+
+    "#ead34c",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+
+  label(
+    "SCORE  " +
+    score,
+
+    width / 2,
+    height * 0.49,
+
+    16,
+
+    "#edf7ff",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+
+  if (
+    isDragonLevel(level)
+  ) {
+
+    label(
+      "🐉 DRAGON DEFEATED  •  +1 LIFE",
+
+      width / 2,
+      height * 0.55,
+
+      12,
+
+      "#ff9278",
+
+      CENTER,
+      CENTER,
+      true
+
+    );
+
+  }
+
+
+  button(
+    "PLAY AGAIN",
+    width / 2,
+    height * 0.66,
+    260,
+    52
+  );
+
+
+  if (
+    complete
+  ) {
+
+    button(
+      "BACK TO HOME",
+      width / 2,
+      height * 0.76,
+      260,
+      52
+    );
+
+  } else {
+
+    button(
+      "NEXT LEVEL  ▶",
+      width / 2,
+      height * 0.76,
+      260,
+      52
+    );
+
+  }
+
+
+  v4UpdateCelebration();
+
+}
+
+
+/* ================================================================
+   CONFETTI
+================================================================ */
+
+function v4StartCelebration() {
+
+  v4Celebration =
+    [];
+
+  v4CelebrationActive =
+    true;
+
+
+  const colors = [
+
+    "#ffe600",
+    "#00ddff",
+    "#ff4dcc",
+    "#ffffff",
+    "#65ff8a",
+    "#ff8a30"
+
+  ];
+
+
+  for (
+    let i = 0;
+    i < 180;
+    i++
+  ) {
+
+    v4Celebration.push({
+
+      x:
+        Math.random() *
+        width,
+
+      y:
+        -20 -
+        Math.random() *
+        height *
+        0.4,
+
+      vx:
+        (
+          Math.random() -
+          0.5
+        ) * 2.2,
+
+      vy:
+        1.2 +
+        Math.random() * 4.2,
+
+      size:
+        3 +
+        Math.random() * 5,
+
+      rot:
+        Math.random() *
+        PI2,
+
+      vr:
+        (
+          Math.random() -
+          0.5
+        ) * 0.18,
+
+      color:
+        colors[
+          Math.floor(
+            Math.random() *
+            colors.length
+          )
+        ],
+
+      life:
+        240 +
+        Math.random() *
+        180
+
+    });
+
+  }
+
+
+  tone(
+    520,
+    880,
+    0.25,
+    0.08,
+    "triangle"
+  );
+
+}
+
+
+function v4UpdateCelebration() {
+
+  if (
+    !v4CelebrationActive
+  ) {
+
+    return;
+
+  }
+
+
+  for (
+    let i =
+      v4Celebration.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    const p =
+      v4Celebration[i];
+
+
+    p.x +=
+      p.vx;
+
+    p.y +=
+      p.vy;
+
+    p.vy +=
+      0.018;
+
+    p.rot +=
+      p.vr;
+
+    p.life--;
+
+
+    push();
+
+    translate(
+      p.x,
+      p.y
+    );
+
+    rotate(
+      p.rot
+    );
+
+    noStroke();
+
+    fill(
+      p.color
+    );
+
+    rectMode(CENTER);
+
+    rect(
+      0,
+      0,
+      p.size * 1.8,
+      p.size
+    );
+
+    pop();
+
+
+    if (
+
+      p.life <= 0 ||
+
+      p.y >
+      height + 30
+
+    ) {
+
+      v4Celebration.splice(
+        i,
+        1
+      );
+
+    }
+
+  }
+
+}
+
+
+/* ================================================================
+   RATING THANK YOU SCREEN
+================================================================ */
+
+function v4DrawRatingThanks() {
+
+  noStroke();
+
+  fill(
+    2,
+    6,
+    17
+  );
+
+  rect(
+    0,
+    0,
+    width,
+    height
+  );
+
+
+  /*
+     Start with celebration particles.
+  */
+
+  v4UpdateCelebration();
+
+
+  rectMode(CENTER);
+
+  stroke(
+    "#ead34c"
+  );
+
+  strokeWeight(2.5);
+
+  fill(
+    35,
+    30,
+    5,
+    245
+  );
+
+
+  rect(
+
+    width / 2,
+    height * 0.39,
+
+    Math.min(
+      350,
+      width * 0.9
+    ),
+
+    190,
+
+    20
+
+  );
+
+
+  label(
+    "THANK YOU! ❤️",
+
+    width / 2,
+    height * 0.32,
+
+    30,
+
+    "#ffe65a",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+
+  label(
+    "Your rating has been submitted.",
+
+    width / 2,
+    height * 0.43,
+
+    12,
+
+    "#edf7ff",
+
+    CENTER,
+    CENTER
+
+  );
+
+
+  label(
+    "★★★★★",
+
+    width / 2,
+    height * 0.51,
+
+    25,
+
+    "#ead34c",
+
+    CENTER,
+    CENTER,
+    true
+
+  );
+
+
+  button(
+    "BACK TO HOME",
+    width / 2,
+    height * 0.68,
+    250,
+    52
+  );
+
+}
+
+
+/* ================================================================
+   HANDLE TAP V4 ROUTER
+================================================================ */
+
+handleTap =
+  function(
+    x,
+    y
+  ) {
+
+
+    /* ============================================================
+       HELP
+    ============================================================ */
+
+    if (
+      state ===
+      "HELP"
+    ) {
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height -
+          MENU_HOME_OFFSET,
+
+          230,
+          70
+
+        )
+
+      ) {
+
+        state =
+          v4HelpReturnState;
+
+      }
+
+      return;
+
+    }
+
+
+    /* ============================================================
+       RATING THANKS
+    ============================================================ */
+
+    if (
+      state ===
+      "RATING_THANKS"
+    ) {
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height * 0.68,
+
+          280,
+          80
+
+        )
+
+      ) {
+
+        state =
+          "HOME";
+
+        v4CelebrationActive =
+          false;
+
+        v4Celebration =
+          [];
+
+      }
+
+      return;
+
+    }
+
+
+    /* ============================================================
+       LEVEL UP
+    ============================================================ */
+
+    if (
+      state ===
+      "LEVELUP"
+    ) {
+
+      const complete =
+        level ===
+        TOTAL_LEVELS;
+
+
+      /*
+         PLAY AGAIN
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height * 0.66,
+
+          300,
+          80
+
+        )
+
+      ) {
+
+        startLevel(
+          level
+        );
+
+        return;
+
+      }
+
+
+      /*
+         NEXT LEVEL / HOME
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height * 0.76,
+
+          300,
+          80
+
+        )
+
+      ) {
+
+        if (
+          complete
+        ) {
+
+          state =
+            "HOME";
+
+          v4CelebrationActive =
+            false;
+
+        } else {
+
+          startLevel(
+            level + 1
+          );
+
+        }
+
+        return;
+
+      }
+
+
+      return;
+
+    }
+
+
+    /* ============================================================
+       HOME
+    ============================================================ */
+
+    if (
+      state ===
+      "HOME"
+    ) {
+
+      /*
+         Existing V3 HOME buttons:
+
+         PLAY       0.32
+         ARCHIVE    0.43
+         ABOUT      0.54
+         SETTINGS   0.65
+         RATE       0.76
+      */
+
+
+      const settingsY =
+        height * 0.65;
+
+
+      const rateY =
+        height * 0.76;
+
+
+      /*
+         HELP is added below RATE.
+      */
+
+      const helpY =
+        height * 0.87;
+
+
+      /*
+         Settings
+
+         We intentionally handle this
+         here before sending to V3.
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          settingsY,
+
+          Math.min(
+            340,
+            width * 0.86
+          ),
+
+          78
+
+        )
+
+      ) {
+
+        state =
+          "SETTINGS";
+
+        return;
+
+      }
+
+
+      /*
+         RATE US
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          rateY,
+
+          Math.min(
+            340,
+            width * 0.86
+          ),
+
+          78
+
+        )
+
+      ) {
+
+        rating = 0;
+
+        state =
+          "RATING";
+
+        return;
+
+      }
+
+
+      /*
+         HELP
+
+         V4 help button is positioned
+         underneath the original menu.
+      */
+
+      if (
+
+        helpY <
+        height - 45 &&
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          helpY,
+
+          Math.min(
+            340,
+            width * 0.86
+          ),
+
+          65
+
+        )
+
+      ) {
+
+        v4HelpReturnState =
+          "HOME";
+
+        state =
+          "HELP";
+
+        return;
+
+      }
+
+
+      /*
+         Let original V3 handle
+         PLAY / ARCHIVE / ABOUT.
+      */
+
+      V4_ORIGINAL_HANDLE_TAP(
+        x,
+        y
+      );
+
+      return;
+
+    }
+
+
+    /* ============================================================
+       RATING
+    ============================================================ */
+
+    if (
+      state ===
+      "RATING"
+    ) {
+
+      const gap =
+        Math.min(
+          53,
+          width * 0.13
+        );
+
+      const total =
+        gap * 4;
+
+
+      /*
+         STAR SELECTION
+      */
+
+      for (
+        let i = 1;
+        i <= 5;
+        i++
+      ) {
+
+        const starX =
+
+          width / 2 -
+          total / 2 +
+          (i - 1) *
+          gap;
+
+
+        if (
+
+          sdDist(
+
+            x,
+            y,
+
+            starX,
+            height * 0.45
+
+          ) < 42
+
+        ) {
+
+          rating =
+            i;
+
+          return;
+
+        }
+
+      }
+
+
+      /*
+         SUBMIT
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height * 0.65,
+
+          290,
+          80
+
+        )
+
+      ) {
+
+        /*
+           Do not allow an empty rating.
+        */
+
+        if (
+          rating < 1
+        ) {
+
+          tone(
+            160,
+            100,
+            0.12,
+            0.04,
+            "square"
+          );
+
+          return;
+
+        }
+
+
+        try {
+
+          localStorage.setItem(
+
+            "spaceDodgerRating",
+
+            String(
+              rating
+            )
+
+          );
+
+        }
+
+        catch (
+          error
+        ) {}
+
+
+        v4StartCelebration();
+
+
+        v4RatingThanksUntil =
+          millis() + 4500;
+
+
+        state =
+          "RATING_THANKS";
+
+
+        return;
+
+      }
+
+
+      /*
+         CANCEL -> HOME
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height * 0.75,
+
+          290,
+          80
+
+        )
+
+      ) {
+
+        state =
+          "HOME";
+
+        return;
+
+      }
+
+
+      return;
+
+    }
+
+
+    /* ============================================================
+       SETTINGS
+    ============================================================ */
+
+    if (
+      state ===
+      "SETTINGS"
+    ) {
+
+      /*
+         CONTROL LAYOUT
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height * 0.32,
+
+          370,
+          120
+
+        )
+
+      ) {
+
+        swappedControls =
+          !swappedControls;
+
+        updateLayout();
+
+        saveGame();
+
+        return;
+
+      }
+
+
+      /*
+         SOUND
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height * 0.48,
+
+          370,
+          120
+
+        )
+
+      ) {
+
+        soundOn =
+          !soundOn;
+
+        saveGame();
+
+
+        if (
+          soundOn
+        ) {
+
+          initAudio();
+
+          playPowerSound();
+
+        }
+
+        return;
+
+      }
+
+
+      /*
+         HOME
+      */
+
+      if (
+
+        inside(
+
+          x,
+          y,
+
+          width / 2,
+
+          height -
+          MENU_HOME_OFFSET,
+
+          250,
+          80
+
+        )
+
+      ) {
+
+        state =
+          "HOME";
+
+        return;
+
+      }
+
+
+      return;
+
+    }
+
+
+    /* ============================================================
+       EVERYTHING ELSE
+    ============================================================ */
+
+    V4_ORIGINAL_HANDLE_TAP(
+      x,
+      y
+    );
+
+  };
+
+
+/* ================================================================
+   V4 HUD ADDITIONS
+================================================================ */
+
+drawHUD =
+  function() {
+
+    V4_ORIGINAL_DRAW_HUD();
+
+
+    /*
+       CRYO HUD
+    */
+
+    if (
+
+      state ===
+      "PLAYING" &&
+
+      millis() <
+      powers.CRYO
+
+    ) {
+
+      const remaining =
+        Math.max(
+
+          0,
+
+          Math.ceil(
+
+            (
+              powers.CRYO -
+              millis()
+            ) / 1000
+
+          )
+
+        );
+
+
+      label(
+
+        "❄ CRYO  " +
+        remaining +
+        "s",
+
+        width -
+        14,
+
+        82,
+
+        9,
+
+        "#9eefff",
+
+        RIGHT,
+        CENTER,
+        true
+
+      );
+
+    }
+
+
+    /*
+       Special weapon HUD
+       is drawn separately by
+       v4DrawAttachedWeapon().
+    */
+
+  };
+
+
+/* ================================================================
+   V4 HOME DRAW OVERRIDE
+   Adds HELP without removing V3 menu.
+================================================================ */
+
+const V4_ORIGINAL_DRAW_HOME =
+  drawHome;
+
+
+drawHome =
+  function() {
+
+    /*
+       Keep original V3 HOME.
+    */
+
+    V4_ORIGINAL_DRAW_HOME();
+
+
+    /*
+       Add HELP button below RATE.
+       It is intentionally compact so
+       the original V3 menu remains intact.
+    */
+
+    const helpY =
+      height * 0.87;
+
+
+    if (
+      helpY <
+      height - 40
+    ) {
+
+      menuButton(
+        "HELP",
+        helpY
+      );
+
+    }
+
+  };
+
+
+/* ================================================================
+   V4 SETTINGS DRAW
+   Replaces only the visual screen,
+   NOT the routing.
+================================================================ */
+
+const V4_ORIGINAL_DRAW_SETTINGS =
+  drawSettings;
+
+
+drawSettings =
+  function() {
+
+    /*
+       Explicit V4 settings screen.
+       This prevents any blank-screen
+       appearance while preserving the
+       same V3 settings functionality.
+    */
+
+    label(
+      "SETTINGS",
+      width / 2,
+      height * 0.14,
+      29,
+      "#edf7ff",
+      CENTER,
+      CENTER,
+      true
+    );
+
+
+    settingBox(
+      "CONTROL LAYOUT",
+
+      swappedControls
+        ? "FIRE LEFT  •  MOVE RIGHT"
+        : "MOVE LEFT  •  FIRE RIGHT",
+
+      height * 0.32
+
+    );
+
+
+    settingBox(
+      "SOUND",
+
+      soundOn
+        ? "ON"
+        : "OFF",
+
+      height * 0.48
+
+    );
+
+
+    label(
+      "Tap a panel to change its setting.",
+      width / 2,
+      height * 0.62,
+      11,
+      "#7e9098"
+    );
+
+
+    label(
+      "Controls can be swapped for your preferred hand.",
+      width / 2,
+      height * 0.67,
+      9,
+      "#61747d"
+    );
+
+
+    homeButton();
+
+  };
+
+
+/* ================================================================
+   V4 STARTUP RESET
+================================================================ */
+
+if (
+  typeof v4WeaponDrops ===
+  "undefined"
+) {
+
+  v4WeaponDrops = [];
+
+}
+
+
+/* ================================================================
+   END OF SPACE DODGER V4 COMPLETE PATCH
+================================================================ */
