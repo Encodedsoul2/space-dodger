@@ -1,4 +1,4 @@
-===========================================================
+/* ================================================================
    SPACE DODGER V9.6
    BUG-FIXED + DYNAMIC SPACE + INTRO + 20 ALIEN DESIGNS
    COMPLETE SINGLE-FILE p5.js BUILD
@@ -5120,7 +5120,7 @@ function handleTap(x,y){
    }
  }
 }
-/*======================================================
+/* ================================================================
    PART 4
    POINTER / TOUCH / KEYBOARD / LAYOUT / STARFIELD / AUDIO
 ================================================================ */
@@ -8110,3 +8110,16 @@ function mouseWheel(e){
 
   return true;
 }
+/*End of space Dodger code. */
+
+
+
+
+
+
+
+
+
+
+
+
