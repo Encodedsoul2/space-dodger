@@ -2056,7 +2056,7 @@ function drawDragonBadge(){
 
   pop();
 }
-/* =========function drawHUD(){
+function drawHUD(){
  label("SCORE",14,11,8,"#718b96",LEFT,TOP,true);
  label(score,14,25,15,"#edf2f3",LEFT,TOP,true);
  label("LV "+level,width/2,12,14,"#edf2f3",CENTER,TOP,true);
@@ -5119,7 +5119,8 @@ function handleTap(x,y){
      return
    }
  }
-}======================================================
+}
+/*======================================================
    PART 4
    POINTER / TOUCH / KEYBOARD / LAYOUT / STARFIELD / AUDIO
 ================================================================ */
