@@ -10058,7 +10058,7 @@ function lerpAngle(
   return c+d*a;
 }
 
-function norm(a){
+function sdNorm(a){
 
   while(
     a>Math.PI
