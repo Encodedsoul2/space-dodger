@@ -2166,7 +2166,7 @@ function findAimTarget(x,y,a){
 
     const diff=
       abs(
-        norm(
+        sdNorm(
           atan2(
             e.y-y,
             e.x-x
